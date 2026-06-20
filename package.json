@@ -1,0 +1,26 @@
+{
+  "name": "regulatory-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "api:dev": "npm run dev --workspace @regulatory-ai/api",
+    "web:dev": "npm run dev --workspace @regulatory-ai/web"
+  },
+  "devDependencies": {
+    "turbo": "2.6.3"
+  },
+  "engines": {
+    "node": ">=22.13.0",
+    "npm": ">=10.0.0"
+  }
+}

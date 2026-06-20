@@ -1,0 +1,2 @@
+"""Batch ingestion pipeline."""
+

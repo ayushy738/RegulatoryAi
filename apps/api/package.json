@@ -1,0 +1,12 @@
+{
+  "name": "@regulatory-ai/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node run_python.mjs -m uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000",
+    "build": "node run_python.mjs -m backend.tools.compile_check",
+    "lint": "node run_python.mjs -m ruff check --no-cache backend",
+    "test": "node run_python.mjs -B -m pytest -p no:cacheprovider",
+    "typecheck": "node run_python.mjs -m mypy backend"
+  }
+}

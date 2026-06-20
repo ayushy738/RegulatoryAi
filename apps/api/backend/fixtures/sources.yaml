@@ -1,0 +1,26 @@
+sources:
+  - code: mnre
+    name: Ministry of New & Renewable Energy
+    jurisdiction: central
+    url: https://mnre.gov.in/en/monthly-updates/
+    crawler_type: digest
+    allowed_domains:
+      - mnre.gov.in
+      - cdnbbsr.s3waas.gov.in
+    enabled: true
+  - code: cerc
+    name: Central Electricity Regulatory Commission
+    jurisdiction: central
+    url: https://cercind.gov.in/
+    crawler_type: agent
+    allowed_domains:
+      - cercind.gov.in
+    enabled: true
+  - code: mop
+    name: Ministry of Power
+    jurisdiction: central
+    url: https://powermin.gov.in/en
+    crawler_type: agent
+    allowed_domains:
+      - powermin.gov.in
+    enabled: true

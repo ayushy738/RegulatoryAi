@@ -1,0 +1,36 @@
+topics:
+  DSM:
+    - deviation settlement mechanism
+    - DSM
+  solar:
+    - solar
+    - photovoltaic
+    - PV
+  wind:
+    - wind
+  hybrid:
+    - hybrid
+    - wind solar
+  thermal:
+    - thermal
+    - coal
+  tariff:
+    - tariff
+    - generic tariff
+    - bidding
+  open access:
+    - open access
+    - green energy open access
+  RPO/REC:
+    - renewable purchase obligation
+    - RPO
+    - renewable energy certificate
+    - REC
+  storage:
+    - storage
+    - BESS
+    - battery
+  transmission:
+    - transmission
+    - grid
+    - connectivity

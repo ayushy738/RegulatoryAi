@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: regai-api
+    runtime: docker
+    dockerfilePath: apps/api/Dockerfile.api
+    envVarGroups:
+      - regai-secrets
+    healthCheckPath: /health
+
+  - type: cron
+    name: regai-pipeline
+    runtime: docker
+    dockerfilePath: apps/api/Dockerfile.pipeline
+    schedule: "30 1 * * *"
+    envVarGroups:
+      - regai-secrets
+
+  - type: web
+    name: regai-frontend
+    runtime: static
+    buildCommand: npm ci && npm run build --workspace @regulatory-ai/web
+    staticPublishPath: apps/web/dist/client
