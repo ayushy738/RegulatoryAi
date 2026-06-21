@@ -11,7 +11,7 @@ class SupabaseStorage:
         settings.require_supabase_storage()
         from supabase import create_client
 
-        return create_client(settings.supabase_url, settings.supabase_service_role_key)
+        return create_client(settings.supabase_project_url, settings.supabase_service_role_key)
 
     def put_bytes(self, key: str, data: bytes, content_type: str) -> str:
         response = self.client.storage.from_(settings.supabase_storage_bucket).upload(

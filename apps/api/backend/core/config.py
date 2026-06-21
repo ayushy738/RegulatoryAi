@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Regulatory AI"
+    app_name: str = "Resolven Regulatory AI"
     environment: Literal["development", "test", "production"] = "development"
 
     supabase_url: str | None = None
@@ -16,20 +16,22 @@ class Settings(BaseSettings):
     supabase_storage_bucket: str = "regulatory-docs"
 
     app_base_url: str = "http://localhost:3000"
-    api_base_url: str = "http://localhost:8000"
-    auth_required: bool = False
+    api_base_url: str = "http://localhost:8001"
+    auth_required: bool = True
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
-    llm_provider: Literal["anthropic", "openai", "offline"] = "offline"
+    llm_provider: Literal["anthropic", "openai", "parallel", "offline"] = "offline"
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
+    parallel_api_key: str | None = None
+    parallel_base_url: str = "https://api.parallel.ai"
     llm_model_agent: str | None = None
     llm_model_summary: str | None = None
     llm_model_chat: str | None = None
 
     email_provider: Literal["resend", "postmark", "ses", "offline"] = "offline"
     email_api_key: str | None = None
-    email_from: str = "Regulatory AI <updates@example.com>"
+    email_from: str = "Resolven Regulatory AI <updates@example.com>"
 
     sentry_dsn: str | None = None
     crawl_user_agent: str = Field(
@@ -46,6 +48,12 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def supabase_project_url(self) -> str | None:
+        if not self.supabase_url:
+            return None
+        return self.supabase_url.rstrip("/").removesuffix("/rest/v1")
 
     def require_database(self) -> None:
         if not self.database_url:
@@ -69,6 +77,8 @@ class Settings(BaseSettings):
             raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic.")
         if self.llm_provider == "openai" and not self.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is required when LLM_PROVIDER=openai.")
+        if self.llm_provider == "parallel" and not self.parallel_api_key:
+            raise RuntimeError("PARALLEL_API_KEY is required when LLM_PROVIDER=parallel.")
 
 
 @lru_cache

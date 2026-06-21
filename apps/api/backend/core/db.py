@@ -12,10 +12,17 @@ from backend.core.config import settings
 @lru_cache
 def get_engine() -> Engine:
     settings.require_database()
+    database_url = settings.database_url
+    if database_url.startswith("postgresql://"):
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
     return create_engine(
-        settings.database_url,
+        database_url,
+        connect_args={"connect_timeout": 5},
         pool_size=5,
         max_overflow=5,
+        pool_timeout=5,
         pool_pre_ping=True,
         future=True,
     )
