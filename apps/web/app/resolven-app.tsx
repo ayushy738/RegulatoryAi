@@ -5,6 +5,7 @@ import {
   Bell,
   Bookmark,
   BookOpenText,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
   Database,
@@ -14,15 +15,18 @@ import {
   FileSpreadsheet,
   FileText,
   History,
+  ListChecks,
   Loader2,
   LogOut,
   MessageSquareText,
+  Network,
   RadioTower,
   RefreshCw,
   Search,
   Send,
   Star,
   UserCircle,
+  Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -30,6 +34,10 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   CrawlRun,
   DigestEvent,
+  IntelligenceDeadline,
+  IntelligenceReadiness,
+  StakeholderIntelligence,
+  StakeholderObligationGroup,
   SourceHealth,
   SubscriptionSettings,
   SystemDocument,
@@ -40,9 +48,13 @@ import {
   getDoc,
   getEvent,
   getEvents,
+  getIntelligenceDeadlines,
+  getIntelligenceObligations,
+  getIntelligenceReadiness,
   getLatestDigest,
   getRuns,
   getSources,
+  getStakeholderIntelligence,
   getSubscriptions,
   markRead,
   saveSubscriptions,
@@ -55,6 +67,7 @@ import { supabase } from "@/lib/supabase";
 type RouteKey =
   | "today"
   | "browse"
+  | "intelligence"
   | "saved"
   | "event"
   | "notifications"
@@ -75,6 +88,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", label: "Today", route: "today", Icon: ClipboardList },
   { href: "/browse", label: "Browse", route: "browse", Icon: Search },
+  { href: "/intelligence", label: "Intelligence", route: "intelligence", Icon: Network },
   { href: "/saved", label: "Saved", route: "saved", Icon: Star },
   { href: "/notifications", label: "Notifications", route: "notifications", Icon: Bell },
   { href: "/account", label: "Account", route: "account", Icon: UserCircle },
@@ -94,6 +108,25 @@ const defaultSettings: SubscriptionSettings = {
 
 const topicOptions = ["all", "solar", "tariff", "open access", "RPO/REC", "storage", "transmission"];
 const jurisdictionOptions = ["all", "central", "state"];
+const intelligenceStakeholders = [
+  "all",
+  "Solar Developers",
+  "Wind Developers",
+  "DISCOMs",
+  "Transmission Licensees",
+  "Power Exchanges",
+  "Generators",
+];
+const deadlineTypes = [
+  "all",
+  "CONSULTATION_DEADLINE",
+  "TENDER_SUBMISSION_DEADLINE",
+  "HEARING_DATE",
+  "COMPLIANCE_DEADLINE",
+  "IMPLEMENTATION_DATE",
+  "PUBLICATION_DATE",
+  "UNKNOWN_DATE",
+];
 
 export function ResolvenApp({
   initialRoute,
@@ -124,6 +157,14 @@ export function ResolvenApp({
   const [sources, setSources] = useState<SourceHealth[]>([]);
   const [runs, setRuns] = useState<CrawlRun[]>([]);
   const [doc, setDoc] = useState<SystemDocument | null>(null);
+  const [deadlines, setDeadlines] = useState<IntelligenceDeadline[]>([]);
+  const [obligationGroups, setObligationGroups] = useState<StakeholderObligationGroup[]>([]);
+  const [stakeholderViews, setStakeholderViews] = useState<StakeholderIntelligence[]>([]);
+  const [readiness, setReadiness] = useState<IntelligenceReadiness | null>(null);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
+  const [deadlineStatus, setDeadlineStatus] = useState<"active" | "historical" | "all">("all");
+  const [deadlineType, setDeadlineType] = useState("all");
+  const [stakeholderFilter, setStakeholderFilter] = useState("all");
   const [pipelineStatus, setPipelineStatus] = useState<"online" | "degraded" | "offline">("offline");
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -194,6 +235,11 @@ export function ResolvenApp({
     }
   }, [initialRoute, initialEventId, canRead, token]);
 
+  useEffect(() => {
+    if (!canRead || initialRoute !== "intelligence") return;
+    void loadIntelligence();
+  }, [canRead, initialRoute, token, deadlineStatus, deadlineType, stakeholderFilter]);
+
   async function loadBaseData() {
     setLoading(true);
     setStatusMessage("");
@@ -228,6 +274,33 @@ export function ResolvenApp({
       setArchiveEvents(loaded);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to load archive.");
+    }
+  }
+
+  async function loadIntelligence() {
+    setIntelligenceLoading(true);
+    setStatusMessage("");
+    try {
+      const stakeholder = stakeholderFilter === "all" ? undefined : stakeholderFilter;
+      const selectedDeadlineType = deadlineType === "all" ? undefined : deadlineType;
+      const [deadlineRows, obligationRows, stakeholderRows, readinessRows] = await Promise.all([
+        getIntelligenceDeadlines(token, {
+          status: deadlineStatus,
+          deadline_type: selectedDeadlineType,
+          stakeholder,
+        }),
+        getIntelligenceObligations(token, { stakeholder }),
+        getStakeholderIntelligence(token),
+        getIntelligenceReadiness(token),
+      ]);
+      setDeadlines(deadlineRows);
+      setObligationGroups(obligationRows);
+      setStakeholderViews(stakeholderRows);
+      setReadiness(readinessRows);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to load intelligence.");
+    } finally {
+      setIntelligenceLoading(false);
     }
   }
 
@@ -438,6 +511,22 @@ export function ResolvenApp({
           />
         ) : null}
 
+        {initialRoute === "intelligence" ? (
+          <IntelligenceScreen
+            deadlines={deadlines}
+            obligationGroups={obligationGroups}
+            stakeholderViews={stakeholderViews}
+            readiness={readiness}
+            loading={intelligenceLoading}
+            deadlineStatus={deadlineStatus}
+            setDeadlineStatus={setDeadlineStatus}
+            deadlineType={deadlineType}
+            setDeadlineType={setDeadlineType}
+            stakeholderFilter={stakeholderFilter}
+            setStakeholderFilter={setStakeholderFilter}
+          />
+        ) : null}
+
         {initialRoute === "saved" ? (
           <SavedScreen events={savedEvents} onBookmark={bookmarkEvent} />
         ) : null}
@@ -567,6 +656,213 @@ function BrowseScreen(props: {
         {props.events.map((event) => <EventCard key={event.id} event={event} />)}
       </div>
     </section>
+  );
+}
+
+function IntelligenceScreen(props: {
+  deadlines: IntelligenceDeadline[];
+  obligationGroups: StakeholderObligationGroup[];
+  stakeholderViews: StakeholderIntelligence[];
+  readiness: IntelligenceReadiness | null;
+  loading: boolean;
+  deadlineStatus: "active" | "historical" | "all";
+  setDeadlineStatus: (value: "active" | "historical" | "all") => void;
+  deadlineType: string;
+  setDeadlineType: (value: string) => void;
+  stakeholderFilter: string;
+  setStakeholderFilter: (value: string) => void;
+}) {
+  const obligationCount = props.obligationGroups.reduce(
+    (total, group) => total + group.obligations.length,
+    0,
+  );
+  const visibleStakeholders = props.stakeholderViews.filter((item) => {
+    return props.stakeholderFilter === "all" || item.stakeholder === props.stakeholderFilter;
+  });
+  return (
+    <div className="intelligence-layout">
+      <section className="content-card intelligence-hero">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Knowledge graph</p>
+            <h2>Regulatory intelligence center</h2>
+          </div>
+          <div className="readiness-pill">{props.readiness?.status ?? "loading"}</div>
+        </div>
+        <div className="metric-grid">
+          <MetricTile icon={<CalendarClock size={18} />} label="Deadlines" value={props.deadlines.length} />
+          <MetricTile icon={<ListChecks size={18} />} label="Obligations" value={obligationCount} />
+          <MetricTile icon={<Users size={18} />} label="Stakeholders" value={visibleStakeholders.length} />
+          <MetricTile
+            icon={<Network size={18} />}
+            label="Active deadlines"
+            value={props.readiness?.active_deadlines.length ?? 0}
+          />
+        </div>
+        {props.readiness?.notes.length ? (
+          <div className="intelligence-notes">
+            {props.readiness.notes.map((note) => <span key={note}>{note}</span>)}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="content-card">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Deadlines center</p>
+            <h2>What deadlines matter?</h2>
+          </div>
+        </div>
+        <div className="intel-filters">
+          <label>
+            Stakeholder
+            <select
+              value={props.stakeholderFilter}
+              onChange={(event) => props.setStakeholderFilter(event.target.value)}
+            >
+              {intelligenceStakeholders.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>
+            Deadline type
+            <select value={props.deadlineType} onChange={(event) => props.setDeadlineType(event.target.value)}>
+              {deadlineTypes.map((item) => <option key={item} value={item}>{formatLabel(item)}</option>)}
+            </select>
+          </label>
+          <label>
+            Status
+            <select
+              value={props.deadlineStatus}
+              onChange={(event) =>
+                props.setDeadlineStatus(event.target.value as "active" | "historical" | "all")
+              }
+            >
+              <option value="active">Active</option>
+              <option value="all">All extracted</option>
+              <option value="historical">Historical</option>
+            </select>
+          </label>
+        </div>
+        {props.loading ? <SkeletonList /> : null}
+        {!props.loading && props.deadlines.length === 0 ? (
+          <EmptyState
+            title="No matching deadlines"
+            body="Try all extracted deadlines, or run a new crawl to populate future-dated rows."
+          />
+        ) : null}
+        <div className="intel-list">
+          {props.deadlines.map((deadline) => <DeadlineRow key={deadlineKey(deadline)} deadline={deadline} />)}
+        </div>
+      </section>
+
+      <section className="content-card">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Obligations center</p>
+            <h2>What do I need to do?</h2>
+          </div>
+        </div>
+        {props.obligationGroups.length === 0 ? (
+          <EmptyState title="No obligations matched" body="The current filter has no graph obligations." />
+        ) : (
+          <div className="obligation-groups">
+            {props.obligationGroups.map((group) => (
+              <section key={group.stakeholder} className="obligation-group">
+                <h3>{group.stakeholder}</h3>
+                {group.obligations.slice(0, 6).map((obligation) => (
+                  <article key={`${group.stakeholder}-${obligation.document_id}-${obligation.obligation}`} className="intel-row">
+                    <p>{obligation.obligation}</p>
+                    <small>
+                      {obligation.issuer ?? "Unknown issuer"} · {formatDate(obligation.deadline_date) ?? "no deadline"} ·
+                      confidence {confidencePct(obligation.confidence)}
+                    </small>
+                  </article>
+                ))}
+              </section>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="content-card stakeholder-section">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Stakeholder intelligence</p>
+            <h2>What affects my organization?</h2>
+          </div>
+        </div>
+        <div className="stakeholder-grid">
+          {visibleStakeholders.map((stakeholder) => (
+            <StakeholderPanel key={stakeholder.stakeholder} stakeholder={stakeholder} />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MetricTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+  return (
+    <div className="metric-tile">
+      {icon}
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function DeadlineRow({ deadline }: { deadline: IntelligenceDeadline }) {
+  return (
+    <article className="intel-row deadline-row">
+      <div>
+        <p>{deadline.title}</p>
+        <small>{deadline.issuer ?? "Unknown issuer"} · {formatLabel(deadline.deadline_type)}</small>
+      </div>
+      <div className="deadline-meta">
+        <strong>{formatDate(deadline.deadline_date) ?? deadline.raw_date ?? "date unknown"}</strong>
+        <span>{daysLabel(deadline.days_remaining)}</span>
+      </div>
+      <div className="tag-row">
+        {deadline.stakeholders_affected.slice(0, 4).map((item) => <span key={item}>{item}</span>)}
+      </div>
+      <a href={deadline.source_url} target="_blank" rel="noreferrer" title="Open source">
+        <ExternalLink size={16} />
+      </a>
+    </article>
+  );
+}
+
+function StakeholderPanel({ stakeholder }: { stakeholder: StakeholderIntelligence }) {
+  return (
+    <article className="stakeholder-panel">
+      <h3>{stakeholder.stakeholder}</h3>
+      <p>{stakeholder.impact_summary}</p>
+      <p>{stakeholder.compliance_summary}</p>
+      <p>{stakeholder.action_summary}</p>
+      <div className="stakeholder-counts">
+        <span>{stakeholder.counts.regulations ?? 0} regulations</span>
+        <span>{stakeholder.counts.obligations ?? 0} obligations</span>
+        <span>{stakeholder.counts.deadlines ?? 0} deadlines</span>
+        <span>{stakeholder.counts.tenders ?? 0} tenders</span>
+      </div>
+      <DocumentRefList title="Regulations" items={stakeholder.regulations} />
+      <DocumentRefList title="Tenders" items={stakeholder.tenders} />
+      <DocumentRefList title="Consultations" items={stakeholder.consultations} />
+    </article>
+  );
+}
+
+function DocumentRefList({ title, items }: { title: string; items: Array<{ title: string; source_url: string }> }) {
+  if (!items.length) return null;
+  return (
+    <div className="document-ref-list">
+      <strong>{title}</strong>
+      {items.slice(0, 3).map((item) => (
+        <a key={`${title}-${item.source_url}`} href={item.source_url} target="_blank" rel="noreferrer">
+          {item.title}
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -950,10 +1246,38 @@ function FullPageStatus({ title, body }: { title: string; body: string }) {
   );
 }
 
+function deadlineKey(deadline: IntelligenceDeadline) {
+  return `${deadline.document_id}-${deadline.deadline_type}-${deadline.deadline_date ?? deadline.raw_date}`;
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatLabel(value: string) {
+  if (value === "all") return "All";
+  return value.toLowerCase().replaceAll("_", " ");
+}
+
+function daysLabel(days: number | null) {
+  if (days === null) return "date extracted";
+  if (days < 0) return `${Math.abs(days)} days ago`;
+  if (days === 0) return "today";
+  return `${days} days left`;
+}
+
+function confidencePct(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
 function routeTitle(route: RouteKey) {
   const titles: Record<RouteKey, string> = {
     today: "Today briefing",
     browse: "Browse archive",
+    intelligence: "Intelligence center",
     saved: "Saved updates",
     event: "Event detail",
     notifications: "Notifications",

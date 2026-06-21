@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import date
 from typing import Any
 
@@ -7,9 +8,30 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.core.db import session_scope
-from backend.core.models import DigestResponse, EventSummary, SubscriptionSettings, SummaryPayload
+from backend.core.models import (
+    DigestResponse,
+    DiscoveryAuditRecord,
+    EventIntelligence,
+    EventSummary,
+    ExtractedDoc,
+    PriorVersionReference,
+    RegulatoryChange,
+    SubscriptionSettings,
+    SummaryPayload,
+)
 from backend.core.system_docs import SYSTEM_DOCUMENTS
 from backend.core.utils import canonical_url, sha256_normalized_text
+from backend.pipeline.change_detector import (
+    attach_change_to_summary,
+    detect_regulatory_change,
+    is_related_title,
+    title_similarity,
+)
+from backend.pipeline.family_registry import RegistryInput, register_document_version_family
+from backend.pipeline.intelligence_gate import (
+    assess_event_intelligence,
+    attach_intelligence_to_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -364,13 +386,108 @@ def finalize_crawl_run(
         )
 
 
+def record_discovery_audits(run_id: int | None, audits: list[DiscoveryAuditRecord]) -> None:
+    if not audits:
+        return
+    try:
+        with session_scope() as session:
+            for audit in audits:
+                payload = audit.model_dump(mode="json")
+                session.execute(
+                    text(
+                        """
+                        insert into discovery_audit
+                          (run_id, source_code, source_url, title, classification,
+                           is_valid_event_source, confidence, reason_code, primary_url,
+                           content_length, content_hash, metadata)
+                        values
+                          (:run_id, :source_code, :source_url, :title, :classification,
+                           :is_valid_event_source, :confidence, :reason_code, :primary_url,
+                           :content_length, :content_hash, cast(:metadata as jsonb))
+                        """
+                    ),
+                    {
+                        **payload,
+                        "run_id": run_id,
+                        "metadata": json.dumps(payload.get("metadata") or {}),
+                    },
+                )
+    except SQLAlchemyError as exc:
+        logger.warning("record_discovery_audits failed: %s", exc)
+
+
 def persist_discovered_documents(discovered_docs: list[Any]) -> list[int]:
+    """Legacy path intentionally disabled.
+
+    Step 13 requires events to be generated only from extracted primary content.
+    Use persist_extracted_documents instead.
+    """
+
+    if discovered_docs:
+        logger.warning("Blocked legacy discovered-document event insertion for %s candidates",
+                       len(discovered_docs))
+    return []
+
+
+def persist_extracted_documents(extracted_docs: list[ExtractedDoc]) -> list[int]:
     event_ids: list[int] = []
-    for discovered in discovered_docs:
-        event_id = _persist_discovered_document(discovered)
+    for extracted in extracted_docs:
+        event_id = _persist_extracted_document(extracted)
         if event_id:
             event_ids.append(event_id)
     return event_ids
+
+
+def record_event_intelligence_audit(
+    *,
+    event_id: int | None,
+    document_id: int | None,
+    version_id: int | None,
+    source_url: str,
+    content_hash: str | None,
+    title: str | None,
+    intelligence: EventIntelligence,
+) -> None:
+    try:
+        with session_scope() as session:
+            _record_event_intelligence_audit(
+                session,
+                event_id=event_id,
+                document_id=document_id,
+                version_id=version_id,
+                source_url=source_url,
+                content_hash=content_hash,
+                title=title,
+                intelligence=intelligence,
+            )
+    except SQLAlchemyError as exc:
+        logger.warning("record_event_intelligence_audit failed: %s", exc)
+
+
+def record_regulatory_change_audit(
+    *,
+    event_id: int | None,
+    document_id: int | None,
+    version_id: int | None,
+    source_url: str,
+    content_hash: str | None,
+    title: str | None,
+    change: RegulatoryChange,
+) -> None:
+    try:
+        with session_scope() as session:
+            _record_regulatory_change_audit(
+                session,
+                event_id=event_id,
+                document_id=document_id,
+                version_id=version_id,
+                source_url=source_url,
+                content_hash=content_hash,
+                title=title,
+                change=change,
+            )
+    except SQLAlchemyError as exc:
+        logger.warning("record_regulatory_change_audit failed: %s", exc)
 
 
 def create_digest_for_events(run_date: date, event_ids: list[int]) -> DigestResponse:
@@ -420,21 +537,16 @@ def create_digest_for_events(run_date: date, event_ids: list[int]) -> DigestResp
     return latest_digest()
 
 
-def _persist_discovered_document(discovered: Any) -> int | None:
+def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
+    discovered = extracted.fetched.discovered
     url = canonical_url(discovered.source_url)
     url_hash = sha256_normalized_text(url)
-    content_basis = "\n".join(
-        [
-            discovered.title,
-            discovered.raw_summary or "",
-            discovered.issue_date.isoformat() if discovered.issue_date else "",
-            url,
-        ]
-    )
-    content_hash = sha256_normalized_text(content_basis)
-    file_hash = content_hash
-    topics = _topic_tags(content_basis)
-    summary = _summary_from_discovered(discovered)
+    content_hash = extracted.content_hash
+    file_hash = extracted.fetched.file_hash
+    topics = _topic_tags(f"{discovered.title}\n{extracted.text}")
+    summary = _summary_from_extracted(extracted)
+    intelligence = assess_event_intelligence(extracted, topics=topics, summary=summary)
+    summary = attach_intelligence_to_summary(summary, intelligence)
     try:
         with session_scope() as session:
             source = session.execute(
@@ -444,9 +556,17 @@ def _persist_discovered_document(discovered: Any) -> int | None:
             latest = session.execute(
                 text(
                     """
-                    select dv.id, dv.file_hash, dv.content_hash
+                    select
+                      d.id as document_id,
+                      d.title,
+                      d.source_url,
+                      dv.id as version_id,
+                      dv.file_hash,
+                      dv.content_hash,
+                      dt.text_content
                     from document_versions dv
                     join documents d on d.id = dv.document_id
+                    left join document_texts dt on dt.content_hash = dv.content_hash
                     where d.url_hash = :url_hash
                     order by dv.fetched_at desc
                     limit 1
@@ -486,6 +606,23 @@ def _persist_discovered_document(discovered: Any) -> int | None:
                     "doc_type": discovered.doc_type,
                 },
             ).first()
+            prior_reference = _prior_reference_from_row(latest, "same_url") if latest else None
+            session.execute(
+                text(
+                    """
+                    insert into document_texts (content_hash, text_content, content_length)
+                    values (:content_hash, :text_content, :content_length)
+                    on conflict (content_hash) do update set
+                      text_content = excluded.text_content,
+                      content_length = excluded.content_length
+                    """
+                ),
+                {
+                    "content_hash": content_hash,
+                    "text_content": extracted.text,
+                    "content_length": len(extracted.text),
+                },
+            )
             version = session.execute(
                 text(
                     """
@@ -494,7 +631,7 @@ def _persist_discovered_document(discovered: Any) -> int | None:
                        page_count, needs_ocr, http_status)
                     values
                       (:document_id, :file_hash, :content_hash, :raw_file_path, :text_path,
-                       0, false, 200)
+                       :page_count, :needs_ocr, :http_status)
                     on conflict (document_id, file_hash) do nothing
                     returning id
                     """
@@ -503,14 +640,94 @@ def _persist_discovered_document(discovered: Any) -> int | None:
                     "document_id": document.id,
                     "file_hash": file_hash,
                     "content_hash": content_hash,
-                    "raw_file_path": url,
-                    "text_path": None,
+                    "raw_file_path": extracted.fetched.raw_file_path,
+                    "text_path": extracted.text_path,
+                    "page_count": extracted.page_count,
+                    "needs_ocr": extracted.needs_ocr,
+                    "http_status": extracted.fetched.http_status,
                 },
             ).first()
             if not version:
+                change = detect_regulatory_change(extracted, prior=prior_reference)
+                _record_regulatory_change_audit(
+                    session,
+                    event_id=None,
+                    document_id=document.id,
+                    version_id=latest.version_id if latest else None,
+                    source_url=url,
+                    content_hash=content_hash,
+                    title=discovered.title,
+                    change=change,
+                )
                 return None
             if latest and latest.content_hash == content_hash:
+                change = detect_regulatory_change(extracted, prior=prior_reference)
+                _record_regulatory_change_audit(
+                    session,
+                    event_id=None,
+                    document_id=document.id,
+                    version_id=version.id,
+                    source_url=url,
+                    content_hash=content_hash,
+                    title=discovered.title,
+                    change=change,
+                )
                 return None
+            registry_result = register_document_version_family(
+                session,
+                RegistryInput(
+                    document_id=document.id,
+                    document_version_id=version.id,
+                    title=discovered.title,
+                    issuer=discovered.issuing_body,
+                    source_url=url,
+                    document_type=discovered.doc_type,
+                    issue_date=discovered.issue_date,
+                    content_hash=content_hash,
+                    text_content=extracted.text,
+                    content_length=len(extracted.text),
+                    first_seen_at=None,
+                ),
+            )
+            if not prior_reference:
+                prior_reference = _find_family_prior_reference(
+                    session,
+                    family_id=registry_result.family_id,
+                    current_version_id=version.id,
+                )
+            if not prior_reference:
+                prior_reference = _find_related_prior_reference(
+                    session,
+                    extracted=extracted,
+                    current_document_id=document.id,
+                    source_id=source.id if source else None,
+                )
+            change = detect_regulatory_change(extracted, prior=prior_reference)
+            _record_regulatory_change_audit(
+                session,
+                event_id=None,
+                document_id=document.id,
+                version_id=version.id,
+                source_url=url,
+                content_hash=content_hash,
+                title=discovered.title,
+                change=change,
+            )
+            if not change.is_material or change.change_type == "NO_MATERIAL_CHANGE":
+                return None
+            if not intelligence.event_allowed:
+                _record_event_intelligence_audit(
+                    session,
+                    event_id=None,
+                    document_id=document.id,
+                    version_id=version.id,
+                    source_url=url,
+                    content_hash=content_hash,
+                    title=discovered.title,
+                    intelligence=intelligence,
+                )
+                return None
+            summary = attach_change_to_summary(summary, change)
             event_type = "CHANGED" if latest else "NEW"
             event = session.execute(
                 text(
@@ -529,7 +746,7 @@ def _persist_discovered_document(discovered: Any) -> int | None:
                     "version_id": version.id,
                     "event_type": event_type,
                     "digest_origin": discovered.source_code,
-                    "raw_summary": discovered.raw_summary,
+                    "raw_summary": summary.plain_english_summary,
                     "topic_tags": topics,
                 },
             ).first()
@@ -551,25 +768,361 @@ def _persist_discovered_document(discovered: Any) -> int | None:
                     "key_points": [summary.plain_english_summary],
                 },
             )
+            _record_regulatory_change_audit(
+                session,
+                event_id=event.id,
+                document_id=document.id,
+                version_id=version.id,
+                source_url=url,
+                content_hash=content_hash,
+                title=discovered.title,
+                change=change,
+            )
+            _record_event_intelligence_audit(
+                session,
+                event_id=event.id,
+                document_id=document.id,
+                version_id=version.id,
+                source_url=url,
+                content_hash=content_hash,
+                title=discovered.title,
+                intelligence=intelligence,
+            )
             return event.id
     except SQLAlchemyError:
         return None
 
 
-def _summary_from_discovered(discovered: Any) -> SummaryPayload:
-    summary_text = discovered.raw_summary or discovered.title
+def _prior_reference_from_row(row: Any, reference_type: str) -> PriorVersionReference:
+    return PriorVersionReference(
+        document_id=row.document_id,
+        version_id=row.version_id,
+        title=row.title,
+        source_url=row.source_url,
+        content_hash=row.content_hash,
+        text=row.text_content,
+        reference_type=reference_type,  # type: ignore[arg-type]
+    )
+
+
+def _find_related_prior_reference(
+    session: Any,
+    *,
+    extracted: ExtractedDoc,
+    current_document_id: int,
+    source_id: int | None,
+) -> PriorVersionReference | None:
+    discovered = extracted.fetched.discovered
+    rows = session.execute(
+        text(
+            """
+            select
+              d.id as document_id,
+              d.title,
+              d.source_url,
+              dv.id as version_id,
+              dv.content_hash,
+              dt.text_content
+            from documents d
+            join lateral (
+              select id, content_hash
+              from document_versions
+              where document_id = d.id
+              order by fetched_at desc
+              limit 1
+            ) dv on true
+            left join document_texts dt on dt.content_hash = dv.content_hash
+            where d.id <> :current_document_id
+              and (
+                (:source_id is not null and d.source_id = :source_id)
+                or (:issuing_body is not null and d.issuing_body = :issuing_body)
+              )
+            order by d.last_seen_at desc
+            limit 80
+            """
+        ),
+        {
+            "current_document_id": current_document_id,
+            "source_id": source_id,
+            "issuing_body": discovered.issuing_body,
+        },
+    ).mappings()
+    best: PriorVersionReference | None = None
+    best_score = 0.0
+    for row in rows:
+        score = title_similarity(discovered.title, row["title"])
+        if score <= best_score or not is_related_title(discovered.title, row["title"]):
+            continue
+        best_score = score
+        best = PriorVersionReference(
+            document_id=row["document_id"],
+            version_id=row["version_id"],
+            title=row["title"],
+            source_url=row["source_url"],
+            content_hash=row["content_hash"],
+            text=row["text_content"],
+            similarity_score=score,
+            reference_type="related_document",
+        )
+    return best
+
+
+def _find_family_prior_reference(
+    session: Any,
+    *,
+    family_id: int | None,
+    current_version_id: int,
+) -> PriorVersionReference | None:
+    if not family_id:
+        return None
+    row = session.execute(
+        text(
+            """
+            select
+              d.id as document_id,
+              d.title,
+              d.source_url,
+              dv.id as version_id,
+              dv.content_hash,
+              dt.text_content
+            from document_version_registry vr
+            join document_versions dv on dv.id = vr.document_version_id
+            join documents d on d.id = vr.document_id
+            left join document_texts dt on dt.content_hash = dv.content_hash
+            where vr.family_id = :family_id
+              and vr.document_version_id <> :current_version_id
+            order by
+              coalesce(vr.publication_date, vr.issue_date, date '0001-01-01') desc,
+              coalesce(vr.version_number, 0) desc,
+              vr.registry_version_id desc
+            limit 1
+            """
+        ),
+        {"family_id": family_id, "current_version_id": current_version_id},
+    ).mappings().first()
+    if not row:
+        return None
+    return PriorVersionReference(
+        document_id=row["document_id"],
+        version_id=row["version_id"],
+        title=row["title"],
+        source_url=row["source_url"],
+        content_hash=row["content_hash"],
+        text=row["text_content"],
+        reference_type="related_document",
+    )
+
+
+def _record_event_intelligence_audit(
+    session: Any,
+    *,
+    event_id: int | None,
+    document_id: int | None,
+    version_id: int | None,
+    source_url: str,
+    content_hash: str | None,
+    title: str | None,
+    intelligence: EventIntelligence,
+) -> None:
+    payload = intelligence.model_dump(mode="json")
+    session.execute(
+        text(
+            """
+            insert into event_intelligence_audit
+              (event_id, document_id, version_id, source_url, content_hash, title,
+               event_allowed, rejection_reason, freshness, significance_score,
+               significance_category, actionability, quality_score, quality_category,
+               is_index_document, deadlines, intelligence_json)
+            values
+              (:event_id, :document_id, :version_id, :source_url, :content_hash, :title,
+               :event_allowed, :rejection_reason, :freshness, :significance_score,
+               :significance_category, :actionability, :quality_score, :quality_category,
+               :is_index_document, cast(:deadlines as jsonb), cast(:intelligence_json as jsonb))
+            """
+        ),
+        {
+            "event_id": event_id,
+            "document_id": document_id,
+            "version_id": version_id,
+            "source_url": source_url,
+            "content_hash": content_hash,
+            "title": title,
+            "event_allowed": intelligence.event_allowed,
+            "rejection_reason": intelligence.rejection_reason,
+            "freshness": intelligence.freshness,
+            "significance_score": intelligence.significance_score,
+            "significance_category": intelligence.significance_category,
+            "actionability": intelligence.actionability,
+            "quality_score": intelligence.quality_score,
+            "quality_category": intelligence.quality_category,
+            "is_index_document": intelligence.is_index_document,
+            "deadlines": json.dumps(payload.get("deadlines") or []),
+            "intelligence_json": json.dumps(payload),
+        },
+    )
+
+
+def _record_regulatory_change_audit(
+    session: Any,
+    *,
+    event_id: int | None,
+    document_id: int | None,
+    version_id: int | None,
+    source_url: str,
+    content_hash: str | None,
+    title: str | None,
+    change: RegulatoryChange,
+) -> None:
+    payload = change.model_dump(mode="json")
+    prior = change.prior_version_reference
+    session.execute(
+        text(
+            """
+            insert into regulatory_change_audit
+              (event_id, document_id, version_id, prior_document_id, prior_version_id,
+               source_url, content_hash, title, change_type, is_material, confidence,
+               similarity_score, evidence, prior_version_reference, previous_state,
+               new_state, deadline_changes, change_json)
+            values
+              (:event_id, :document_id, :version_id, :prior_document_id, :prior_version_id,
+               :source_url, :content_hash, :title, :change_type, :is_material, :confidence,
+               :similarity_score, :evidence, :prior_version_reference, :previous_state,
+               :new_state, cast(:deadline_changes as jsonb), cast(:change_json as jsonb))
+            """
+        ),
+        {
+            "event_id": event_id,
+            "document_id": document_id,
+            "version_id": version_id,
+            "prior_document_id": prior.document_id if prior else None,
+            "prior_version_id": prior.version_id if prior else None,
+            "source_url": source_url,
+            "content_hash": content_hash,
+            "title": title,
+            "change_type": change.change_type,
+            "is_material": change.is_material,
+            "confidence": change.confidence,
+            "similarity_score": change.similarity_score,
+            "evidence": change.evidence,
+            "prior_version_reference": prior.source_url if prior else None,
+            "previous_state": change.previous_state,
+            "new_state": change.new_state,
+            "deadline_changes": json.dumps(payload.get("deadline_changes") or []),
+            "change_json": json.dumps(payload),
+        },
+    )
+
+
+def _summary_from_extracted(extracted: ExtractedDoc) -> SummaryPayload:
+    discovered = extracted.fetched.discovered
+    summary_text = (
+        _first_sentences(extracted.text, limit=700)
+        or discovered.raw_summary
+        or discovered.title
+    )
+    topics = _topic_tags(f"{discovered.title}\n{extracted.text}")
+    important_dates = _important_dates(extracted.text)
+    classification = extracted.classification or "REGULATORY_DOCUMENT"
     return SummaryPayload(
         plain_english_summary=summary_text[:700],
-        why_it_matters=(
-            "This is an official regulatory-source update. Review the primary link "
-            "to confirm obligations, timelines, and affected entities before acting."
-        ),
-        affected_segments=_topic_tags(f"{discovered.title} {summary_text}"),
-        important_dates=[discovered.issue_date.isoformat()] if discovered.issue_date else [],
-        action_required="monitor",
-        confidence="medium" if discovered.raw_summary else "low",
-        evidence_quotes=[{"quote": summary_text[:300], "source_url": discovered.source_url}],
+        why_it_matters=_why_it_matters(classification, topics),
+        affected_segments=topics,
+        important_dates=important_dates,
+        action_required="urgent" if important_dates and classification in {
+            "CONSULTATION_DOCUMENT",
+            "TENDER_DOCUMENT",
+        } else "monitor",
+        confidence="high" if extracted.quality_score >= 0.82 else "medium",
+        evidence_quotes=_evidence_quotes(extracted.text, discovered.source_url),
     )
+
+
+def _first_sentences(text_value: str, *, limit: int) -> str:
+    cleaned = " ".join(text_value.split())
+    sentences = []
+    for sentence in cleaned.replace("\n", " ").split(". "):
+        value = sentence.strip(" .")
+        if not value:
+            continue
+        if _is_low_value_sentence(value):
+            continue
+        sentences.append(value)
+        if len(". ".join(sentences)) >= limit:
+            break
+    return ". ".join(sentences)[:limit]
+
+
+def _is_low_value_sentence(value: str) -> bool:
+    lower = value.lower()
+    return any(
+        marker in lower
+        for marker in (
+            "best viewed",
+            "hosted by",
+            "national informatics centre",
+            "all rights reserved",
+            "screen reader access",
+            "skip to main content",
+        )
+    )
+
+
+def _important_dates(text_value: str) -> list[str]:
+    patterns = [
+        r"(?:last date|last date of submission|comments.*?by|suggestions.*?by|due by)"
+        r"[^.:\n]*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})",
+        r"(?:public hearing|bid submission|opening date|closing date|deadline)"
+        r"[^.:\n]*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})",
+        r"\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b",
+    ]
+    dates: list[str] = []
+    for pattern in patterns:
+        for match in re.finditer(pattern, text_value, flags=re.IGNORECASE):
+            raw = match.group(1)
+            if raw not in dates:
+                dates.append(raw)
+            if len(dates) >= 8:
+                return dates
+    return dates
+
+
+def _why_it_matters(classification: str, topics: list[str]) -> str:
+    topic_text = ", ".join(topics[:4])
+    if classification == "CONSULTATION_DOCUMENT":
+        return (
+            "This opens or updates a consultation window. Affected stakeholders should review "
+            "the proposal and track comment or hearing deadlines."
+        )
+    if classification == "TENDER_DOCUMENT":
+        return (
+            "This may create a procurement or bidding opportunity. Commercial teams should "
+            "check eligibility, submission requirements, and bid deadlines."
+        )
+    if classification == "AMENDMENT":
+        return (
+            "This changes an existing regulatory instrument. Compliance and business teams "
+            "should compare the amendment against current obligations."
+        )
+    if classification in {"ORDER", "NOTIFICATION", "CIRCULAR"}:
+        return (
+            "This is an official regulatory publication that may affect obligations, "
+            "permissions, tariffs, or operating procedures."
+        )
+    if topic_text:
+        return f"This official update is relevant to {topic_text} and should be monitored."
+    return "This official regulatory document should be reviewed for obligations and timelines."
+
+
+def _evidence_quotes(text_value: str, source_url: str) -> list[dict[str, Any]]:
+    cleaned = " ".join(text_value.split())
+    if not cleaned:
+        return []
+    chunks = [chunk.strip() for chunk in re.split(r"(?<=[.;:])\s+", cleaned) if chunk.strip()]
+    useful = [chunk for chunk in chunks if not _is_low_value_sentence(chunk)]
+    return [
+        {"quote": chunk[:300], "source_url": source_url}
+        for chunk in useful[:3]
+    ]
 
 
 def _topic_tags(value: str) -> list[str]:

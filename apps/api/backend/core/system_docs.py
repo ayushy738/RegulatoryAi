@@ -31,6 +31,18 @@ Local development may set `AUTH_REQUIRED=false`, which returns a demo user for a
   Body: `{ "event_id": number | null, "message": string }`.
 - `GET /chat/history?event_id={id}` - saved chat history.
 
+## Intelligence
+- `GET /intelligence/deadlines` - active graph deadlines.
+  Query params: `issuer`, `deadline_type`, `stakeholder`, `status=active|historical|all`,
+  `limit`.
+- `GET /intelligence/obligations` - obligations grouped by stakeholder.
+  Query params: `stakeholder`, `issuer`, `limit`.
+- `GET /intelligence/stakeholders` - stakeholder intelligence cards for the supported
+  energy-sector stakeholder set.
+- `GET /intelligence/stakeholders/{stakeholder}` - one stakeholder view.
+- `GET /intelligence/readiness` - product-readiness snapshot over deadlines,
+  obligations, impacts, and consultations.
+
 ## Subscriptions
 - `GET /subscriptions` - current notification preferences.
 - `PUT /subscriptions` - update jurisdictions, source ids, topics, email toggle, and frequency.
@@ -63,6 +75,8 @@ Routes:
 - `/` - Today briefing with latest digest and export actions.
 - `/browse` - searchable archive over events.
 - `/saved` - bookmarked updates.
+- `/intelligence` - deadlines, obligations, stakeholder impact, and consultation
+  tracking powered by the knowledge graph.
 - `/events/{id}` - event detail with grounded insight chat.
 - `/notifications` - subscription and digest email preferences.
 - `/account` - account/session/runtime details.
@@ -103,10 +117,14 @@ Runtime configuration:
 7. `digests` and `digest_events` link the day's visible events into one daily briefing.
 8. Users sign in with Supabase Auth and read the same cached digest.
 9. Per-user state lives in `user_event_state`: read/unread and bookmarks.
-10. Chat requests are grounded to selected event context and persisted in `chat_messages`.
-11. Subscription preferences live in `subscriptions`.
-12. Latest-news export requests are logged in `exports_log` and returned as JSON, CSV, or Markdown.
-13. Admins monitor `crawl_runs` and source health to catch broken government sites quickly.
+10. The knowledge graph stores entities, relationships, stakeholders, obligations, and
+    deadlines for accepted primary documents.
+11. The intelligence APIs expose active deadlines, obligations, stakeholder impacts,
+    and consultation tracking directly from the graph.
+12. Chat requests are grounded to selected event context and persisted in `chat_messages`.
+13. Subscription preferences live in `subscriptions`.
+14. Latest-news export requests are logged in `exports_log` and returned as JSON, CSV, or Markdown.
+15. Admins monitor `crawl_runs` and source health to catch broken government sites quickly.
 """,
     },
 ]

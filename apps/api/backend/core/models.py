@@ -6,6 +6,51 @@ from pydantic import BaseModel, Field, HttpUrl
 DatePrecision = Literal["day", "month", "year", "unknown"]
 Jurisdiction = Literal["central", "state"]
 EventType = Literal["NEW", "CHANGED", "REPLACEMENT", "DUPLICATE"]
+CandidateClassification = Literal[
+    "REGULATORY_DOCUMENT",
+    "TENDER_DOCUMENT",
+    "CONSULTATION_DOCUMENT",
+    "ORDER",
+    "NOTIFICATION",
+    "CIRCULAR",
+    "POLICY_UPDATE",
+    "GUIDELINE",
+    "AMENDMENT",
+    "HOMEPAGE",
+    "LISTING_PAGE",
+    "ARCHIVE_PAGE",
+    "CATEGORY_PAGE",
+    "SEARCH_PAGE",
+    "NAVIGATION_PAGE",
+    "INDEX_DOCUMENT",
+]
+FreshnessClassification = Literal["CURRENT", "RECENT", "HISTORICAL", "ARCHIVAL"]
+DeadlineType = Literal[
+    "CONSULTATION_DEADLINE",
+    "HEARING_DATE",
+    "TENDER_SUBMISSION_DEADLINE",
+    "COMPLIANCE_DEADLINE",
+    "IMPLEMENTATION_DATE",
+    "PUBLICATION_DATE",
+    "UNKNOWN_DATE",
+]
+SignificanceCategory = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+ActionabilityClassification = Literal["ACTIONABLE", "INFORMATIONAL", "REFERENCE_ONLY"]
+EventQualityCategory = Literal["REJECT", "WEAK", "GOOD", "EXCELLENT"]
+ChangeType = Literal[
+    "NEW_DOCUMENT",
+    "UPDATED_DOCUMENT",
+    "AMENDMENT",
+    "CORRIGENDUM",
+    "ADDENDUM",
+    "DEADLINE_CHANGE",
+    "TENDER_UPDATE",
+    "CONSULTATION_UPDATE",
+    "POLICY_UPDATE",
+    "WITHDRAWAL",
+    "REISSUED_DOCUMENT",
+    "NO_MATERIAL_CHANGE",
+]
 
 
 class DiscoveredDoc(BaseModel):
@@ -31,6 +76,7 @@ class FetchedFile(BaseModel):
     http_status: int
     etag: str | None = None
     last_modified: str | None = None
+    content_type: str | None = None
 
 
 class ExtractedDoc(BaseModel):
@@ -42,6 +88,96 @@ class ExtractedDoc(BaseModel):
     page_count: int
     needs_ocr: bool
     text_path: str
+    classification: CandidateClassification | None = None
+    quality_score: float = 0.0
+    evidence_excerpt: str | None = None
+
+
+class CandidateQuality(BaseModel):
+    classification: CandidateClassification
+    is_valid_event_source: bool
+    confidence: float
+    reason_code: str
+    explanation: str
+
+
+class DiscoveryAuditRecord(BaseModel):
+    source_code: str
+    source_url: str
+    title: str | None = None
+    classification: CandidateClassification
+    is_valid_event_source: bool
+    confidence: float
+    reason_code: str
+    primary_url: str | None = None
+    content_length: int = 0
+    content_hash: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeadlineIntelligence(BaseModel):
+    raw_date: str
+    normalized_date: date | None = None
+    deadline_type: DeadlineType
+    confidence: float
+    evidence_snippet: str
+
+
+class EventIntelligence(BaseModel):
+    event_allowed: bool
+    rejection_reason: str | None = None
+    freshness: FreshnessClassification
+    freshness_reason: str
+    is_index_document: bool = False
+    significance_score: int
+    significance_category: SignificanceCategory
+    actionability: ActionabilityClassification
+    affected_parties: list[str] = Field(default_factory=list)
+    required_action: str | None = None
+    action_deadline: str | None = None
+    consequence_if_ignored: str | None = None
+    deadlines: list[DeadlineIntelligence] = Field(default_factory=list)
+    title_quality_score: int
+    document_quality_score: int
+    date_confidence_score: int
+    quality_score: int
+    quality_category: EventQualityCategory
+    reasons: list[str] = Field(default_factory=list)
+
+
+class PriorVersionReference(BaseModel):
+    document_id: int | None = None
+    version_id: int | None = None
+    title: str | None = None
+    source_url: str | None = None
+    content_hash: str | None = None
+    text: str | None = None
+    similarity_score: float | None = None
+    reference_type: Literal["same_url", "related_document", "none"] = "none"
+
+
+class DeadlineChange(BaseModel):
+    deadline_type: DeadlineType
+    change: Literal["ADDED", "REMOVED", "EXTENDED", "SHORTENED", "UNCHANGED"]
+    old_date: date | None = None
+    new_date: date | None = None
+    confidence: float
+    evidence: str
+
+
+class RegulatoryChange(BaseModel):
+    change_type: ChangeType
+    is_material: bool
+    confidence: float
+    evidence: str
+    prior_version_reference: PriorVersionReference | None = None
+    previous_state: str | None = None
+    new_state: str | None = None
+    why_it_matters: str
+    affected_parties: list[str] = Field(default_factory=list)
+    deadline_changes: list[DeadlineChange] = Field(default_factory=list)
+    similarity_score: float | None = None
+    reasons: list[str] = Field(default_factory=list)
 
 
 class DetectResult(BaseModel):
@@ -61,6 +197,9 @@ class SummaryPayload(BaseModel):
     action_required: Literal["none", "monitor", "urgent"] = "monitor"
     confidence: Literal["high", "medium", "low"] = "medium"
     evidence_quotes: list[dict[str, Any]] = Field(default_factory=list)
+    deadline_details: list[dict[str, Any]] = Field(default_factory=list)
+    intelligence: dict[str, Any] = Field(default_factory=dict)
+    change_details: dict[str, Any] = Field(default_factory=dict)
 
 
 class EventSummary(BaseModel):
@@ -102,3 +241,67 @@ class SubscriptionSettings(BaseModel):
     topics: list[str] = Field(default_factory=list)
     email_enabled: bool = True
     frequency: Literal["daily", "instant"] = "daily"
+
+
+class IntelligenceDeadline(BaseModel):
+    document_id: int
+    title: str
+    issuer: str | None = None
+    deadline_type: str
+    deadline_date: date | None = None
+    raw_date: str | None = None
+    days_remaining: int | None = None
+    stakeholders_affected: list[str] = Field(default_factory=list)
+    source_url: str
+    confidence: float
+    evidence: str | None = None
+
+
+class IntelligenceObligation(BaseModel):
+    document_id: int
+    title: str
+    issuer: str | None = None
+    obligation: str
+    stakeholder: str
+    deadline_date: date | None = None
+    deadline_type: str | None = None
+    confidence: float
+    evidence: str | None = None
+    source_url: str
+
+
+class StakeholderObligationGroup(BaseModel):
+    stakeholder: str
+    obligations: list[IntelligenceObligation] = Field(default_factory=list)
+
+
+class IntelligenceDocumentRef(BaseModel):
+    document_id: int
+    title: str
+    issuer: str | None = None
+    source_url: str
+    document_type: str
+    confidence: float = 0.0
+    evidence: str | None = None
+
+
+class StakeholderIntelligence(BaseModel):
+    stakeholder: str
+    impact_summary: str
+    compliance_summary: str
+    action_summary: str
+    regulations: list[IntelligenceDocumentRef] = Field(default_factory=list)
+    consultations: list[IntelligenceDocumentRef] = Field(default_factory=list)
+    obligations: list[IntelligenceObligation] = Field(default_factory=list)
+    deadlines: list[IntelligenceDeadline] = Field(default_factory=list)
+    tenders: list[IntelligenceDocumentRef] = Field(default_factory=list)
+    counts: dict[str, int] = Field(default_factory=dict)
+
+
+class IntelligenceReadinessReport(BaseModel):
+    active_deadlines: list[IntelligenceDeadline] = Field(default_factory=list)
+    stakeholder_obligations: list[StakeholderObligationGroup] = Field(default_factory=list)
+    regulatory_impacts: list[StakeholderIntelligence] = Field(default_factory=list)
+    consultation_tracking: list[IntelligenceDocumentRef] = Field(default_factory=list)
+    status: str
+    notes: list[str] = Field(default_factory=list)

@@ -3,7 +3,16 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api.routes import admin, chat, digests, events, exports, meta, subscriptions
+from backend.api.routes import (
+    admin,
+    chat,
+    digests,
+    events,
+    exports,
+    intelligence,
+    meta,
+    subscriptions,
+)
 from backend.core.config import settings
 from backend.core.db import database_healthcheck
 from backend.core.logging import configure_logging
@@ -29,6 +38,7 @@ app.include_router(subscriptions.router)
 app.include_router(admin.router)
 app.include_router(exports.router)
 app.include_router(meta.router)
+app.include_router(intelligence.router)
 
 
 @app.get("/health")

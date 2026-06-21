@@ -78,6 +78,70 @@ export type HealthResponse = {
   effective_llm_provider: string;
 };
 
+export type IntelligenceDeadline = {
+  document_id: number;
+  title: string;
+  issuer: string | null;
+  deadline_type: string;
+  deadline_date: string | null;
+  raw_date: string | null;
+  days_remaining: number | null;
+  stakeholders_affected: string[];
+  source_url: string;
+  confidence: number;
+  evidence: string | null;
+};
+
+export type IntelligenceObligation = {
+  document_id: number;
+  title: string;
+  issuer: string | null;
+  obligation: string;
+  stakeholder: string;
+  deadline_date: string | null;
+  deadline_type: string | null;
+  confidence: number;
+  evidence: string | null;
+  source_url: string;
+};
+
+export type StakeholderObligationGroup = {
+  stakeholder: string;
+  obligations: IntelligenceObligation[];
+};
+
+export type IntelligenceDocumentRef = {
+  document_id: number;
+  title: string;
+  issuer: string | null;
+  source_url: string;
+  document_type: string;
+  confidence: number;
+  evidence: string | null;
+};
+
+export type StakeholderIntelligence = {
+  stakeholder: string;
+  impact_summary: string;
+  compliance_summary: string;
+  action_summary: string;
+  regulations: IntelligenceDocumentRef[];
+  consultations: IntelligenceDocumentRef[];
+  obligations: IntelligenceObligation[];
+  deadlines: IntelligenceDeadline[];
+  tenders: IntelligenceDocumentRef[];
+  counts: Record<string, number>;
+};
+
+export type IntelligenceReadiness = {
+  active_deadlines: IntelligenceDeadline[];
+  stakeholder_obligations: StakeholderObligationGroup[];
+  regulatory_impacts: StakeholderIntelligence[];
+  consultation_tracking: IntelligenceDocumentRef[];
+  status: string;
+  notes: string[];
+};
+
 type ImportMetaWithEnv = ImportMeta & {
   env?: Record<string, string | undefined>;
 };
@@ -112,6 +176,49 @@ export function getLatestDigest(token?: string) {
 
 export function getHealth() {
   return apiFetch<HealthResponse>("/health");
+}
+
+export function getIntelligenceDeadlines(
+  token?: string,
+  filters: {
+    issuer?: string;
+    deadline_type?: string;
+    stakeholder?: string;
+    status?: "active" | "historical" | "all";
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (filters.issuer) params.set("issuer", filters.issuer);
+  if (filters.deadline_type && filters.deadline_type !== "all") {
+    params.set("deadline_type", filters.deadline_type);
+  }
+  if (filters.stakeholder && filters.stakeholder !== "all") {
+    params.set("stakeholder", filters.stakeholder);
+  }
+  if (filters.status) params.set("status", filters.status);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<IntelligenceDeadline[]>(`/intelligence/deadlines${suffix}`, token);
+}
+
+export function getIntelligenceObligations(
+  token?: string,
+  filters: { stakeholder?: string; issuer?: string } = {},
+) {
+  const params = new URLSearchParams();
+  if (filters.stakeholder && filters.stakeholder !== "all") {
+    params.set("stakeholder", filters.stakeholder);
+  }
+  if (filters.issuer) params.set("issuer", filters.issuer);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<StakeholderObligationGroup[]>(`/intelligence/obligations${suffix}`, token);
+}
+
+export function getStakeholderIntelligence(token?: string) {
+  return apiFetch<StakeholderIntelligence[]>("/intelligence/stakeholders", token);
+}
+
+export function getIntelligenceReadiness(token?: string) {
+  return apiFetch<IntelligenceReadiness>("/intelligence/readiness", token);
 }
 
 export function getEvents(

@@ -6,19 +6,22 @@ from backend.core.repository import (
     create_crawl_run,
     finalize_crawl_run,
     list_sources,
-    persist_discovered_documents,
+    persist_extracted_documents,
+    record_discovery_audits,
     record_source_check,
 )
 from backend.pipeline.agent_scraper import scrape_source
 from backend.pipeline.digest_builder import build_digest
 from backend.pipeline.notifier import enqueue_notifications, send_pending_notifications
+from backend.pipeline.primary_document import acquire_primary_documents
 
 
 async def run_once() -> dict:
     configure_logging()
     docs_found = 0
+    primary_docs_found = 0
     errors: list[dict] = []
-    discovered = []
+    extracted_docs = []
     run_id = create_crawl_run()
     log_event("run_started")
 
@@ -48,15 +51,23 @@ async def run_once() -> dict:
         try:
             docs = await scrape_source(source)
             docs_found += len(docs)
-            discovered.extend(docs)
+            primary_result = await acquire_primary_documents(docs)
+            record_discovery_audits(run_id, primary_result.audits)
+            primary_docs_found += len(primary_result.accepted)
+            extracted_docs.extend(primary_result.accepted)
             record_source_check(source["code"], status=200, ok=True)
-            log_event("source_ok", source_code=source["code"], docs_found=len(docs))
+            log_event(
+                "source_ok",
+                source_code=source["code"],
+                docs_found=len(docs),
+                primary_docs_found=len(primary_result.accepted),
+            )
         except Exception as exc:
             record_source_check(source["code"], status=None, ok=False)
             errors.append({"source": source["code"], "error": str(exc)})
             log_event("source_failed", source_code=source["code"], error=str(exc))
 
-    new_event_ids = persist_discovered_documents(discovered)
+    new_event_ids = persist_extracted_documents(extracted_docs)
     digest = build_digest(date.today(), new_event_ids)
     enqueue_notifications(new_event_ids)
     email_result = send_pending_notifications(digest.events)
@@ -76,6 +87,7 @@ async def run_once() -> dict:
         "sources_attempted": len(sources),
         "sources_succeeded": len(sources) - len(errors),
         "docs_found": docs_found,
+        "primary_docs_found": primary_docs_found,
         "new_events": len(new_event_ids),
         "notification_message_id": email_result.message_id,
         "errors": errors,
