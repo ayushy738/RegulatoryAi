@@ -2,7 +2,10 @@
 
 Regulatory AI is a Turborepo monorepo for monitoring Indian energy-sector regulators, building daily digests, and letting users inspect each update with a grounded chat workflow.
 
-The project currently runs in offline/demo mode because Supabase, LLM, email, and deployment secrets are not configured yet.
+With Supabase env vars configured, the API reads sources, subscriptions, chat history,
+and crawl-run logs from Supabase. Digest events fall back to seeded demo data until
+the crawler starts writing real `events` rows. Email remains offline until a provider
+key is added.
 
 ## Workspace
 
@@ -48,14 +51,31 @@ cd apps/api
 python -m backend.pipeline.run_once
 ```
 
-## Secrets Still Needed
+## Runtime Secrets
 
-Copy `.env.example` to `.env` and fill in Supabase, LLM, email, and Sentry values when available. Until then:
+Copy `.env.example` to `.env` and fill in Supabase, LLM, email, and Sentry values.
+When event tables are empty:
 
 - API returns seeded demo digest data.
-- LLM chat uses the offline adapter.
+- LLM chat uses Parallel when `PARALLEL_API_KEY` and `LLM_MODEL_CHAT` are set.
 - Email notification returns an offline message id.
-- Storage and database calls fail fast only when live pipeline functions need them.
+
+The app accepts either the Supabase project URL or the Data API URL ending in
+`/rest/v1`; runtime code normalizes it to the project root for Auth and Storage.
+
+For Parallel AI:
+
+```bash
+LLM_PROVIDER=parallel
+PARALLEL_API_KEY=...
+PARALLEL_BASE_URL=https://api.parallel.ai/v1
+LLM_MODEL_CHAT=<your-chat-model>
+LLM_MODEL_SUMMARY=<your-summary-model>
+LLM_MODEL_AGENT=<your-agent-model>
+```
+
+If `PARALLEL_API_KEY` is present but `LLM_MODEL_CHAT` is empty, chat returns a
+configuration message instead of sending a bad model request.
 
 ## Manual Cloud Steps
 

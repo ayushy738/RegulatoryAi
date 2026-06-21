@@ -22,5 +22,8 @@
   "engines": {
     "node": ">=22.13.0",
     "npm": ">=10.0.0"
+  },
+  "dependencies": {
+    "workerd": "^1.20260621.1"
   }
 }

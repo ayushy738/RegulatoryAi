@@ -14,6 +14,7 @@ dist/
 .cache/
 apps/api/cache/
 .wrangler/
+.wrangler-config/
 *.tsbuildinfo
 coverage/
 data/
