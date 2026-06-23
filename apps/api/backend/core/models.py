@@ -65,6 +65,9 @@ class DiscoveredDoc(BaseModel):
     doc_type: str | None = None
     jurisdiction: Jurisdiction | None = None
     raw_summary: str | None = None
+    candidate_key: str | None = None
+    source_record_id: str | None = None
+    published_at: datetime | None = None
 
 
 class FetchedFile(BaseModel):
@@ -241,6 +244,72 @@ class SubscriptionSettings(BaseModel):
     topics: list[str] = Field(default_factory=list)
     email_enabled: bool = True
     frequency: Literal["daily", "instant"] = "daily"
+
+
+class SourcePayload(BaseModel):
+    code: str
+    name: str
+    jurisdiction: Jurisdiction = "central"
+    url: str
+    crawler_type: Literal["digest", "agent", "static"] = "agent"
+    allowed_domains: list[str] = Field(default_factory=list)
+    hint: str | None = None
+    enabled: bool = True
+
+
+class SourceUpdatePayload(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    jurisdiction: Jurisdiction | None = None
+    url: str | None = None
+    crawler_type: Literal["digest", "agent", "static"] | None = None
+    allowed_domains: list[str] | None = None
+    hint: str | None = None
+    enabled: bool | None = None
+
+
+class SourcePagePayload(BaseModel):
+    name: str
+    url: str
+    page_type: str
+    priority: int = 100
+    enabled: bool = True
+
+
+class SourcePageUpdatePayload(BaseModel):
+    name: str | None = None
+    url: str | None = None
+    page_type: str | None = None
+    priority: int | None = None
+    enabled: bool | None = None
+
+
+class CrawlTriggerResponse(BaseModel):
+    status: str
+    sources_attempted: int
+    pages_attempted: int
+    sources_succeeded: int
+    pages_succeeded: int
+    docs_found: int
+    primary_docs_found: int
+    new_events: int
+    checkpoints_advanced: int = 0
+    notification_message_id: str | None = None
+    errors: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SourceAnalyticsResponse(BaseModel):
+    source: dict[str, Any]
+    pages_total: int
+    pages_enabled: int
+    documents_total: int
+    events_total: int
+    discovery_candidates: int
+    discovery_accepted: int
+    discovery_rejected: int
+    rejection_reasons: dict[str, int] = Field(default_factory=dict)
+    classifications: dict[str, int] = Field(default_factory=dict)
+    latest_run: dict[str, Any] | None = None
 
 
 class IntelligenceDeadline(BaseModel):

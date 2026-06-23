@@ -102,6 +102,14 @@ def classify_candidate(
     content = _normalize(content_text or "")
     haystack = " ".join(part for part in [title, path, query, summary, content[:5000]] if part)
 
+    if _is_standalone_cerc_electricity_act_nav_pdf(path, title):
+        return _quality(
+            "NAVIGATION_PAGE",
+            False,
+            0.99,
+            "NAVIGATION_PAGE_DETECTED",
+            "Standalone CERC Electricity Act navigation PDF, not a current petition row.",
+        )
     if _is_homepage(path, title):
         return _quality("HOMEPAGE", False, 0.97, "HOMEPAGE_DETECTED", "Root/index page.")
     if any(term in path or term in query for term in SEARCH_TERMS):
@@ -206,6 +214,10 @@ def _is_homepage(path: str, title: str) -> bool:
         "homepage",
         "ministry of power: home",
     }
+
+
+def _is_standalone_cerc_electricity_act_nav_pdf(path: str, title: str) -> bool:
+    return path.endswith("/act-with-amendment.pdf") and title == "electricity act 2003"
 
 
 def _is_category_page(path: str, title: str) -> bool:

@@ -1,0 +1,1357 @@
+{
+  "created_at": "2026-06-22T11:21:14.897927+00:00",
+  "note": "Clean-room backup before truncating generated intelligence tables.",
+  "tables_truncated_after_backup": [
+    "events",
+    "summaries",
+    "document_versions",
+    "documents",
+    "document_texts",
+    "discovery_audit",
+    "event_intelligence_audit",
+    "regulatory_change_audit",
+    "document_family_assignments",
+    "document_version_registry",
+    "document_version_relationships",
+    "document_families",
+    "deadline_history",
+    "regulatory_graph_document_entities",
+    "regulatory_graph_edges",
+    "regulatory_graph_extractions",
+    "regulatory_graph_stakeholders",
+    "regulatory_graph_obligations",
+    "regulatory_graph_deadlines",
+    "regulatory_graph_family_enrichment",
+    "regulatory_graph_entities",
+    "crawl_runs",
+    "digests",
+    "digest_events",
+    "notifications_log",
+    "chat_messages",
+    "user_event_state"
+  ],
+  "tables_preserved": [
+    "sources",
+    "source_pages",
+    "profiles",
+    "subscriptions"
+  ],
+  "row_counts": {
+    "events": 0,
+    "summaries": 0,
+    "document_versions": 0,
+    "documents": 0,
+    "document_texts": 0,
+    "discovery_audit": 41,
+    "event_intelligence_audit": 0,
+    "regulatory_change_audit": 0,
+    "document_family_assignments": 0,
+    "document_version_registry": 0,
+    "document_version_relationships": 0,
+    "document_families": 0,
+    "deadline_history": 0,
+    "regulatory_graph_document_entities": 0,
+    "regulatory_graph_edges": 0,
+    "regulatory_graph_extractions": 0,
+    "regulatory_graph_stakeholders": 0,
+    "regulatory_graph_obligations": 0,
+    "regulatory_graph_deadlines": 0,
+    "regulatory_graph_family_enrichment": 0,
+    "regulatory_graph_entities": 0,
+    "crawl_runs": 1,
+    "digests": 1,
+    "digest_events": 0,
+    "notifications_log": 0,
+    "chat_messages": 0,
+    "user_event_state": 0,
+    "sources": 4,
+    "source_pages": 7,
+    "profiles": 4,
+    "subscriptions": 0,
+    "app_documents": 4,
+    "exports_log": 1,
+    "audit_log": 0
+  },
+  "data": {
+    "events": {
+      "exists": true,
+      "rows": []
+    },
+    "summaries": {
+      "exists": true,
+      "rows": []
+    },
+    "document_versions": {
+      "exists": true,
+      "rows": []
+    },
+    "documents": {
+      "exists": true,
+      "rows": []
+    },
+    "document_texts": {
+      "exists": true,
+      "rows": []
+    },
+    "discovery_audit": {
+      "exists": true,
+      "rows": [
+        {
+          "id": 1,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/",
+          "title": "\u0928\u0935\u0940\u0928 \u090f\u0935\u0902 \u0928\u0935\u0940\u0915\u0930\u0923\u0940\u092f \u090a\u0930\u094d\u091c\u093e \u092e\u0902\u0924\u094d\u0930\u093e\u0932\u092f MINISTRY OF NEW AND RENEWABLE ENERGY",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 2,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/association-of-renewable-energy-agencies-of-states-areas/",
+          "title": "Association of Renewable Energy Agencies of States (AREAS)",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 3,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/lab-policy-standards-and-quality-control/",
+          "title": "Lab Policy, Standards and Quality Control",
+          "classification": "POLICY_UPDATE",
+          "is_valid_event_source": false,
+          "confidence": 0.78,
+          "reason_code": "INSUFFICIENT_CONTENT",
+          "primary_url": "https://mnre.gov.in/en/lab-policy-standards-and-quality-control/",
+          "content_length": 167,
+          "content_hash": "2060c3f4ab726c2e89caec76a4aad7393e01a71614bd0df42d24681ddb42fcb6",
+          "metadata": {
+            "doc_type": "html",
+            "needs_ocr": false,
+            "explanation": "Policy terms.",
+            "content_type": "text/html; charset=UTF-8",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 4,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/solar-thermal/",
+          "title": "Solar Thermal",
+          "classification": "CATEGORY_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.93,
+          "reason_code": "CATEGORY_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Category page.",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 5,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/solar/",
+          "title": "Solar",
+          "classification": "CATEGORY_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.93,
+          "reason_code": "CATEGORY_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Category page.",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 6,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/wind/",
+          "title": "Wind",
+          "classification": "CATEGORY_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.93,
+          "reason_code": "CATEGORY_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Category page.",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 7,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/tender/",
+          "title": "Tenders",
+          "classification": "TENDER_DOCUMENT",
+          "is_valid_event_source": true,
+          "confidence": 0.86,
+          "reason_code": "VALID_PRIMARY_DOCUMENT",
+          "primary_url": "https://mnre.gov.in/en/tender/",
+          "content_length": 336,
+          "content_hash": "1ea5c174d6a478415a7c956a57691be80ca16d04bd711cdc9790f1ce91f08638",
+          "metadata": {
+            "doc_type": "html",
+            "needs_ocr": false,
+            "explanation": "Tender terms.",
+            "content_type": "text/html; charset=UTF-8",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 8,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/physical-progress/",
+          "title": "Physical Achievements",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 1,
+            "source_page_name": "Current Notices",
+            "source_page_type": "notice_listing"
+          },
+          "created_at": "2026-06-22T11:16:24.649217+00:00"
+        },
+        {
+          "id": 9,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/",
+          "title": "\u0928\u0935\u0940\u0928 \u090f\u0935\u0902 \u0928\u0935\u0940\u0915\u0930\u0923\u0940\u092f \u090a\u0930\u094d\u091c\u093e \u092e\u0902\u0924\u094d\u0930\u093e\u0932\u092f MINISTRY OF NEW AND RENEWABLE ENERGY",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 10,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/association-of-renewable-energy-agencies-of-states-areas/",
+          "title": "Association of Renewable Energy Agencies of States (AREAS)",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 11,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/lab-policy-standards-and-quality-control/",
+          "title": "Lab Policy, Standards and Quality Control",
+          "classification": "POLICY_UPDATE",
+          "is_valid_event_source": false,
+          "confidence": 0.78,
+          "reason_code": "INSUFFICIENT_CONTENT",
+          "primary_url": "https://mnre.gov.in/en/lab-policy-standards-and-quality-control/",
+          "content_length": 167,
+          "content_hash": "2060c3f4ab726c2e89caec76a4aad7393e01a71614bd0df42d24681ddb42fcb6",
+          "metadata": {
+            "doc_type": "html",
+            "needs_ocr": false,
+            "explanation": "Policy terms.",
+            "content_type": "text/html; charset=UTF-8",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 12,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/solar-thermal/",
+          "title": "Solar Thermal",
+          "classification": "CATEGORY_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.93,
+          "reason_code": "CATEGORY_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Category page.",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 13,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/solar/",
+          "title": "Solar",
+          "classification": "CATEGORY_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.93,
+          "reason_code": "CATEGORY_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Category page.",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 14,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/wind/",
+          "title": "Wind",
+          "classification": "CATEGORY_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.93,
+          "reason_code": "CATEGORY_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Category page.",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 15,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/tender/",
+          "title": "Tenders",
+          "classification": "TENDER_DOCUMENT",
+          "is_valid_event_source": true,
+          "confidence": 0.86,
+          "reason_code": "VALID_PRIMARY_DOCUMENT",
+          "primary_url": "https://mnre.gov.in/en/tender/",
+          "content_length": 336,
+          "content_hash": "1ea5c174d6a478415a7c956a57691be80ca16d04bd711cdc9790f1ce91f08638",
+          "metadata": {
+            "doc_type": "html",
+            "needs_ocr": false,
+            "explanation": "Tender terms.",
+            "content_type": "text/html; charset=UTF-8",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 16,
+          "run_id": 1,
+          "source_code": "mnre",
+          "source_url": "https://mnre.gov.in/en/physical-progress/",
+          "title": "Physical Achievements",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 2,
+            "source_page_name": "Monthly Updates",
+            "source_page_type": "digest_listing"
+          },
+          "created_at": "2026-06-22T11:16:30.041240+00:00"
+        },
+        {
+          "id": 17,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/orgnigation.pdf",
+          "title": "Organization Chart",
+          "classification": "REGULATORY_DOCUMENT",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "error": "HTTPStatusError: Client error '404 Not Found' for url 'https://cercind.gov.in/orgnigation.pdf'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+            "explanation": "PDF without strong regulatory terms.",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 18,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/Act-with-amendment.pdf",
+          "title": "Electricity Act 2003",
+          "classification": "AMENDMENT",
+          "is_valid_event_source": true,
+          "confidence": 0.88,
+          "reason_code": "VALID_PRIMARY_DOCUMENT",
+          "primary_url": "https://cercind.gov.in/Act-with-amendment.pdf",
+          "content_length": 262362,
+          "content_hash": "9878bbec3b7a4c71f95cf428e2108bc6c3f1f473d8eb0020866bbd76d0864156",
+          "metadata": {
+            "doc_type": "pdf",
+            "needs_ocr": false,
+            "explanation": "Amendment terms.",
+            "content_type": "application/pdf",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 19,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/regulations.html",
+          "title": "Rules & Regulations",
+          "classification": "LISTING_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.94,
+          "reason_code": "LISTING_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Listing page.",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 20,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/Ind.html",
+          "title": "Individual Regulation",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 21,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/updated_consolidated_reg.html",
+          "title": "Consolidated Regulation",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 22,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/Draft_reg.html",
+          "title": "Draft Regulation / Discussion Paper",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 23,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/recent_orders_rops.html",
+          "title": "Orders/ROPs/TVs",
+          "classification": "LISTING_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.94,
+          "reason_code": "LISTING_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Listing page.",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 24,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/orders.html",
+          "title": "Orders",
+          "classification": "LISTING_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.94,
+          "reason_code": "LISTING_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Listing page.",
+            "source_page_id": 4,
+            "source_page_name": "Suo Motu Petitions / Staff Papers / Notices",
+            "source_page_type": "spn_listing"
+          },
+          "created_at": "2026-06-22T11:16:50.761193+00:00"
+        },
+        {
+          "id": 25,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/orgnigation.pdf",
+          "title": "Organization Chart",
+          "classification": "REGULATORY_DOCUMENT",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "error": "HTTPStatusError: Client error '404 Not Found' for url 'https://cercind.gov.in/orgnigation.pdf'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+            "explanation": "PDF without strong regulatory terms.",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 26,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/Act-with-amendment.pdf",
+          "title": "Electricity Act 2003",
+          "classification": "AMENDMENT",
+          "is_valid_event_source": true,
+          "confidence": 0.88,
+          "reason_code": "VALID_PRIMARY_DOCUMENT",
+          "primary_url": "https://cercind.gov.in/Act-with-amendment.pdf",
+          "content_length": 262362,
+          "content_hash": "9878bbec3b7a4c71f95cf428e2108bc6c3f1f473d8eb0020866bbd76d0864156",
+          "metadata": {
+            "doc_type": "pdf",
+            "needs_ocr": false,
+            "explanation": "Amendment terms.",
+            "content_type": "application/pdf",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 27,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/regulations.html",
+          "title": "Rules & Regulations",
+          "classification": "LISTING_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.94,
+          "reason_code": "LISTING_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Listing page.",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 28,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/Ind.html",
+          "title": "Individual Regulation",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 29,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/updated_consolidated_reg.html",
+          "title": "Consolidated Regulation",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 30,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/Draft_reg.html",
+          "title": "Draft Regulation / Discussion Paper",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 31,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/recent_orders_rops.html",
+          "title": "Orders/ROPs/TVs",
+          "classification": "LISTING_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.94,
+          "reason_code": "LISTING_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Listing page.",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 32,
+          "run_id": 1,
+          "source_code": "cerc",
+          "source_url": "https://cercind.gov.in/orders.html",
+          "title": "Orders",
+          "classification": "LISTING_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.94,
+          "reason_code": "LISTING_PAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Listing page.",
+            "source_page_id": 5,
+            "source_page_name": "Notice / Letter",
+            "source_page_type": "notice_letter_listing"
+          },
+          "created_at": "2026-06-22T11:17:11.210219+00:00"
+        },
+        {
+          "id": 33,
+          "run_id": 1,
+          "source_code": "mop",
+          "source_url": "https://www.powermin.gov.in/whats-new",
+          "title": "What's New",
+          "classification": "LISTING_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 1.0,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Curated source page produced no primary PDF or primary HTML notice.",
+            "source_page_id": 7,
+            "source_page_name": "What's New",
+            "source_page_type": "whats_new_listing"
+          },
+          "created_at": "2026-06-22T11:17:14.384190+00:00"
+        },
+        {
+          "id": 34,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://www.seci.co.in/",
+          "title": "Solar Energy Corporation of India Limited (A Navratna Government of India Enterprise)",
+          "classification": "HOMEPAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.97,
+          "reason_code": "HOMEPAGE_DETECTED",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "Root/index page.",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        },
+        {
+          "id": 35,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://www.seci.co.in/empowering-sustainable-growth-with-renewable-energy",
+          "title": "About Us",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        },
+        {
+          "id": 36,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://www.seci.co.in/board-of-directors",
+          "title": "Board of Directors and CVO",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        },
+        {
+          "id": 37,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://www.seci.co.in/assets/uploads/1AE4A48C-A238-4EAE-9EDA-C5355D7FB6C9.pdf",
+          "title": "Terms of appointment of Independent Director",
+          "classification": "REGULATORY_DOCUMENT",
+          "is_valid_event_source": false,
+          "confidence": 0.8,
+          "reason_code": "INSUFFICIENT_CONTENT",
+          "primary_url": "https://www.seci.co.in/assets/uploads/1AE4A48C-A238-4EAE-9EDA-C5355D7FB6C9.pdf",
+          "content_length": 0,
+          "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "metadata": {
+            "doc_type": "pdf",
+            "needs_ocr": true,
+            "explanation": "PDF with regulatory terms.",
+            "content_type": "application/pdf",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        },
+        {
+          "id": 38,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://www.seci.co.in/disclosures-under-regulation-62-of-sebi-lodr-2015",
+          "title": "Disclosures under Regulation 62 of SEBI (LODR), 2015",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        },
+        {
+          "id": 39,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://seci.co.in/notices",
+          "title": "Notice and Announcements",
+          "classification": "NAVIGATION_PAGE",
+          "is_valid_event_source": false,
+          "confidence": 0.62,
+          "reason_code": "NO_PRIMARY_DOCUMENT",
+          "primary_url": null,
+          "content_length": 0,
+          "content_hash": null,
+          "metadata": {
+            "explanation": "No strong regulatory primary-document signal.",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        },
+        {
+          "id": 40,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://www.seci.co.in/csr-policy",
+          "title": "CSR Policy",
+          "classification": "POLICY_UPDATE",
+          "is_valid_event_source": false,
+          "confidence": 0.78,
+          "reason_code": "INSUFFICIENT_CONTENT",
+          "primary_url": "https://www.seci.co.in/csr-policy",
+          "content_length": 148,
+          "content_hash": "059279c49b2d48f57101ba7d1f9a7859410e33ba0c38f2963a0c1e88563579e1",
+          "metadata": {
+            "doc_type": "html",
+            "needs_ocr": false,
+            "explanation": "Policy terms.",
+            "content_type": "text/html; charset=UTF-8",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        },
+        {
+          "id": 41,
+          "run_id": 1,
+          "source_code": "seci",
+          "source_url": "https://www.seci.co.in/uploads/media/APPROVED_CORP_BROCHURE-1.pdf",
+          "title": "Corporate Brochure",
+          "classification": "REGULATORY_DOCUMENT",
+          "is_valid_event_source": true,
+          "confidence": 0.8,
+          "reason_code": "VALID_PRIMARY_DOCUMENT",
+          "primary_url": "https://www.seci.co.in/uploads/media/APPROVED_CORP_BROCHURE-1.pdf",
+          "content_length": 738,
+          "content_hash": "d0ce93be07581472627ee1d1552bea5df1c63a83f50f8e77a81d1fccb03e0ded",
+          "metadata": {
+            "doc_type": "pdf",
+            "needs_ocr": false,
+            "explanation": "PDF with regulatory terms.",
+            "content_type": "application/pdf",
+            "source_page_id": 6,
+            "source_page_name": "Tenders",
+            "source_page_type": "tender_listing"
+          },
+          "created_at": "2026-06-22T11:17:47.112211+00:00"
+        }
+      ]
+    },
+    "event_intelligence_audit": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_change_audit": {
+      "exists": true,
+      "rows": []
+    },
+    "document_family_assignments": {
+      "exists": true,
+      "rows": []
+    },
+    "document_version_registry": {
+      "exists": true,
+      "rows": []
+    },
+    "document_version_relationships": {
+      "exists": true,
+      "rows": []
+    },
+    "document_families": {
+      "exists": true,
+      "rows": []
+    },
+    "deadline_history": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_document_entities": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_edges": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_extractions": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_stakeholders": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_obligations": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_deadlines": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_family_enrichment": {
+      "exists": true,
+      "rows": []
+    },
+    "regulatory_graph_entities": {
+      "exists": true,
+      "rows": []
+    },
+    "crawl_runs": {
+      "exists": true,
+      "rows": [
+        {
+          "id": 1,
+          "started_at": "2026-06-22T11:16:18.958372+00:00",
+          "finished_at": "2026-06-22T11:18:04.800169+00:00",
+          "status": "partial",
+          "sources_attempted": 4,
+          "sources_succeeded": 4,
+          "docs_found": 40,
+          "new_events": 0,
+          "errors": [
+            {
+              "error": "",
+              "source": "cerc",
+              "source_page": "Public Notice",
+              "source_page_id": 3
+            }
+          ]
+        }
+      ]
+    },
+    "digests": {
+      "exists": true,
+      "rows": [
+        {
+          "id": 1,
+          "digest_date": "2026-06-22",
+          "event_count": 0,
+          "created_at": "2026-06-22T11:18:03.506229+00:00"
+        }
+      ]
+    },
+    "digest_events": {
+      "exists": true,
+      "rows": []
+    },
+    "notifications_log": {
+      "exists": true,
+      "rows": []
+    },
+    "chat_messages": {
+      "exists": true,
+      "rows": []
+    },
+    "user_event_state": {
+      "exists": true,
+      "rows": []
+    },
+    "sources": {
+      "exists": true,
+      "rows": [
+        {
+          "id": 1,
+          "code": "mnre",
+          "name": "Ministry of New & Renewable Energy",
+          "jurisdiction": "central",
+          "url": "https://mnre.gov.in/en/monthly-updates/",
+          "crawler_type": "digest",
+          "allowed_domains": [
+            "mnre.gov.in",
+            "cdnbbsr.s3waas.gov.in"
+          ],
+          "hint": "Layer-1 digest source. Parse monthly policy and regulatory update PDFs, then fetch primary document links.",
+          "enabled": true,
+          "last_checked_at": "2026-06-22T11:16:31.841210+00:00",
+          "last_status": 200,
+          "consecutive_failures": 0,
+          "created_at": "2026-06-20T13:59:49.234176+00:00",
+          "updated_at": "2026-06-22T11:16:31.841210+00:00"
+        },
+        {
+          "id": 2,
+          "code": "cerc",
+          "name": "Central Electricity Regulatory Commission",
+          "jurisdiction": "central",
+          "url": "https://cercind.gov.in/",
+          "crawler_type": "agent",
+          "allowed_domains": [
+            "cercind.gov.in"
+          ],
+          "hint": "Tier-0 source. Audit listing structure before enabling live crawler.",
+          "enabled": true,
+          "last_checked_at": "2026-06-22T11:17:13.504369+00:00",
+          "last_status": 200,
+          "consecutive_failures": 0,
+          "created_at": "2026-06-20T13:59:49.234176+00:00",
+          "updated_at": "2026-06-22T11:17:13.504369+00:00"
+        },
+        {
+          "id": 3,
+          "code": "mop",
+          "name": "Ministry of Power",
+          "jurisdiction": "central",
+          "url": "https://powermin.gov.in/en",
+          "crawler_type": "agent",
+          "allowed_domains": [
+            "powermin.gov.in"
+          ],
+          "hint": "Tier-0 source. Audit PDF domains before enabling live crawler.",
+          "enabled": true,
+          "last_checked_at": "2026-06-22T11:17:15.371264+00:00",
+          "last_status": 200,
+          "consecutive_failures": 0,
+          "created_at": "2026-06-20T13:59:49.234176+00:00",
+          "updated_at": "2026-06-22T11:17:15.371264+00:00"
+        },
+        {
+          "id": 5,
+          "code": "seci",
+          "name": "Solar Energy Corporation of India",
+          "jurisdiction": "central",
+          "url": "https://www.seci.co.in",
+          "crawler_type": "agent",
+          "allowed_domains": [
+            "seci.co.in",
+            "www.seci.co.in"
+          ],
+          "hint": "Curated tender source. Crawl only configured source_pages entries.",
+          "enabled": true,
+          "last_checked_at": "2026-06-22T11:17:49.040239+00:00",
+          "last_status": 200,
+          "consecutive_failures": 0,
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T11:17:49.040239+00:00"
+        }
+      ]
+    },
+    "source_pages": {
+      "exists": true,
+      "rows": [
+        {
+          "id": 3,
+          "source_id": 2,
+          "name": "Public Notice",
+          "url": "https://cercind.gov.in/public-notice.html",
+          "page_type": "public_notice_listing",
+          "priority": 10,
+          "enabled": true,
+          "last_crawled_at": null,
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T10:41:44.461722+00:00"
+        },
+        {
+          "id": 1,
+          "source_id": 1,
+          "name": "Current Notices",
+          "url": "https://mnre.gov.in/en/notice-category/current-notices/",
+          "page_type": "notice_listing",
+          "priority": 10,
+          "enabled": true,
+          "last_crawled_at": "2026-06-22T11:16:26.211275+00:00",
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T11:16:26.211275+00:00"
+        },
+        {
+          "id": 2,
+          "source_id": 1,
+          "name": "Monthly Updates",
+          "url": "https://mnre.gov.in/en/monthly-updates/",
+          "page_type": "digest_listing",
+          "priority": 20,
+          "enabled": true,
+          "last_crawled_at": "2026-06-22T11:16:31.359273+00:00",
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T11:16:31.359273+00:00"
+        },
+        {
+          "id": 4,
+          "source_id": 2,
+          "name": "Suo Motu Petitions / Staff Papers / Notices",
+          "url": "https://cercind.gov.in/SPN.html",
+          "page_type": "spn_listing",
+          "priority": 20,
+          "enabled": true,
+          "last_crawled_at": "2026-06-22T11:16:52.209304+00:00",
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T11:16:52.209304+00:00"
+        },
+        {
+          "id": 5,
+          "source_id": 2,
+          "name": "Notice / Letter",
+          "url": "https://cercind.gov.in/notice-letter.html",
+          "page_type": "notice_letter_listing",
+          "priority": 30,
+          "enabled": true,
+          "last_crawled_at": "2026-06-22T11:17:12.731212+00:00",
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T11:17:12.731212+00:00"
+        },
+        {
+          "id": 7,
+          "source_id": 3,
+          "name": "What's New",
+          "url": "https://www.powermin.gov.in/whats-new",
+          "page_type": "whats_new_listing",
+          "priority": 10,
+          "enabled": true,
+          "last_crawled_at": "2026-06-22T11:17:14.914255+00:00",
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T11:17:14.914255+00:00"
+        },
+        {
+          "id": 6,
+          "source_id": 5,
+          "name": "Tenders",
+          "url": "https://www.seci.co.in/tenders",
+          "page_type": "tender_listing",
+          "priority": 10,
+          "enabled": true,
+          "last_crawled_at": "2026-06-22T11:17:48.466240+00:00",
+          "created_at": "2026-06-22T10:41:44.461722+00:00",
+          "updated_at": "2026-06-22T11:17:48.466240+00:00"
+        }
+      ]
+    },
+    "profiles": {
+      "exists": true,
+      "rows": [
+        {
+          "id": "3b49ecab-ffca-43ac-9695-03855821b4e5",
+          "email": "a4ayushyadav2007@gmail.com",
+          "full_name": null,
+          "role": "user",
+          "created_at": "2026-06-21T07:06:21.860758+00:00"
+        },
+        {
+          "id": "b90bcde6-c0a9-4141-90c6-19771c5dcda1",
+          "email": "ayushy.ug24.cs@nitp.ac.in",
+          "full_name": null,
+          "role": "admin",
+          "created_at": "2026-06-21T07:07:15.310006+00:00"
+        },
+        {
+          "id": "1f205b95-de16-4dc5-94de-370aad5a22f9",
+          "email": "honeydubey300@gmail.com",
+          "full_name": null,
+          "role": "user",
+          "created_at": "2026-06-21T14:28:18.700025+00:00"
+        },
+        {
+          "id": "9f82300d-dfc9-4fc4-871e-00735f850e1d",
+          "email": "honeydubey30@gmail.com",
+          "full_name": null,
+          "role": "admin",
+          "created_at": "2026-06-21T14:28:39.923425+00:00"
+        }
+      ]
+    },
+    "subscriptions": {
+      "exists": true,
+      "rows": []
+    },
+    "app_documents": {
+      "exists": true,
+      "rows": [
+        {
+          "slug": "backend-api",
+          "title": "Backend API Reference",
+          "category": "api",
+          "content_md": "# Resolven Regulatory AI Backend API\n\nBase URL comes from `API_BASE_URL` or `NEXT_PUBLIC_API_BASE_URL`.\n\nAuthentication uses Supabase Auth access tokens: `Authorization: Bearer <supabase-access-token>`.\n\nLocal development may set `AUTH_REQUIRED=false`, which returns a demo user for app testing.\n\n## Health\n- `GET /health` - runtime readiness, DB connectivity, storage, and provider status.\n\n## Digests\n- `GET /digests/latest` - latest daily digest with events.\n- `GET /digests/{YYYY-MM-DD}` - digest for a specific date.\n\n## Events\n- `GET /events` - archive search.\n  Query params: `q`, `jurisdiction`, `source`, `topic`, `date_from`, `date_to`,\n  `bookmarked`, `page`.\n- `GET /events/{id}` - event detail.\n- `POST /events/{id}/read` - mark event read.\n- `POST /events/{id}/bookmark` - toggle bookmark.\n\n## Chat\n- `POST /chat` - grounded event/global chat.\n  Body: `{ \"event_id\": number | null, \"message\": string }`.\n- `GET /chat/history?event_id={id}` - saved chat history.\n\n## Intelligence\n- `GET /intelligence/deadlines` - active graph deadlines.\n  Query params: `issuer`, `deadline_type`, `stakeholder`, `status=active|historical|all`,\n  `limit`.\n- `GET /intelligence/obligations` - obligations grouped by stakeholder.\n  Query params: `stakeholder`, `issuer`, `limit`.\n- `GET /intelligence/stakeholders` - stakeholder intelligence cards for the supported\n  energy-sector stakeholder set.\n- `GET /intelligence/stakeholders/{stakeholder}` - one stakeholder view.\n- `GET /intelligence/readiness` - product-readiness snapshot over deadlines,\n  obligations, impacts, and consultations.\n\n## Subscriptions\n- `GET /subscriptions` - current notification preferences.\n- `PUT /subscriptions` - update jurisdictions, source ids, topics, email toggle, and frequency.\n\n## Exports\n- `GET /exports/latest?format=json|csv|markdown` - download latest digest/news in\n  the requested file format and log the export.\n\n## Admin\n- Admin endpoints require an admin role in `user_profiles.role`.\n- `GET /admin/sources` - source configuration and health.\n- `POST /admin/sources` - create a source.\n- `PUT /admin/sources/{id}` - update a source.\n- `DELETE /admin/sources/{id}` - delete a source.\n- `GET /admin/sources/{id}/pages` - list curated crawl pages for a source.\n- `POST /admin/sources/{id}/pages` - create a curated crawl page.\n- `PUT /admin/pages/{id}` - update a curated crawl page.\n- `DELETE /admin/pages/{id}` - delete a curated crawl page.\n- `POST /admin/pages/{id}/crawl` - crawl one curated source page.\n- `POST /admin/sources/{id}/crawl` - crawl all enabled curated pages for a source.\n- `GET /admin/runs` - pipeline run history.\n- `GET /admin/runs/{id}` - one pipeline run.\n- `GET /admin/sources/{id}/analytics` - source discovery and event-yield analytics.\n\n## Documentation\n- `GET /meta/docs` - list database-backed documents.\n- `GET /meta/docs/{slug}` - retrieve one document.\n",
+          "updated_at": "2026-06-22T10:41:46.386071+00:00"
+        },
+        {
+          "slug": "crawl_schedule",
+          "title": "Crawl schedule",
+          "category": "system",
+          "content_md": "{\"enabled\": false, \"frequency\": \"daily\", \"hour_utc\": 1}",
+          "updated_at": "2026-06-21T16:36:42.564849+00:00"
+        },
+        {
+          "slug": "complete-flow",
+          "title": "Complete Product Flow",
+          "category": "flow",
+          "content_md": "# Complete Product Flow\n\n1. Source configuration lives in Supabase `sources`.\n2. Curated crawl entrypoints live in `source_pages`.\n3. The pipeline reads enabled source pages and discovers only primary PDFs or primary\n   HTML notices from those curated listing pages.\n4. Each accepted primary document is canonicalized and upserted into `documents`.\n5. New versions are written to `document_versions`.\n6. Change detection creates visible `events` only when content is new or changed.\n7. Non-AI summaries are stored immediately in `summaries`; AI enrichment can update\n   the same event/model slot later.\n8. `digests` and `digest_events` link the day's visible events into one daily briefing.\n9. Users sign in with Supabase Auth and read the same cached digest.\n10. Per-user state lives in `user_event_state`: read/unread and bookmarks.\n11. The knowledge graph stores entities, relationships, stakeholders, obligations, and\n    deadlines for accepted primary documents.\n12. The intelligence APIs expose active deadlines, obligations, stakeholder impacts,\n    and consultation tracking directly from the graph.\n13. Chat requests are grounded to selected event context and persisted in `chat_messages`.\n14. Subscription preferences live in `subscriptions`.\n15. Latest-news export requests are logged in `exports_log` and returned as JSON, CSV, or Markdown.\n16. Admins monitor `crawl_runs`, `source_pages`, and source analytics to catch broken\n    government pages quickly.\n",
+          "updated_at": "2026-06-22T10:41:46.386071+00:00"
+        },
+        {
+          "slug": "frontend-routes",
+          "title": "Frontend Route Map",
+          "category": "frontend",
+          "content_md": "# Resolven Regulatory AI Frontend Routes\n\nThe frontend is a vinext/Next app in `apps/web`.\nThe main client shell is `apps/web/app/resolven-app.tsx`.\n\nRoutes:\n- `/` - Today briefing with latest digest and export actions.\n- `/browse` - searchable archive over events.\n- `/saved` - bookmarked updates.\n- `/intelligence` - deadlines, obligations, stakeholder impact, and consultation\n  tracking powered by the knowledge graph.\n- `/events/{id}` - event detail with grounded insight chat.\n- `/notifications` - subscription and digest email preferences.\n- `/account` - account/session/runtime details.\n- `/admin/sources` - source health and enable/disable actions.\n- `/admin/runs` - crawl-run timeline.\n- `/api-docs` - backend API documentation.\n- `/flow` - end-to-end product flow documentation.\n\nCore UI primitives:\n- App shell: persistent left navigation on desktop, horizontal rail on mobile.\n- Docket strip: jurisdiction, source/body, issue date, event type.\n- Event card: docket strip, title, summary, topics, read/bookmark/source actions.\n- Insight chat: selected event context, suggestions, answer panel.\n- Export bar: JSON, CSV, Markdown export for the latest news.\n\nRuntime configuration:\n- `NEXT_PUBLIC_SUPABASE_URL`\n- `NEXT_PUBLIC_SUPABASE_ANON_KEY`\n- `NEXT_PUBLIC_API_BASE_URL`\n- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_API_BASE_URL`\n  are also supported for vinext compatibility.\n",
+          "updated_at": "2026-06-22T10:41:46.386071+00:00"
+        }
+      ]
+    },
+    "exports_log": {
+      "exists": true,
+      "rows": [
+        {
+          "id": 1,
+          "user_id": "b90bcde6-c0a9-4141-90c6-19771c5dcda1",
+          "export_type": "latest_digest",
+          "export_format": "json",
+          "row_count": 23,
+          "created_at": "2026-06-21T11:36:13.278230+00:00"
+        }
+      ]
+    },
+    "audit_log": {
+      "exists": true,
+      "rows": []
+    }
+  }
+}

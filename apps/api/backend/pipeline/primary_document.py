@@ -296,6 +296,11 @@ def _audit(
     reason_code: str | None = None,
     metadata: dict | None = None,
 ) -> DiscoveryAuditRecord:
+    candidate_metadata = {
+        "candidate_key": candidate.candidate_key,
+        "source_record_id": candidate.source_record_id,
+        "published_at": candidate.published_at.isoformat() if candidate.published_at else None,
+    }
     return DiscoveryAuditRecord(
         source_code=candidate.source_code,
         source_url=candidate.source_url,
@@ -307,7 +312,11 @@ def _audit(
         primary_url=primary_url,
         content_length=content_length,
         content_hash=content_hash,
-        metadata={"explanation": quality.explanation, **(metadata or {})},
+        metadata={
+            "explanation": quality.explanation,
+            **{key: value for key, value in candidate_metadata.items() if value},
+            **(metadata or {}),
+        },
     )
 
 

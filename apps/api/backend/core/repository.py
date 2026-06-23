@@ -10,12 +10,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from backend.core.db import session_scope
 from backend.core.models import (
     DigestResponse,
+    DiscoveredDoc,
     DiscoveryAuditRecord,
     EventIntelligence,
     EventSummary,
     ExtractedDoc,
     PriorVersionReference,
     RegulatoryChange,
+    SourcePagePayload,
+    SourcePageUpdatePayload,
+    SourcePayload,
+    SourceUpdatePayload,
     SubscriptionSettings,
     SummaryPayload,
 )
@@ -47,6 +52,18 @@ TOPIC_KEYWORDS = {
     "transmission": ["transmission", "grid", "ctu", "stu", "connectivity"],
     "thermal": ["thermal", "coal", "gas"],
     "tender": ["tender", "bid", "rfp"],
+}
+ALLOWED_SOURCE_PAGE_URLS = {
+    canonical_url(url)
+    for url in (
+        "https://mnre.gov.in/en/notice-category/current-notices/",
+        "https://mnre.gov.in/en/monthly-updates/",
+        "https://cercind.gov.in/public-notice.html",
+        "https://cercind.gov.in/SPN.html",
+        "https://cercind.gov.in/notice-letter.html",
+        "https://www.seci.co.in/tenders",
+        "https://www.powermin.gov.in/whats-new",
+    )
 }
 
 
@@ -264,7 +281,7 @@ def list_sources() -> list[dict[str, Any]]:
                 text(
                     """
                     select id, code, name, jurisdiction::text as jurisdiction, url,
-                           crawler_type::text as crawler_type, allowed_domains, enabled,
+                           crawler_type::text as crawler_type, allowed_domains, hint, enabled,
                            last_checked_at, last_status, consecutive_failures
                     from sources
                     order by id
@@ -275,6 +292,302 @@ def list_sources() -> list[dict[str, Any]]:
     except SQLAlchemyError as exc:
         logger.warning("list_sources failed: %s", exc)
         return []
+
+
+def create_source(payload: SourcePayload) -> dict[str, Any]:
+    with session_scope() as session:
+        row = session.execute(
+            text(
+                """
+                insert into sources
+                  (code, name, jurisdiction, url, crawler_type, allowed_domains, hint, enabled)
+                values
+                  (:code, :name, cast(:jurisdiction as jurisdiction_t), :url,
+                   cast(:crawler_type as crawler_t), :allowed_domains, :hint, :enabled)
+                returning id, code, name, jurisdiction::text as jurisdiction, url,
+                          crawler_type::text as crawler_type, allowed_domains, hint, enabled,
+                          last_checked_at, last_status, consecutive_failures
+                """
+            ),
+            payload.model_dump(),
+        ).mappings().first()
+    return dict(row) if row else {}
+
+
+def update_source(source_id: int, payload: SourceUpdatePayload) -> dict[str, Any]:
+    values = payload.model_dump()
+    values["source_id"] = source_id
+    with session_scope() as session:
+        row = session.execute(
+            text(
+                """
+                update sources
+                set code = coalesce(:code, code),
+                    name = coalesce(:name, name),
+                    jurisdiction = coalesce(cast(:jurisdiction as jurisdiction_t), jurisdiction),
+                    url = coalesce(:url, url),
+                    crawler_type = coalesce(cast(:crawler_type as crawler_t), crawler_type),
+                    allowed_domains = coalesce(cast(:allowed_domains as text[]), allowed_domains),
+                    hint = coalesce(:hint, hint),
+                    enabled = coalesce(:enabled, enabled),
+                    updated_at = now()
+                where id = :source_id
+                returning id, code, name, jurisdiction::text as jurisdiction, url,
+                          crawler_type::text as crawler_type, allowed_domains, hint, enabled,
+                          last_checked_at, last_status, consecutive_failures
+                """
+            ),
+            values,
+        ).mappings().first()
+    return dict(row) if row else {}
+
+
+def delete_source(source_id: int) -> dict[str, Any]:
+    with session_scope() as session:
+        row = session.execute(
+            text("delete from sources where id = :source_id returning id"),
+            {"source_id": source_id},
+        ).first()
+    return {"source_id": source_id, "deleted": bool(row)}
+
+
+def list_source_pages(source_id: int) -> list[dict[str, Any]]:
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select id, source_id, name, url, page_type, priority, enabled,
+                           last_crawled_at, created_at, updated_at
+                    from source_pages
+                    where source_id = :source_id
+                    order by priority, id
+                    """
+                ),
+                {"source_id": source_id},
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_source_pages failed: %s", exc)
+        return []
+
+
+def list_enabled_source_pages(
+    *,
+    source_id: int | None = None,
+    page_id: int | None = None,
+) -> list[dict[str, Any]]:
+    clauses = ["s.enabled = true", "sp.enabled = true"]
+    params: dict[str, Any] = {}
+    if source_id is not None:
+        clauses.append("s.id = :source_id")
+        params["source_id"] = source_id
+    if page_id is not None:
+        clauses.append("sp.id = :page_id")
+        params["page_id"] = page_id
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    f"""
+                    select
+                      sp.id,
+                      sp.source_id,
+                      sp.name,
+                      sp.url,
+                      sp.page_type,
+                      sp.priority,
+                      sp.enabled,
+                      sp.last_crawled_at,
+                      s.code as source_code,
+                      s.name as source_name,
+                      s.url as source_url,
+                      s.jurisdiction::text as jurisdiction,
+                      s.crawler_type::text as crawler_type,
+                      s.allowed_domains,
+                      s.hint
+                    from source_pages sp
+                    join sources s on s.id = sp.source_id
+                    where {" and ".join(clauses)}
+                    order by s.id, sp.priority, sp.id
+                    """
+                ),
+                params,
+            ).mappings()
+            return [
+                dict(row)
+                for row in rows
+                if canonical_url(str(row["url"])) in ALLOWED_SOURCE_PAGE_URLS
+            ]
+    except SQLAlchemyError as exc:
+        logger.warning("list_enabled_source_pages failed: %s", exc)
+        return []
+
+
+def get_source_page(page_id: int) -> dict[str, Any] | None:
+    pages = list_enabled_source_pages(page_id=page_id)
+    return pages[0] if pages else None
+
+
+def create_source_page(source_id: int, payload: SourcePagePayload) -> dict[str, Any]:
+    values = payload.model_dump()
+    values["source_id"] = source_id
+    with session_scope() as session:
+        row = session.execute(
+            text(
+                """
+                insert into source_pages (source_id, name, url, page_type, priority, enabled)
+                values (:source_id, :name, :url, :page_type, :priority, :enabled)
+                returning id, source_id, name, url, page_type, priority, enabled,
+                          last_crawled_at, created_at, updated_at
+                """
+            ),
+            values,
+        ).mappings().first()
+    return dict(row) if row else {}
+
+
+def update_source_page(page_id: int, payload: SourcePageUpdatePayload) -> dict[str, Any]:
+    values = payload.model_dump()
+    values["page_id"] = page_id
+    with session_scope() as session:
+        row = session.execute(
+            text(
+                """
+                update source_pages
+                set name = coalesce(:name, name),
+                    url = coalesce(:url, url),
+                    page_type = coalesce(:page_type, page_type),
+                    priority = coalesce(:priority, priority),
+                    enabled = coalesce(:enabled, enabled),
+                    updated_at = now()
+                where id = :page_id
+                returning id, source_id, name, url, page_type, priority, enabled,
+                          last_crawled_at, created_at, updated_at
+                """
+            ),
+            values,
+        ).mappings().first()
+    return dict(row) if row else {}
+
+
+def delete_source_page(page_id: int) -> dict[str, Any]:
+    with session_scope() as session:
+        row = session.execute(
+            text("delete from source_pages where id = :page_id returning id, source_id"),
+            {"page_id": page_id},
+        ).first()
+    return {
+        "page_id": page_id,
+        "source_id": int(row.source_id) if row else None,
+        "deleted": bool(row),
+    }
+
+
+def mark_source_page_crawled(page_id: int) -> None:
+    try:
+        with session_scope() as session:
+            session.execute(
+                text(
+                    """
+                    update source_pages
+                    set last_crawled_at = now(), updated_at = now()
+                    where id = :page_id
+                    """
+                ),
+                {"page_id": page_id},
+            )
+    except SQLAlchemyError:
+        return
+
+
+def load_checkpoint(page_id: int) -> dict[str, Any] | None:
+    try:
+        with session_scope() as session:
+            row = session.execute(
+                text(
+                    """
+                    select
+                      source_page_id,
+                      checkpoint_key,
+                      checkpoint_url,
+                      checkpoint_title,
+                      checkpoint_issue_date,
+                      checkpoint_published_at,
+                      checkpoint_source_record_id,
+                      checkpoint_content_hash,
+                      checkpoint_payload,
+                      lookback_count,
+                      last_successful_run_id,
+                      last_successful_at,
+                      updated_at
+                    from source_page_checkpoints
+                    where source_page_id = :page_id
+                    """
+                ),
+                {"page_id": page_id},
+            ).mappings().first()
+            return dict(row) if row else None
+    except SQLAlchemyError as exc:
+        logger.warning("load_checkpoint(%s) failed: %s", page_id, exc)
+        return None
+
+
+def save_checkpoint(
+    page_id: int,
+    candidate: DiscoveredDoc,
+    *,
+    run_id: int | None = None,
+) -> None:
+    if not candidate.candidate_key:
+        return
+    payload = {
+        "source_code": candidate.source_code,
+        "issue_date_precision": candidate.issue_date_precision,
+        "doc_type": candidate.doc_type,
+    }
+    try:
+        with session_scope() as session:
+            session.execute(
+                text(
+                    """
+                    insert into source_page_checkpoints
+                      (source_page_id, checkpoint_key, checkpoint_url, checkpoint_title,
+                       checkpoint_issue_date, checkpoint_published_at,
+                       checkpoint_source_record_id, checkpoint_payload,
+                       last_successful_run_id, last_successful_at)
+                    values
+                      (:source_page_id, :checkpoint_key, :checkpoint_url,
+                       :checkpoint_title, :checkpoint_issue_date,
+                       :checkpoint_published_at, :checkpoint_source_record_id,
+                       cast(:checkpoint_payload as jsonb), :run_id, now())
+                    on conflict (source_page_id) do update set
+                      checkpoint_key = excluded.checkpoint_key,
+                      checkpoint_url = excluded.checkpoint_url,
+                      checkpoint_title = excluded.checkpoint_title,
+                      checkpoint_issue_date = excluded.checkpoint_issue_date,
+                      checkpoint_published_at = excluded.checkpoint_published_at,
+                      checkpoint_source_record_id = excluded.checkpoint_source_record_id,
+                      checkpoint_payload = excluded.checkpoint_payload,
+                      last_successful_run_id = excluded.last_successful_run_id,
+                      last_successful_at = now(),
+                      updated_at = now()
+                    """
+                ),
+                {
+                    "source_page_id": page_id,
+                    "checkpoint_key": candidate.candidate_key,
+                    "checkpoint_url": canonical_url(candidate.source_url),
+                    "checkpoint_title": candidate.title,
+                    "checkpoint_issue_date": candidate.issue_date,
+                    "checkpoint_published_at": candidate.published_at,
+                    "checkpoint_source_record_id": candidate.source_record_id,
+                    "checkpoint_payload": json.dumps(payload),
+                    "run_id": run_id,
+                },
+            )
+    except SQLAlchemyError as exc:
+        logger.warning("save_checkpoint(%s) failed: %s", page_id, exc)
 
 
 def record_source_check(source_code: str, *, status: int | None, ok: bool) -> None:
@@ -334,6 +647,361 @@ def list_crawl_runs(limit: int = 25) -> list[dict[str, Any]]:
             return [dict(row) for row in rows]
     except SQLAlchemyError:
         return []
+
+
+def get_crawl_run(run_id: int) -> dict[str, Any] | None:
+    try:
+        with session_scope() as session:
+            row = session.execute(
+                text(
+                    """
+                    select id, started_at, finished_at, status::text as status,
+                           sources_attempted, sources_succeeded, docs_found,
+                           new_events, errors
+                    from crawl_runs
+                    where id = :run_id
+                    """
+                ),
+                {"run_id": run_id},
+            ).mappings().first()
+            return dict(row) if row else None
+    except SQLAlchemyError:
+        return None
+
+
+def get_source_analytics(source_id: int) -> dict[str, Any]:
+    try:
+        with session_scope() as session:
+            source = session.execute(
+                text(
+                    """
+                    select id, code, name, jurisdiction::text as jurisdiction, url,
+                           crawler_type::text as crawler_type, allowed_domains, hint, enabled,
+                           last_checked_at, last_status, consecutive_failures
+                    from sources
+                    where id = :source_id
+                    """
+                ),
+                {"source_id": source_id},
+            ).mappings().first()
+            if not source:
+                return {}
+            source_dict = dict(source)
+            counts = session.execute(
+                text(
+                    """
+                    select
+                      (select count(*)
+                       from source_pages
+                       where source_id = :source_id) as pages_total,
+                      (select count(*) from source_pages
+                       where source_id = :source_id and enabled = true) as pages_enabled,
+                      (select count(*)
+                       from documents
+                       where source_id = :source_id) as documents_total,
+                      (select count(*)
+                       from events e
+                       join documents d on d.id = e.document_id
+                       where d.source_id = :source_id) as events_total,
+                      (select count(*) from discovery_audit
+                       where source_code = :source_code) as discovery_candidates,
+                      (select count(*) from discovery_audit
+                       where source_code = :source_code and is_valid_event_source = true)
+                       as discovery_accepted,
+                      (select count(*) from discovery_audit
+                       where source_code = :source_code and is_valid_event_source = false)
+                       as discovery_rejected
+                    """
+                ),
+                {"source_id": source_id, "source_code": source_dict["code"]},
+            ).mappings().first()
+            reason_rows = list(session.execute(
+                text(
+                    """
+                    select reason_code, count(*) as count
+                    from discovery_audit
+                    where source_code = :source_code
+                    group by reason_code
+                    order by count desc, reason_code
+                    """
+                ),
+                {"source_code": source_dict["code"]},
+            ).mappings())
+            classification_rows = list(session.execute(
+                text(
+                    """
+                    select classification, count(*) as count
+                    from discovery_audit
+                    where source_code = :source_code
+                    group by classification
+                    order by count desc, classification
+                    """
+                ),
+                {"source_code": source_dict["code"]},
+            ).mappings())
+            latest_run = session.execute(
+                text(
+                    """
+                    select cr.id, cr.started_at, cr.finished_at, cr.status::text as status,
+                           cr.sources_attempted, cr.sources_succeeded, cr.docs_found,
+                           cr.new_events, cr.errors
+                    from crawl_runs cr
+                    join discovery_audit da on da.run_id = cr.id
+                    where da.source_code = :source_code
+                    order by cr.started_at desc
+                    limit 1
+                    """
+                ),
+                {"source_code": source_dict["code"]},
+            ).mappings().first()
+        count_dict = dict(counts) if counts else {}
+        return {
+            "source": source_dict,
+            "pages_total": int(count_dict.get("pages_total") or 0),
+            "pages_enabled": int(count_dict.get("pages_enabled") or 0),
+            "documents_total": int(count_dict.get("documents_total") or 0),
+            "events_total": int(count_dict.get("events_total") or 0),
+            "discovery_candidates": int(count_dict.get("discovery_candidates") or 0),
+            "discovery_accepted": int(count_dict.get("discovery_accepted") or 0),
+            "discovery_rejected": int(count_dict.get("discovery_rejected") or 0),
+            "rejection_reasons": {
+                str(row["reason_code"]): int(row["count"]) for row in reason_rows
+            },
+            "classifications": {
+                str(row["classification"]): int(row["count"]) for row in classification_rows
+            },
+            "latest_run": dict(latest_run) if latest_run else None,
+        }
+    except SQLAlchemyError as exc:
+        logger.warning("get_source_analytics(%s) failed: %s", source_id, exc)
+        return {}
+
+
+def list_all_source_pages() -> list[dict[str, Any]]:
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select sp.id, sp.source_id, s.code as source_code, s.name as source_name,
+                           sp.name, sp.url, sp.page_type, sp.priority, sp.enabled,
+                           sp.last_crawled_at, sp.created_at, sp.updated_at
+                    from source_pages sp
+                    join sources s on s.id = sp.source_id
+                    order by s.code, sp.priority, sp.id
+                    """
+                )
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_all_source_pages failed: %s", exc)
+        return []
+
+
+def list_source_page_checkpoints() -> list[dict[str, Any]]:
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select sp.id as source_page_id, s.code as source_code,
+                           s.name as source_name, sp.name as source_page,
+                           sp.url as source_page_url, c.checkpoint_title,
+                           c.checkpoint_url, c.checkpoint_source_record_id,
+                           c.checkpoint_issue_date, c.checkpoint_published_at,
+                           c.lookback_count, c.last_successful_run_id,
+                           c.last_successful_at, c.updated_at
+                    from source_pages sp
+                    join sources s on s.id = sp.source_id
+                    left join source_page_checkpoints c on c.source_page_id = sp.id
+                    order by s.code, sp.priority, sp.id
+                    """
+                )
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_source_page_checkpoints failed: %s", exc)
+        return []
+
+
+def list_admin_documents(limit: int = 100) -> list[dict[str, Any]]:
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select d.id, d.title, d.source_url, d.issuing_body,
+                           d.jurisdiction::text as jurisdiction, d.issue_date,
+                           d.issue_date_precision::text as issue_date_precision,
+                           d.doc_type, d.first_seen_at, d.last_seen_at,
+                           s.code as source_code, s.name as source_name,
+                           dv.id as latest_version_id, dv.file_hash, dv.content_hash,
+                           dv.fetched_at,
+                           a.family_id, f.canonical_title as family_title
+                    from documents d
+                    left join sources s on s.id = d.source_id
+                    left join lateral (
+                      select *
+                      from document_versions
+                      where document_id = d.id
+                      order by fetched_at desc
+                      limit 1
+                    ) dv on true
+                    left join document_family_assignments a on a.document_id = d.id
+                    left join document_families f on f.family_id = a.family_id
+                    order by d.last_seen_at desc
+                    limit :limit
+                    """
+                ),
+                {"limit": limit},
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_admin_documents failed: %s", exc)
+        return []
+
+
+def list_admin_events(limit: int = 100) -> list[dict[str, Any]]:
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select e.id, e.event_type::text as event_type, e.detected_at,
+                           e.suppressed, e.raw_summary, e.topic_tags,
+                           d.id as document_id, d.title, d.source_url,
+                           d.issuing_body, d.issue_date,
+                           s.code as source_code,
+                           eia.quality_score, eia.quality_category,
+                           eia.significance_score, eia.significance_category,
+                           eia.actionability, eia.rejection_reason
+                    from events e
+                    join documents d on d.id = e.document_id
+                    left join sources s on s.id = d.source_id
+                    left join event_intelligence_audit eia on eia.event_id = e.id
+                    order by e.detected_at desc
+                    limit :limit
+                    """
+                ),
+                {"limit": limit},
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_admin_events failed: %s", exc)
+        return []
+
+
+def list_admin_families(limit: int = 100) -> list[dict[str, Any]]:
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select f.family_id, f.canonical_title, f.issuer, f.document_type,
+                           f.first_seen_at, f.latest_version_id, f.created_at, f.updated_at,
+                           count(distinct a.document_id) as document_count,
+                           count(distinct v.registry_version_id) as version_count,
+                           count(distinct dh.id) as deadline_count
+                    from document_families f
+                    left join document_family_assignments a on a.family_id = f.family_id
+                    left join document_version_registry v on v.family_id = f.family_id
+                    left join deadline_history dh on dh.family_id = f.family_id
+                    group by f.family_id
+                    order by f.updated_at desc
+                    limit :limit
+                    """
+                ),
+                {"limit": limit},
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_admin_families failed: %s", exc)
+        return []
+
+
+def get_admin_analytics() -> dict[str, Any]:
+    try:
+        with session_scope() as session:
+            counts = session.execute(
+                text(
+                    """
+                    select
+                      (select count(*) from sources) as sources,
+                      (select count(*) from source_pages) as pages,
+                      (select count(*) from events) as events,
+                      (select count(*) from documents) as documents,
+                      (select count(*) from document_families) as families,
+                      (select count(*) from source_page_checkpoints) as checkpoints,
+                      (select count(*) from discovery_audit) as candidates,
+                      (select count(*) from discovery_audit where is_valid_event_source)
+                        as accepted_candidates,
+                      (select count(*) from discovery_audit where not is_valid_event_source)
+                        as rejected_candidates
+                    """
+                )
+            ).mappings().first()
+            latest_runs = list(
+                session.execute(
+                    text(
+                        """
+                        select id, started_at, finished_at, status::text as status,
+                               docs_found, new_events, errors,
+                               extract(epoch from (finished_at - started_at)) as runtime_seconds,
+                               (
+                                 select count(*)
+                                 from discovery_audit da
+                                 where da.run_id = crawl_runs.id
+                                   and da.content_hash is not null
+                               ) as downloads
+                        from crawl_runs
+                        order by id desc
+                        limit 5
+                        """
+                    )
+                ).mappings()
+            )
+            rejection_rows = list(
+                session.execute(
+                    text(
+                        """
+                        select reason_code, count(*) as count
+                        from discovery_audit
+                        where not is_valid_event_source
+                        group by reason_code
+                        order by count desc, reason_code
+                        limit 10
+                        """
+                    )
+                ).mappings()
+            )
+        latest = [dict(row) for row in latest_runs]
+        runtime_reduction = None
+        download_reduction = None
+        if len(latest) >= 2:
+            newer = latest[0]
+            older = latest[1]
+            old_runtime = float(older.get("runtime_seconds") or 0)
+            new_runtime = float(newer.get("runtime_seconds") or 0)
+            old_downloads = int(older.get("downloads") or 0)
+            new_downloads = int(newer.get("downloads") or 0)
+            if old_runtime:
+                runtime_reduction = round((old_runtime - new_runtime) / old_runtime * 100, 1)
+            if old_downloads:
+                download_reduction = round((old_downloads - new_downloads) / old_downloads * 100, 1)
+        count_dict = dict(counts) if counts else {}
+        candidates = int(count_dict.get("candidates") or 0)
+        accepted = int(count_dict.get("accepted_candidates") or 0)
+        return {
+            **count_dict,
+            "acceptance_rate": round(accepted / candidates * 100, 1) if candidates else 0,
+            "runtime_reduction": runtime_reduction,
+            "download_reduction": download_reduction,
+            "latest_runs": latest,
+            "rejected_reasons": [dict(row) for row in rejection_rows],
+        }
+    except SQLAlchemyError as exc:
+        logger.warning("get_admin_analytics failed: %s", exc)
+        return {}
 
 
 def create_crawl_run() -> int | None:
@@ -789,7 +1457,12 @@ def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
                 intelligence=intelligence,
             )
             return event.id
-    except SQLAlchemyError:
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "persist_extracted_document failed for %s: %s",
+            discovered.source_url,
+            exc,
+        )
         return None
 
 
@@ -834,8 +1507,14 @@ def _find_related_prior_reference(
             left join document_texts dt on dt.content_hash = dv.content_hash
             where d.id <> :current_document_id
               and (
-                (:source_id is not null and d.source_id = :source_id)
-                or (:issuing_body is not null and d.issuing_body = :issuing_body)
+                (
+                  cast(:source_id as bigint) is not null
+                  and d.source_id = cast(:source_id as bigint)
+                )
+                or (
+                  cast(:issuing_body as text) is not null
+                  and d.issuing_body = cast(:issuing_body as text)
+                )
               )
             order by d.last_seen_at desc
             limit 80

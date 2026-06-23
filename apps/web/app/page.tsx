@@ -1,5 +1,5 @@
 import { ResolvenApp } from "./resolven-app";
 
 export default function Home() {
-  return <ResolvenApp initialRoute="today" />;
+  return <ResolvenApp initialRoute="dashboard" />;
 }

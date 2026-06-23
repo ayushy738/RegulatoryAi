@@ -21,3 +21,4 @@ data/
 *.sqlite
 *.log
 site-artifacts/
+docs/

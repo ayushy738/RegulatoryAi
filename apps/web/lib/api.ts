@@ -50,6 +50,111 @@ export type SourceHealth = {
   consecutive_failures: number;
 };
 
+export type SourcePage = {
+  id: number;
+  source_id: number;
+  source_code: string;
+  source_name: string;
+  name: string;
+  url: string;
+  page_type: string;
+  priority: number;
+  enabled: boolean;
+  last_crawled_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type SourcePageCheckpoint = {
+  source_page_id: number;
+  source_code: string;
+  source_name: string;
+  source_page: string;
+  source_page_url: string;
+  checkpoint_title: string | null;
+  checkpoint_url: string | null;
+  checkpoint_source_record_id: string | null;
+  checkpoint_issue_date: string | null;
+  checkpoint_published_at: string | null;
+  lookback_count: number | null;
+  last_successful_run_id: number | null;
+  last_successful_at: string | null;
+  updated_at: string | null;
+};
+
+export type AdminDocument = {
+  id: number;
+  title: string;
+  source_url: string;
+  issuing_body: string | null;
+  jurisdiction: "central" | "state" | null;
+  issue_date: string | null;
+  issue_date_precision: string | null;
+  doc_type: string | null;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  source_code: string | null;
+  source_name: string | null;
+  latest_version_id: number | null;
+  file_hash: string | null;
+  content_hash: string | null;
+  fetched_at: string | null;
+  family_id: string | null;
+  family_title: string | null;
+};
+
+export type AdminEvent = {
+  id: number;
+  event_type: string;
+  detected_at: string;
+  suppressed: boolean;
+  raw_summary: string | null;
+  topic_tags: string[];
+  document_id: number;
+  title: string;
+  source_url: string;
+  issuing_body: string | null;
+  issue_date: string | null;
+  source_code: string | null;
+  quality_score: number | null;
+  quality_category: string | null;
+  significance_score: number | null;
+  significance_category: string | null;
+  actionability: string | null;
+  rejection_reason: string | null;
+};
+
+export type AdminFamily = {
+  family_id: string;
+  canonical_title: string;
+  issuer: string | null;
+  document_type: string | null;
+  first_seen_at: string | null;
+  latest_version_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  document_count: number;
+  version_count: number;
+  deadline_count: number;
+};
+
+export type AdminAnalytics = {
+  sources?: number;
+  pages?: number;
+  events?: number;
+  documents?: number;
+  families?: number;
+  checkpoints?: number;
+  candidates?: number;
+  accepted_candidates?: number;
+  rejected_candidates?: number;
+  acceptance_rate?: number;
+  runtime_reduction?: number | null;
+  download_reduction?: number | null;
+  latest_runs?: CrawlRun[];
+  rejected_reasons?: Array<{ reason_code: string | null; count: number }>;
+};
+
 export type CrawlRun = {
   id: number;
   started_at: string;
@@ -60,6 +165,28 @@ export type CrawlRun = {
   docs_found: number;
   new_events: number;
   errors: Array<Record<string, unknown>>;
+};
+
+export type CrawlTriggerResponse = {
+  status: string;
+  sources_attempted: number;
+  pages_attempted: number;
+  sources_succeeded: number;
+  pages_succeeded: number;
+  docs_found: number;
+  primary_docs_found: number;
+  new_events: number;
+  checkpoints_advanced: number;
+  notification_message_id: string | null;
+  errors: Array<Record<string, unknown>>;
+};
+
+export type ChatHistoryItem = {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  event_id: number | null;
+  created_at: string | null;
 };
 
 export type SystemDocument = {
@@ -256,6 +383,11 @@ export function sendChat(message: string, eventId: number | null, token?: string
   });
 }
 
+export function getChatHistory(token?: string, eventId?: number | null) {
+  const suffix = eventId ? `?event_id=${eventId}` : "";
+  return apiFetch<ChatHistoryItem[]>(`/chat/history${suffix}`, token);
+}
+
 export function markRead(eventId: number, token?: string) {
   return apiFetch<{ event_id: number; is_read: boolean }>(`/events/${eventId}/read`, token, {
     method: "POST",
@@ -285,14 +417,59 @@ export function getSources(token?: string) {
   return apiFetch<SourceHealth[]>("/admin/sources", token);
 }
 
-export function toggleSource(sourceId: number, token?: string) {
-  return apiFetch<{ source_id: number; enabled: boolean }>(`/admin/sources/${sourceId}/toggle`, token, {
-    method: "POST",
+export function updateSource(
+  sourceId: number,
+  payload: Partial<Pick<SourceHealth, "enabled" | "name" | "code" | "url" | "jurisdiction" | "crawler_type">>,
+  token?: string,
+) {
+  return apiFetch<SourceHealth>(`/admin/sources/${sourceId}`, token, {
+    method: "PUT",
+    body: JSON.stringify(payload),
   });
+}
+
+export function toggleSource(source: SourceHealth, token?: string) {
+  return updateSource(source.id, { enabled: !source.enabled }, token);
 }
 
 export function getRuns(token?: string) {
   return apiFetch<CrawlRun[]>("/admin/runs", token);
+}
+
+export function getSourcePages(token?: string) {
+  return apiFetch<SourcePage[]>("/admin/pages", token);
+}
+
+export function getSourcePageCheckpoints(token?: string) {
+  return apiFetch<SourcePageCheckpoint[]>("/admin/checkpoints", token);
+}
+
+export function getAdminDocuments(token?: string, limit = 100) {
+  return apiFetch<AdminDocument[]>(`/admin/documents?limit=${limit}`, token);
+}
+
+export function getAdminEvents(token?: string, limit = 100) {
+  return apiFetch<AdminEvent[]>(`/admin/events?limit=${limit}`, token);
+}
+
+export function getAdminFamilies(token?: string, limit = 100) {
+  return apiFetch<AdminFamily[]>(`/admin/families?limit=${limit}`, token);
+}
+
+export function getAdminAnalytics(token?: string) {
+  return apiFetch<AdminAnalytics>("/admin/analytics", token);
+}
+
+export function crawlSource(sourceId: number, token?: string) {
+  return apiFetch<CrawlTriggerResponse>(`/admin/sources/${sourceId}/crawl`, token, {
+    method: "POST",
+  });
+}
+
+export function crawlSourcePage(pageId: number, token?: string) {
+  return apiFetch<CrawlTriggerResponse>(`/admin/pages/${pageId}/crawl`, token, {
+    method: "POST",
+  });
 }
 
 export function getDocs(token?: string) {

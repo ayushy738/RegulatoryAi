@@ -54,8 +54,18 @@ Local development may set `AUTH_REQUIRED=false`, which returns a demo user for a
 ## Admin
 - Admin endpoints require an admin role in `user_profiles.role`.
 - `GET /admin/sources` - source configuration and health.
-- `POST /admin/sources/{id}/toggle` - enable/disable a source.
+- `POST /admin/sources` - create a source.
+- `PUT /admin/sources/{id}` - update a source.
+- `DELETE /admin/sources/{id}` - delete a source.
+- `GET /admin/sources/{id}/pages` - list curated crawl pages for a source.
+- `POST /admin/sources/{id}/pages` - create a curated crawl page.
+- `PUT /admin/pages/{id}` - update a curated crawl page.
+- `DELETE /admin/pages/{id}` - delete a curated crawl page.
+- `POST /admin/pages/{id}/crawl` - crawl one curated source page.
+- `POST /admin/sources/{id}/crawl` - crawl all enabled curated pages for a source.
 - `GET /admin/runs` - pipeline run history.
+- `GET /admin/runs/{id}` - one pipeline run.
+- `GET /admin/sources/{id}/analytics` - source discovery and event-yield analytics.
 
 ## Documentation
 - `GET /meta/docs` - list database-backed documents.
@@ -107,24 +117,26 @@ Runtime configuration:
         "content_md": """# Complete Product Flow
 
 1. Source configuration lives in Supabase `sources`.
-2. The pipeline reads enabled sources, politely discovers public regulatory documents,
-   and falls back to Parallel Search when a site listing is unreliable.
-3. Each discovered document is canonicalized and upserted into `documents`.
-4. New versions are written to `document_versions`.
-5. Change detection creates visible `events` only when content is new or changed.
-6. Non-AI summaries are stored immediately in `summaries`; AI enrichment can update
+2. Curated crawl entrypoints live in `source_pages`.
+3. The pipeline reads enabled source pages and discovers only primary PDFs or primary
+   HTML notices from those curated listing pages.
+4. Each accepted primary document is canonicalized and upserted into `documents`.
+5. New versions are written to `document_versions`.
+6. Change detection creates visible `events` only when content is new or changed.
+7. Non-AI summaries are stored immediately in `summaries`; AI enrichment can update
    the same event/model slot later.
-7. `digests` and `digest_events` link the day's visible events into one daily briefing.
-8. Users sign in with Supabase Auth and read the same cached digest.
-9. Per-user state lives in `user_event_state`: read/unread and bookmarks.
-10. The knowledge graph stores entities, relationships, stakeholders, obligations, and
+8. `digests` and `digest_events` link the day's visible events into one daily briefing.
+9. Users sign in with Supabase Auth and read the same cached digest.
+10. Per-user state lives in `user_event_state`: read/unread and bookmarks.
+11. The knowledge graph stores entities, relationships, stakeholders, obligations, and
     deadlines for accepted primary documents.
-11. The intelligence APIs expose active deadlines, obligations, stakeholder impacts,
+12. The intelligence APIs expose active deadlines, obligations, stakeholder impacts,
     and consultation tracking directly from the graph.
-12. Chat requests are grounded to selected event context and persisted in `chat_messages`.
-13. Subscription preferences live in `subscriptions`.
-14. Latest-news export requests are logged in `exports_log` and returned as JSON, CSV, or Markdown.
-15. Admins monitor `crawl_runs` and source health to catch broken government sites quickly.
+13. Chat requests are grounded to selected event context and persisted in `chat_messages`.
+14. Subscription preferences live in `subscriptions`.
+15. Latest-news export requests are logged in `exports_log` and returned as JSON, CSV, or Markdown.
+16. Admins monitor `crawl_runs`, `source_pages`, and source analytics to catch broken
+    government pages quickly.
 """,
     },
 ]
