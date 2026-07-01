@@ -25,5 +25,9 @@
   },
   "dependencies": {
     "workerd": "^1.20260621.1"
+  },
+  "overrides": {
+    "lightningcss": "1.32.0"
   }
 }
+
