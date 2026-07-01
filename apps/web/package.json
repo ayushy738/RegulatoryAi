@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
+    "build:vercel": "next build",
     "start": "vinext start",
+    "start:vercel": "next start",
     "lint": "npm run typecheck",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck",
