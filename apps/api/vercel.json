@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "app.py": {
-      "runtime": "python3.12",
       "excludeFiles": "{.venv/**,.turbo/**,backend/tests/**,backend/fixtures/**,backend/migrations/**,reports/**,**/__pycache__/**,**/*.pyc}"
     }
   }
