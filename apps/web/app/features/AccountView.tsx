@@ -4,34 +4,36 @@ import { Panel } from "@/app/components/ui/Panel";
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 
 export function AccountView() {
-  const { userEmail, demoMode, isAdmin, handleSignOut } = useWorkspace();
+  const { userEmail, isAuthenticated, isAdmin, handleSignOut } = useWorkspace();
   return (
     <section className="two-column ops-page">
       <Panel title="Profile" icon={UserCircle}>
         <div className="profile-card">
           <img src="/logo_mark.png" alt="Resolven logo" />
           <div>
-            <h3>{userEmail || "Unsigned user"}</h3>
-            <p>{demoMode ? "Local preview user" : "Authenticated user"}</p>
+            <h3>{userEmail || "Public reader"}</h3>
+            <p>{isAuthenticated ? "Authenticated user" : "Browsing without a session"}</p>
           </div>
         </div>
-        <div className="account-actions">
-          <button type="button" className="danger-button" onClick={() => void handleSignOut()}>
-            <LogOut size={16} />
-            Sign out
-          </button>
-        </div>
+        {isAuthenticated ? (
+          <div className="account-actions">
+            <button type="button" className="danger-button" onClick={() => void handleSignOut()}>
+              <LogOut size={16} />
+              Sign out
+            </button>
+          </div>
+        ) : null}
       </Panel>
 
       <Panel title="Access & Security" icon={ShieldCheck}>
         <div className="ops-summary-grid">
           <div className="detail-fact">
             <span>Role</span>
-            <strong>{isAdmin || demoMode ? "Admin" : "User"}</strong>
+            <strong>{isAdmin ? "Admin" : isAuthenticated ? "User" : "Public reader"}</strong>
           </div>
           <div className="detail-fact">
             <span>Session</span>
-            <strong>{demoMode ? "Local preview" : "Supabase session"}</strong>
+            <strong>{isAuthenticated ? "Supabase session" : "Anonymous"}</strong>
           </div>
           <div className="detail-fact">
             <span>Subscription</span>

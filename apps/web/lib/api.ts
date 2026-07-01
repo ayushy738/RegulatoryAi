@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { supabase } from "./supabase";
 import {
   adminAnalyticsSchema,
   adminDocumentListSchema,
@@ -92,6 +93,16 @@ const nextApiBaseUrl =
 const API_BASE_URL =
   nextApiBaseUrl ?? env.NEXT_PUBLIC_API_BASE_URL ?? env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
+async function getSessionAccessToken() {
+  if (!supabase) return undefined;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token;
+  } catch {
+    return undefined;
+  }
+}
+
 export class ApiError extends Error {
   status?: number;
   constructor(message: string, status?: number) {
@@ -117,11 +128,12 @@ export async function apiFetch<T>(
   token?: string,
   init: RequestInit = {},
 ): Promise<T> {
+  const accessToken = token ?? (await getSessionAccessToken());
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(init.headers ?? {}),
     },
   });
@@ -446,8 +458,9 @@ export async function downloadLatestExport(
   format: "json" | "csv" | "markdown",
   token?: string,
 ) {
+  const accessToken = token ?? (await getSessionAccessToken());
   const response = await fetch(exportLatestUrl(format), {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
   });
   if (!response.ok) throw new ApiError(`Export failed: ${response.status}`, response.status);
   const blob = await response.blob();

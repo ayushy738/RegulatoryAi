@@ -89,6 +89,7 @@ export function TopBar() {
     handleSaveSettings,
     busyAction,
     userEmail,
+    isAuthenticated,
     handleSignOut,
   } = useWorkspace();
   const router = useRouter();
@@ -230,11 +231,13 @@ export function TopBar() {
             {profileOpen ? (
               <div className="profile-menu">
                 <strong>{userName}</strong>
-                <span>{userEmail || "Signed in"}</span>
-                <button type="button" onClick={handleSignOut}>
-                  <LogOut size={16} />
-                  Sign Out
-                </button>
+                <span>{userEmail || "Public reader"}</span>
+                {isAuthenticated ? (
+                  <button type="button" onClick={handleSignOut}>
+                    <LogOut size={16} />
+                    Sign Out
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -367,7 +370,7 @@ export function TopBar() {
 }
 
 export function AdminTopBar() {
-  const { route, pipelineStatus, userEmail, handleSignOut } = useWorkspace();
+  const { route, pipelineStatus, userEmail, isAuthenticated, handleSignOut } = useWorkspace();
   const [profileOpen, setProfileOpen] = useState(false);
   const status = statusLabel(pipelineStatus);
   return (
@@ -403,11 +406,13 @@ export function AdminTopBar() {
           {profileOpen ? (
             <div className="profile-menu">
               <strong>{userNameFromEmail(userEmail)}</strong>
-              <span>{userEmail || "Signed in"}</span>
-              <button type="button" onClick={handleSignOut}>
-                <LogOut size={16} />
-                Sign Out
-              </button>
+              <span>{userEmail || "Public reader"}</span>
+              {isAuthenticated ? (
+                <button type="button" onClick={handleSignOut}>
+                  <LogOut size={16} />
+                  Sign Out
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
