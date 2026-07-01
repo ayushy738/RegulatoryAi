@@ -18,12 +18,21 @@ class CurrentUser:
     role: str = "user"
 
 
-async def current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
-    if not authorization or not authorization.startswith("Bearer "):
-        if not settings.auth_required:
-            return CurrentUser(id=DEMO_USER_ID, email="demo@regulatory.ai", role="admin")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+def _bearer_token(authorization: str | None) -> str | None:
+    if authorization is None:
+        return None
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header",
+        )
     token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return token
+
+
+def _validate_token(token: str) -> CurrentUser:
     if not settings.supabase_project_url or not settings.supabase_anon_key:
         raise HTTPException(status_code=500, detail="Supabase Auth is not configured")
     try:
@@ -51,6 +60,24 @@ async def current_user(authorization: str | None = Header(default=None)) -> Curr
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         ) from exc
+
+
+async def current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
+    token = _bearer_token(authorization)
+    if token is None:
+        if not settings.auth_required:
+            return CurrentUser(id=DEMO_USER_ID, email="demo@regulatory.ai", role="admin")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+    return _validate_token(token)
+
+
+async def optional_current_user(
+    authorization: str | None = Header(default=None),
+) -> CurrentUser | None:
+    token = _bearer_token(authorization)
+    if token is None:
+        return None
+    return _validate_token(token)
 
 
 def require_admin(user: CurrentUser) -> CurrentUser:
