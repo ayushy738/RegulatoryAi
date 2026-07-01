@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     api_base_url: str = "http://localhost:8001"
     auth_required: bool = True
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origin_regex: str | None = None
 
     llm_provider: Literal["anthropic", "openai", "parallel", "offline"] = "offline"
     anthropic_api_key: str | None = None
@@ -61,6 +62,12 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def cors_origin_regex_value(self) -> str | None:
+        if not self.cors_origin_regex:
+            return None
+        return self.cors_origin_regex.strip() or None
 
     @property
     def supabase_project_url(self) -> str | None:
