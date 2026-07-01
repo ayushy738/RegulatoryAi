@@ -87,8 +87,10 @@ type ImportMetaWithEnv = ImportMeta & {
 };
 
 const env = (import.meta as ImportMetaWithEnv).env ?? {};
+const nextApiBaseUrl =
+  typeof process === "undefined" ? undefined : process.env.NEXT_PUBLIC_API_BASE_URL;
 const API_BASE_URL =
-  env.NEXT_PUBLIC_API_BASE_URL ?? env.VITE_API_BASE_URL ?? "http://localhost:8000";
+  nextApiBaseUrl ?? env.NEXT_PUBLIC_API_BASE_URL ?? env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   status?: number;
