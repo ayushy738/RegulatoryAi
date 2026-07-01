@@ -1,8 +1,21 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CalendarClock,
+  Gauge,
+  ListChecks,
+  Network,
+  SearchCheck,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { ErrorState } from "@/app/components/ui/ErrorState";
 import { LoadingState } from "@/app/components/ui/LoadingState";
 import {
-  compactNumber,
+  clampText,
   eventStakeholders,
   eventSummary,
   formatDate,
@@ -12,34 +25,18 @@ import {
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 import type { DigestEvent, IntelligenceDeadline } from "@/lib/api";
 
-function MaterialIcon({ children }: { children: string }) {
-  return <span className="material-symbols-outlined">{children}</span>;
+function eventHref(event: DigestEvent) {
+  return `/events/${event.id}`;
 }
 
-function sourceLabel(event: DigestEvent) {
-  return event.issuing_body?.split(/[,|-]/)[0]?.trim() || "Government Source";
+function isTender(event: DigestEvent) {
+  const text = `${event.title} ${event.topic_tags.join(" ")} ${eventSummary(event)}`.toLowerCase();
+  return text.includes("tender") || text.includes("bid") || text.includes("rfp");
 }
 
-function topicLabel(event: DigestEvent) {
-  return event.topic_tags[0] ?? event.event_type.replaceAll("_", " ");
-}
-
-function relativeEventTime(event: DigestEvent) {
-  const detected = new Date(event.detected_at);
-  if (Number.isNaN(detected.getTime())) return "Updated recently";
-  const diffHours = Math.max(1, Math.round((Date.now() - detected.getTime()) / 3_600_000));
-  if (diffHours < 24) return `Updated ${diffHours}h ago`;
-  const diffDays = Math.round(diffHours / 24);
-  return `Updated ${diffDays}d ago`;
-}
-
-function deadlineBucket(deadlines: IntelligenceDeadline[], minDays: number, maxDays: number) {
-  return deadlines
-    .filter((deadline) => {
-      const days = deadline.days_remaining;
-      return days !== null && days >= minDays && days <= maxDays;
-    })
-    .slice(0, 3);
+function isAmendment(event: DigestEvent) {
+  const text = `${event.title} ${event.topic_tags.join(" ")} ${event.event_type}`.toLowerCase();
+  return text.includes("amend") || text.includes("corrigendum") || event.event_type === "CHANGED";
 }
 
 export function DashboardView() {
@@ -52,244 +49,149 @@ export function DashboardView() {
     digestDate,
   } = useWorkspace();
 
-  if (digestStatus.isLoading) {
-    return <LoadingState label="Loading regulatory intelligence..." />;
-  }
+  if (digestStatus.isLoading) return <LoadingState label="Loading regulatory intelligence..." />;
   if (digestStatus.isError) {
-    return (
-      <ErrorState
-        title="Unable to load dashboard"
-        error={digestStatus.error}
-        onRetry={digestStatus.refetch}
-      />
-    );
+    return <ErrorState title="Unable to load dashboard" error={digestStatus.error} onRetry={digestStatus.refetch} />;
   }
 
-  const consultations = events.filter(isConsultation).length;
-  const highImpact = events.filter(isHighImpact).length;
-  const displayName = userEmail ? userEmail.split("@")[0].split(/[._-]/)[0] : "Alex";
-  const urgentEvents = events.filter((event) => event.summary?.action_required === "urgent").length;
+  const displayName = userEmail ? userEmail.split("@")[0].split(/[._-]/)[0] : "analyst";
+  const needsAttention = events.filter(
+    (event) => event.summary?.action_required === "urgent" || isHighImpact(event),
+  );
+  const consultations = events.filter(isConsultation);
+  const tenders = events.filter(isTender);
+  const amendments = events.filter(isAmendment);
   const stakeholderCount =
-    stakeholderViews.length ||
-    new Set(events.flatMap((event) => eventStakeholders(event))).size ||
-    highImpact;
-  const feedEvents = events.slice(0, 3);
-  const thisWeek = deadlineBucket(activeDeadlines, 0, 7);
-  const nextWeek = deadlineBucket(activeDeadlines, 8, 14);
-  const thisMonth = deadlineBucket(activeDeadlines, 15, 31);
-  const stakeholderCards =
-    stakeholderViews.length > 0
-      ? stakeholderViews.slice(0, 3).map((view, index) => ({
-          id: view.stakeholder,
-          name: view.stakeholder,
-          obligations: view.counts.obligations ?? view.obligations.length,
-          deadlines: view.counts.deadlines ?? view.deadlines.length,
-          icon: ["wb_sunny", "ev_station", "factory"][index] ?? "diversity_3",
-          tone: ["green", "purple", "tertiary"][index] ?? "green",
-        }))
-      : ["Solar Developers", "EV Infrastructure", "Heavy Industry"].map((name, index) => ({
-          id: name,
-          name,
-          obligations: events.filter((event) => eventStakeholders(event).includes(name)).length,
-          deadlines: activeDeadlines.filter((deadline) =>
-            deadline.stakeholders_affected.some((stakeholder) =>
-              stakeholder.toLowerCase().includes(name.toLowerCase()),
-            ),
-          ).length,
-          icon: ["wb_sunny", "ev_station", "factory"][index],
-          tone: ["green", "purple", "tertiary"][index],
-        }));
+    stakeholderViews.length || new Set(events.flatMap((event) => eventStakeholders(event))).size;
 
   return (
-    <div className="stitch-dashboard">
-      <header className="stitch-dashboard__header">
-        <h2>Good morning, {displayName}</h2>
-        <p>
-          Here is your regulatory intelligence summary for {formatDate(digestDate)}.{" "}
-          {urgentEvents || highImpact} key updates require your immediate attention.
-        </p>
-      </header>
-
-      <section className="stitch-kpi-grid" aria-label="Today's Intelligence">
-        <StitchKpiCard icon="update" value={events.length} label="New Updates" meta="+12%" tone="primary" />
-        <StitchKpiCard
-          icon="event_upcoming"
-          value={activeDeadlines.length}
-          label="Upcoming Deadlines"
-          meta={activeDeadlines.length ? "Critical" : "Clear"}
-          tone="error"
-        />
-        <StitchKpiCard
-          icon="campaign"
-          value={consultations}
-          label="Consultations"
-          meta={`${Math.min(consultations, 3)} Open`}
-          tone="secondary"
-        />
-        <StitchKpiCard
-          icon="diversity_3"
-          value={stakeholderCount}
-          label="Stakeholder Alerts"
-          meta="Updated"
-          tone="tertiary"
-        />
+    <div className="ops-dashboard ops-page premium-dashboard">
+      <section className="ops-page-header premium-page-header">
+        <div>
+          <span>Daily Intelligence</span>
+          <h1>Good morning, {displayName}</h1>
+          <p>
+            Digest {formatDate(digestDate)} | {events.length} regulatory updates | {activeDeadlines.length} active
+            deadlines | {stakeholderCount} stakeholder groups.
+          </p>
+        </div>
+        <Link className="stitch-secondary-action" href="/latest">
+          Review feed
+          <ArrowRight size={16} />
+        </Link>
       </section>
 
-      <div className="stitch-bento-grid">
-        <section className="stitch-feed-column">
-          <div className="stitch-section-heading">
-            <h3>What Changed Today</h3>
-            <a href="/latest">
-              View All <MaterialIcon>arrow_forward</MaterialIcon>
-            </a>
-          </div>
+      <section className="dashboard-priority-strip" aria-label="Dashboard priorities">
+        <Link href="/latest">
+          <strong>{needsAttention.length}</strong>
+          <span>Need attention</span>
+        </Link>
+        <Link href="/intelligence">
+          <strong>{activeDeadlines.length}</strong>
+          <span>Upcoming deadlines</span>
+        </Link>
+        <Link href="/latest">
+          <strong>{consultations.length}</strong>
+          <span>Consultations</span>
+        </Link>
+        <Link href="/latest">
+          <strong>{amendments.length}</strong>
+          <span>Amendments</span>
+        </Link>
+      </section>
 
-          <div className="stitch-news-stack">
-            {feedEvents.map((event, index) => (
-              <article
-                className={`stitch-news-card ${index === 0 ? "stitch-news-card--featured" : ""}`}
-                key={event.id}
-              >
-                <div className="stitch-chip-row">
-                  <span className="stitch-chip stitch-chip--neutral">{sourceLabel(event)}</span>
-                  <span className={`stitch-chip ${index === 2 ? "stitch-chip--error" : index === 1 ? "stitch-chip--primary" : "stitch-chip--tertiary"}`}>
-                    {topicLabel(event)}
-                  </span>
-                </div>
-                <h4>{event.title}</h4>
-                <p>{eventSummary(event)}</p>
-                <footer>
-                  <span>{relativeEventTime(event)}</span>
-                  <a href={`/events/${event.id}`}>READ MORE</a>
-                </footer>
-              </article>
-            ))}
-            {!events.length ? (
-              <EmptyState
-                title="No intelligence yet"
-                body="Run curated sources to populate the intelligence feed."
-              />
-            ) : null}
-          </div>
-        </section>
+      <div className="ops-dashboard-grid premium-dashboard-grid">
+        <DashboardPanel title="Needs Attention" icon={AlertTriangle} href="/latest">
+          <EventList events={needsAttention.slice(0, 5)} empty="No urgent or high-impact updates." />
+        </DashboardPanel>
 
-        <aside className="stitch-side-column">
-          <section className="stitch-panel">
-            <h3>Upcoming Deadlines</h3>
-            <div className="stitch-timeline">
-              <DeadlineGroup title="This Week" deadlines={thisWeek} active />
-              <DeadlineGroup title="Next Week" deadlines={nextWeek} />
-              <DeadlineGroup title="This Month" deadlines={thisMonth} muted />
-            </div>
-          </section>
+        <DashboardPanel title="Latest Regulatory Changes" icon={SearchCheck} href="/latest">
+          <EventList events={events.slice(0, 5)} empty="No regulatory updates returned." />
+        </DashboardPanel>
 
-          <section className="stitch-panel">
-            <div className="stitch-section-heading stitch-section-heading--panel">
-              <h3>Stakeholder Impact</h3>
-              <MaterialIcon>info</MaterialIcon>
-            </div>
-            <div className="stitch-stakeholder-stack">
-              {stakeholderCards.map((card) => (
-                <div className="stitch-stakeholder-card" key={card.id}>
-                  <div className={`stitch-stakeholder-icon ${card.tone}`}>
-                    <MaterialIcon>{card.icon}</MaterialIcon>
-                  </div>
-                  <div>
-                    <h5>{card.name}</h5>
-                    <p>{compactNumber(card.obligations)} Active Obligations</p>
-                  </div>
-                  <div className="stitch-stakeholder-count">
-                    <strong>{String(card.deadlines).padStart(2, "0")}</strong>
-                    <span>Deadlines</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button className="stitch-primary-action" type="button">
-              Generate Stakeholder Report
-            </button>
-          </section>
+        <DashboardPanel title="Upcoming Deadlines" icon={CalendarClock} href="/intelligence">
+          <DeadlineList deadlines={activeDeadlines.slice(0, 6)} />
+        </DashboardPanel>
 
-          <section className="stitch-ai-card">
-            <div>
-              <h4>AI Insights Ready</h4>
-              <p>Our intelligence model has synthesized today's updates for your portfolio.</p>
-              <a href="/ask">VIEW SYNTHESIS</a>
-            </div>
-            <MaterialIcon>auto_awesome</MaterialIcon>
-          </section>
-        </aside>
+        <DashboardPanel title="Recent Consultations" icon={ListChecks} href="/latest">
+          <EventList events={consultations.slice(0, 4)} empty="No consultations detected in the current digest." />
+        </DashboardPanel>
+
+        <DashboardPanel title="Recent Tenders" icon={Gauge} href="/latest">
+          <EventList events={tenders.slice(0, 4)} empty="No tender updates detected in the current digest." />
+        </DashboardPanel>
+
+        <DashboardPanel title="Recent Amendments" icon={Network} href="/latest">
+          <EventList events={amendments.slice(0, 4)} empty="No amendments detected in the current digest." />
+        </DashboardPanel>
       </div>
     </div>
   );
 }
 
-function StitchKpiCard({
-  icon,
-  value,
-  label,
-  meta,
-  tone,
+function DashboardPanel({
+  title,
+  icon: Icon,
+  href,
+  children,
 }: {
-  icon: string;
-  value: number;
-  label: string;
-  meta: string;
-  tone: "primary" | "secondary" | "tertiary" | "error";
+  title: string;
+  icon: LucideIcon;
+  href: string;
+  children: ReactNode;
 }) {
   return (
-    <article className="stitch-kpi-card">
-      <div>
-        <span className={`stitch-kpi-icon ${tone}`}>
-          <MaterialIcon>{icon}</MaterialIcon>
-        </span>
-        <span className="stitch-kpi-meta">{meta}</span>
-      </div>
-      <strong>{String(value).padStart(2, "0")}</strong>
-      <p>{label}</p>
-    </article>
+    <section className="ops-panel">
+      <header>
+        <h2>
+          <Icon size={18} />
+          {title}
+        </h2>
+        <Link href={href}>
+          Open
+          <ArrowRight size={15} />
+        </Link>
+      </header>
+      {children}
+    </section>
   );
 }
 
-function DeadlineGroup({
-  title,
-  deadlines,
-  active = false,
-  muted = false,
-}: {
-  title: string;
-  deadlines: IntelligenceDeadline[];
-  active?: boolean;
-  muted?: boolean;
-}) {
+function EventList({ events, empty }: { events: DigestEvent[]; empty: string }) {
+  if (!events.length) return <EmptyState title="Clear" body={empty} />;
   return (
-    <div className={`stitch-deadline-group ${muted ? "muted" : ""}`}>
-      <h5>
-        <span>
-          <i className={active ? "active" : ""} />
-        </span>
-        {title}
-      </h5>
-      <div>
-        {deadlines.map((deadline, index) => (
-          <a
-            className={`stitch-deadline-item ${active ? "active" : ""} ${index === 1 ? "error" : ""}`}
-            href={deadline.source_url}
-            key={`${deadline.document_id}-${deadline.deadline_type}-${deadline.deadline_date}`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <span>{formatDate(deadline.deadline_date).replace(/\s\d{4}$/, "")}</span>
-            <strong>{deadline.title}</strong>
-          </a>
-        ))}
-        {!deadlines.length ? (
-          <div className="stitch-deadline-item empty">
-            <span>--</span>
-            <strong>No deadlines in this window</strong>
-          </div>
-        ) : null}
-      </div>
+    <div className="ops-mini-list">
+      {events.map((event) => (
+        <Link key={event.id} href={eventHref(event)}>
+          <strong>{event.title}</strong>
+          <span>{event.issuing_body ?? "Unknown issuer"} | {formatDate(event.issue_date)}</span>
+          <p>{clampText(eventSummary(event), 150)}</p>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function DeadlineList({ deadlines }: { deadlines: IntelligenceDeadline[] }) {
+  if (!deadlines.length) {
+    return <EmptyState title="No active deadlines" body="No future deadlines are returned for the current filters." />;
+  }
+  return (
+    <div className="ops-mini-list">
+      {deadlines.map((deadline) => (
+        <a
+          key={`${deadline.document_id}-${deadline.deadline_type}-${deadline.deadline_date}`}
+          href={deadline.source_url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <strong>{deadline.title}</strong>
+          <span>
+            {deadline.days_remaining ?? "--"} days | {formatDate(deadline.deadline_date)}
+          </span>
+          <p>{clampText(deadline.evidence, 140, "Deadline extracted from intelligence APIs.")}</p>
+        </a>
+      ))}
     </div>
   );
 }

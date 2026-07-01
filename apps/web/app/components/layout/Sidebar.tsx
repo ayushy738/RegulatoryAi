@@ -1,27 +1,16 @@
-import type { NormalizedRoute } from "@/app/workspace/types";
+import Link from "next/link";
+import { LogOut } from "lucide-react";
 
-const workspaceNav: Array<{
-  href: string;
-  label: string;
-  route: NormalizedRoute;
-  icon: string;
-  filled: boolean;
-  adminOnly: boolean;
-}> = [
-  { href: "/dashboard", label: "Dashboard", route: "dashboard", icon: "dashboard", filled: false, adminOnly: false },
-  { href: "/latest", label: "Latest", route: "latest", icon: "newspaper", filled: false, adminOnly: false },
-  { href: "/intelligence", label: "Intelligence", route: "intelligence", icon: "analytics", filled: false, adminOnly: false },
-  { href: "/deadlines", label: "Deadlines", route: "deadlines", icon: "event", filled: false, adminOnly: false },
-  { href: "/ask", label: "Ask AI", route: "ask", icon: "auto_awesome", filled: true, adminOnly: false },
-  { href: "/admin/sources", label: "Sources", route: "admin-sources", icon: "menu_book", filled: false, adminOnly: true },
-  { href: "/notifications", label: "Digests", route: "notifications", icon: "mail", filled: false, adminOnly: false },
-];
+import { adminNav, userNav } from "@/app/workspace/nav";
+import type { NavItem, NormalizedRoute } from "@/app/workspace/types";
 
-function MaterialIcon({ children, filled = false }: { children: string; filled?: boolean }) {
+function NavLink({ item, route }: { item: NavItem; route: NormalizedRoute }) {
+  const active = route === item.route;
   return (
-    <span className="material-symbols-outlined" style={filled ? { fontVariationSettings: "'FILL' 1" } : undefined}>
-      {children}
-    </span>
+    <Link className={active ? "active" : ""} href={item.href} aria-current={active ? "page" : undefined}>
+      <item.Icon size={17} />
+      <span>{item.label}</span>
+    </Link>
   );
 }
 
@@ -29,42 +18,54 @@ export function Sidebar({
   route,
   isAdmin,
   userEmail,
-  onSignOut: _onSignOut,
+  onSignOut,
 }: {
   route: NormalizedRoute;
   isAdmin: boolean;
   userEmail: string;
   onSignOut: () => void;
 }) {
+  const mobileNav = [userNav[0], userNav[1], userNav[2], userNav[3], userNav[4]];
   return (
-    <aside className="sidebar">
-      <a className="brand-block stitch-brand-block" href="/dashboard">
-        <strong>RegIntell</strong>
-        <span>Regulatory Intelligence</span>
-      </a>
-      <nav>
-        {workspaceNav
-          .filter((item) => !item.adminOnly || isAdmin)
-          .map((item) => (
-            <a key={item.href} className={route === item.route ? "active" : ""} href={item.href}>
-              <MaterialIcon filled={item.filled}>{item.icon}</MaterialIcon>
-              {item.label}
-            </a>
+    <>
+      <aside className="sidebar ops-sidebar">
+        <Link className="brand-block ops-brand" href="/dashboard">
+          <strong>RegIntell</strong>
+          <span>Regulatory Intelligence</span>
+        </Link>
+
+        <nav aria-label="Workspace navigation">
+          <span className="nav-label">Workspace</span>
+          {userNav.map((item) => (
+            <NavLink key={item.href} item={item} route={route} />
           ))}
+          {isAdmin ? (
+            <>
+              <span className="nav-label">Operations</span>
+              {adminNav.map((item) => (
+                <NavLink key={item.href} item={item} route={route} />
+              ))}
+            </>
+          ) : null}
+        </nav>
+
+        <div className="stitch-sidebar-footer ops-sidebar-footer">
+          <span title={userEmail}>{userEmail || "Not signed in"}</span>
+          <button className="sign-out" type="button" onClick={onSignOut}>
+            <LogOut size={17} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+
+      <nav className="mobile-nav" aria-label="Mobile navigation">
+        {mobileNav.map((item) => (
+          <Link key={item.href} className={route === item.route ? "active" : ""} href={item.href}>
+            <item.Icon size={18} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
       </nav>
-      <div className="stitch-sidebar-footer">
-        <a className={route === "account" ? "active" : ""} href="/account">
-          <MaterialIcon>person</MaterialIcon>
-          Profile
-        </a>
-        {isAdmin ? (
-          <a className={route === "admin-dashboard" ? "active" : ""} href="/admin">
-            <MaterialIcon>admin_panel_settings</MaterialIcon>
-            Admin
-          </a>
-        ) : null}
-        <span>{userEmail}</span>
-      </div>
-    </aside>
+    </>
   );
 }

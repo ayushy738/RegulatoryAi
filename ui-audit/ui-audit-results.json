@@ -1,0 +1,222 @@
+[
+  {
+    "name": "landing",
+    "url": "http://localhost:3000/",
+    "screenshotPath": "e:\\RegulatoryAi\\ui-audit\\landing.png",
+    "findings": {
+      "title": "Resolven Regulatory AI",
+      "url": "http://localhost:3000/",
+      "bodySnippet": "Resolven Regulatory AI\n\nSign in to monitor regulatory changes, deadlines, obligations, and stakeholder impact.\n\nSign In\nSend Magic Link\nContinue Local Preview",
+      "headings": [
+        "Resolven Regulatory AI"
+      ],
+      "navItems": [],
+      "counts": {
+        "stitchClasses": 0,
+        "cards": 1,
+        "panels": 0,
+        "sections": 0,
+        "buttons": 3,
+        "links": 0,
+        "inputs": 2,
+        "materialIcons": 0,
+        "errorStates": 0
+      },
+      "keyRects": {
+        "shell": null,
+        "sidebar": null,
+        "topbar": null,
+        "dashboard": null,
+        "ask": null,
+        "landing": null,
+        "account": null,
+        "admin": null,
+        "auth": {
+          "x": 470,
+          "y": 346,
+          "width": 500,
+          "height": 508
+        }
+      },
+      "hasAuthGate": true,
+      "hasApiError": false,
+      "hasLoading": false
+    }
+  },
+  {
+    "name": "dashboard",
+    "url": "http://localhost:3000/dashboard",
+    "screenshotPath": "e:\\RegulatoryAi\\ui-audit\\dashboard.png",
+    "findings": {
+      "title": "Resolven Regulatory AI",
+      "url": "http://localhost:3000/dashboard",
+      "bodySnippet": "Resolven Regulatory AI\n\nSign in to monitor regulatory changes, deadlines, obligations, and stakeholder impact.\n\nSign In\nSend Magic Link\nContinue Local Preview",
+      "headings": [
+        "Resolven Regulatory AI"
+      ],
+      "navItems": [],
+      "counts": {
+        "stitchClasses": 0,
+        "cards": 1,
+        "panels": 0,
+        "sections": 0,
+        "buttons": 3,
+        "links": 0,
+        "inputs": 2,
+        "materialIcons": 0,
+        "errorStates": 0
+      },
+      "keyRects": {
+        "shell": null,
+        "sidebar": null,
+        "topbar": null,
+        "dashboard": null,
+        "ask": null,
+        "landing": null,
+        "account": null,
+        "admin": null,
+        "auth": {
+          "x": 470,
+          "y": 346,
+          "width": 500,
+          "height": 508
+        }
+      },
+      "hasAuthGate": true,
+      "hasApiError": false,
+      "hasLoading": false
+    }
+  },
+  {
+    "name": "ask",
+    "url": "http://localhost:3000/ask",
+    "screenshotPath": "e:\\RegulatoryAi\\ui-audit\\ask.png",
+    "findings": {
+      "title": "Resolven Regulatory AI",
+      "url": "http://localhost:3000/ask",
+      "bodySnippet": "Resolven Regulatory AI\n\nSign in to monitor regulatory changes, deadlines, obligations, and stakeholder impact.\n\nSign In\nSend Magic Link\nContinue Local Preview",
+      "headings": [
+        "Resolven Regulatory AI"
+      ],
+      "navItems": [],
+      "counts": {
+        "stitchClasses": 0,
+        "cards": 1,
+        "panels": 0,
+        "sections": 0,
+        "buttons": 3,
+        "links": 0,
+        "inputs": 2,
+        "materialIcons": 0,
+        "errorStates": 0
+      },
+      "keyRects": {
+        "shell": null,
+        "sidebar": null,
+        "topbar": null,
+        "dashboard": null,
+        "ask": null,
+        "landing": null,
+        "account": null,
+        "admin": null,
+        "auth": {
+          "x": 470,
+          "y": 346,
+          "width": 500,
+          "height": 508
+        }
+      },
+      "hasAuthGate": true,
+      "hasApiError": false,
+      "hasLoading": false
+    }
+  },
+  {
+    "name": "account",
+    "url": "http://localhost:3000/account",
+    "screenshotPath": "e:\\RegulatoryAi\\ui-audit\\account.png",
+    "findings": {
+      "title": "Resolven Regulatory AI",
+      "url": "http://localhost:3000/account",
+      "bodySnippet": "Resolven Regulatory AI\n\nSign in to monitor regulatory changes, deadlines, obligations, and stakeholder impact.\n\nSign In\nSend Magic Link\nContinue Local Preview",
+      "headings": [
+        "Resolven Regulatory AI"
+      ],
+      "navItems": [],
+      "counts": {
+        "stitchClasses": 0,
+        "cards": 1,
+        "panels": 0,
+        "sections": 0,
+        "buttons": 3,
+        "links": 0,
+        "inputs": 2,
+        "materialIcons": 0,
+        "errorStates": 0
+      },
+      "keyRects": {
+        "shell": null,
+        "sidebar": null,
+        "topbar": null,
+        "dashboard": null,
+        "ask": null,
+        "landing": null,
+        "account": null,
+        "admin": null,
+        "auth": {
+          "x": 470,
+          "y": 346,
+          "width": 500,
+          "height": 508
+        }
+      },
+      "hasAuthGate": true,
+      "hasApiError": false,
+      "hasLoading": false
+    }
+  },
+  {
+    "name": "admin",
+    "url": "http://localhost:3000/admin",
+    "screenshotPath": "e:\\RegulatoryAi\\ui-audit\\admin.png",
+    "findings": {
+      "title": "Resolven Regulatory AI",
+      "url": "http://localhost:3000/admin",
+      "bodySnippet": "Resolven Regulatory AI\n\nSign in to monitor regulatory changes, deadlines, obligations, and stakeholder impact.\n\nSign In\nSend Magic Link\nContinue Local Preview",
+      "headings": [
+        "Resolven Regulatory AI"
+      ],
+      "navItems": [],
+      "counts": {
+        "stitchClasses": 0,
+        "cards": 1,
+        "panels": 0,
+        "sections": 0,
+        "buttons": 3,
+        "links": 0,
+        "inputs": 2,
+        "materialIcons": 0,
+        "errorStates": 0
+      },
+      "keyRects": {
+        "shell": null,
+        "sidebar": null,
+        "topbar": null,
+        "dashboard": null,
+        "ask": null,
+        "landing": null,
+        "account": null,
+        "admin": null,
+        "auth": {
+          "x": 470,
+          "y": 346,
+          "width": 500,
+          "height": 508
+        }
+      },
+      "hasAuthGate": true,
+      "hasApiError": false,
+      "hasLoading": false
+    }
+  }
+]

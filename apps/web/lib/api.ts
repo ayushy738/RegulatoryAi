@@ -5,6 +5,8 @@ import {
   adminDocumentListSchema,
   adminEventListSchema,
   adminFamilyListSchema,
+  adminUserListSchema,
+  adminUserSchema,
   chatHistorySchema,
   chatResponseSchema,
   crawlRunListSchema,
@@ -18,10 +20,17 @@ import {
   intelligenceDeadlineListSchema,
   intelligenceReadinessSchema,
   obligationGroupListSchema,
+  ragDocumentChunkStatusListSchema,
+  ragProcessResultSchema,
+  ragQueueSchema,
+  ragRetrievalPreviewSchema,
+  ragStatusSchema,
+  ragVectorSearchSchema,
   sourceHealthListSchema,
   sourceHealthSchema,
   sourcePageCheckpointListSchema,
   sourcePageListSchema,
+  sourcePageSchema,
   stakeholderIntelligenceListSchema,
   subscriptionSettingsSchema,
   systemDocumentListSchema,
@@ -33,6 +42,7 @@ export type {
   AdminDocument,
   AdminEvent,
   AdminFamily,
+  AdminUser,
   ChatHistoryItem,
   ChatResponse,
   CrawlRun,
@@ -44,6 +54,13 @@ export type {
   IntelligenceDocumentRef,
   IntelligenceObligation,
   IntelligenceReadiness,
+  RagCitation,
+  RagDocumentChunkStatus,
+  RagProcessResult,
+  RagQueueJob,
+  RagRetrievalHit,
+  RagRetrievalPreview,
+  RagStatus,
   SourceHealth,
   SourcePage,
   SourcePageCheckpoint,
@@ -54,7 +71,16 @@ export type {
   SystemDocument,
 } from "./schemas";
 
-import type { SourceHealth, SubscriptionSettings } from "./schemas";
+import type { SourceHealth, SourcePage, SubscriptionSettings } from "./schemas";
+
+export type SourceCreatePayload = Pick<
+  SourceHealth,
+  "code" | "name" | "jurisdiction" | "url" | "crawler_type" | "allowed_domains" | "enabled"
+> & {
+  hint?: string | null;
+};
+
+export type SourcePageCreatePayload = Pick<SourcePage, "name" | "url" | "page_type" | "priority" | "enabled">;
 
 type ImportMetaWithEnv = ImportMeta & {
   env?: Record<string, string | undefined>;
@@ -62,7 +88,7 @@ type ImportMetaWithEnv = ImportMeta & {
 
 const env = (import.meta as ImportMetaWithEnv).env ?? {};
 const API_BASE_URL =
-  env.NEXT_PUBLIC_API_BASE_URL ?? env.VITE_API_BASE_URL ?? "http://localhost:8001";
+  env.NEXT_PUBLIC_API_BASE_URL ?? env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   status?: number;
@@ -239,6 +265,13 @@ export function getSources(token?: string) {
   return validatedFetch("/admin/sources", sourceHealthListSchema, token);
 }
 
+export function createSource(payload: SourceCreatePayload, token?: string) {
+  return validatedFetch("/admin/sources", sourceHealthSchema, token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function updateSource(
   sourceId: number,
   payload: Partial<
@@ -254,6 +287,38 @@ export function updateSource(
 
 export function toggleSource(source: SourceHealth, token?: string) {
   return updateSource(source.id, { enabled: !source.enabled }, token);
+}
+
+export function deleteSource(sourceId: number, token?: string) {
+  return apiFetch<{ source_id: number; deleted: boolean }>(`/admin/sources/${sourceId}`, token, {
+    method: "DELETE",
+  });
+}
+
+export function createSourcePage(sourceId: number, payload: SourcePageCreatePayload, token?: string) {
+  return validatedFetch(`/admin/sources/${sourceId}/pages`, sourcePageSchema, token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateSourcePage(
+  pageId: number,
+  payload: Partial<SourcePageCreatePayload>,
+  token?: string,
+) {
+  return validatedFetch(`/admin/pages/${pageId}`, sourcePageSchema, token, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteSourcePage(pageId: number, token?: string) {
+  return apiFetch<{ page_id: number; source_id: number | null; deleted: boolean }>(
+    `/admin/pages/${pageId}`,
+    token,
+    { method: "DELETE" },
+  );
 }
 
 export function getRuns(token?: string) {
@@ -282,6 +347,73 @@ export function getAdminFamilies(token?: string, limit = 100) {
 
 export function getAdminAnalytics(token?: string) {
   return validatedFetch("/admin/analytics", adminAnalyticsSchema, token);
+}
+
+export function getAdminUsers(token?: string) {
+  return validatedFetch("/admin/users", adminUserListSchema, token);
+}
+
+export function updateAdminUserRole(userId: string, role: "user" | "admin", token?: string) {
+  return validatedFetch(`/admin/users/${userId}`, adminUserSchema, token, {
+    method: "PUT",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export function getRagStatus(token?: string) {
+  return validatedFetch("/admin/rag/status", ragStatusSchema, token);
+}
+
+export function getRagQueue(token?: string, limit = 100) {
+  return validatedFetch(`/admin/rag/queue?limit=${limit}`, ragQueueSchema, token);
+}
+
+export function processRagJobs(token?: string, limit = 25, includeProcessing = false) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    include_processing: String(includeProcessing),
+  });
+  return validatedFetch(`/admin/rag/process?${params.toString()}`, ragProcessResultSchema, token, {
+    method: "POST",
+  });
+}
+
+export function requeueProcessingRagJobs(token?: string, limit?: number) {
+  const suffix = typeof limit === "number" ? `?limit=${limit}` : "";
+  return validatedFetch(`/admin/rag/requeue-processing${suffix}`, ragProcessResultSchema, token, {
+    method: "POST",
+  });
+}
+
+export function enqueueExistingRagDocuments(token?: string, limit?: number) {
+  const suffix = typeof limit === "number" ? `?limit=${limit}` : "";
+  return validatedFetch(`/admin/rag/enqueue-existing${suffix}`, ragProcessResultSchema, token, {
+    method: "POST",
+  });
+}
+
+export function getRagChunks(token?: string) {
+  return validatedFetch("/admin/rag/chunks", ragDocumentChunkStatusListSchema, token);
+}
+
+export function inspectRagRetrieval(query: string, token?: string, limit = 15) {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  return validatedFetch(`/admin/rag/retrieval?${params.toString()}`, ragRetrievalPreviewSchema, token);
+}
+
+export function inspectRagContext(query: string, token?: string, limit = 15) {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  return validatedFetch(`/admin/rag/context?${params.toString()}`, ragRetrievalPreviewSchema, token);
+}
+
+export function inspectRagPrompt(query: string, token?: string, limit = 15) {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  return validatedFetch(`/admin/rag/prompt?${params.toString()}`, ragRetrievalPreviewSchema, token);
+}
+
+export function inspectRagVectorSearch(query: string, token?: string, limit = 10) {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  return validatedFetch(`/admin/rag/vector-search?${params.toString()}`, ragVectorSearchSchema, token);
 }
 
 export function crawlSource(sourceId: number, token?: string) {

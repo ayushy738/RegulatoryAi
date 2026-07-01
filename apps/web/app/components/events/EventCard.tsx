@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRight, BadgeCheck, Bookmark, Clock3, ExternalLink, Loader2 } from "lucide-react";
 
 import type { DigestEvent } from "@/lib/api";
@@ -69,9 +70,9 @@ export function EventCard({
         <a href={event.source_url} target="_blank" rel="noreferrer" title="Open source">
           <ExternalLink size={17} />
         </a>
-        <a href={`/events/${event.id}`} title="Open event">
+        <Link href={`/events/${event.id}`} title="Open event">
           <ArrowRight size={17} />
-        </a>
+        </Link>
       </div>
     </article>
   );

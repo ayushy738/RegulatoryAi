@@ -22,3 +22,4 @@ data/
 *.log
 site-artifacts/
 docs/
+ui-audit/chrome-profile/

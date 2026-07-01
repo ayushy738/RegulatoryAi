@@ -1,5 +1,24 @@
 import type { DigestEvent } from "@/lib/api";
 
+const OCR_ARTIFACT_RE = /\(cid:\d+\)|\uFFFD|ï¿½|�/gi;
+const REPEATED_WHITESPACE_RE = /[ \t\r\n]+/g;
+
+export function cleanText(value?: string | null, fallback = "Not available") {
+  const clean = (value ?? "")
+    .replace(OCR_ARTIFACT_RE, " ")
+    .replace(REPEATED_WHITESPACE_RE, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+  return clean || fallback;
+}
+
+export function clampText(value?: string | null, max = 220, fallback = "Not available") {
+  const clean = cleanText(value, fallback);
+  if (clean.length <= max) return clean;
+  const clipped = clean.slice(0, max - 1).trimEnd();
+  return `${clipped}${clipped.endsWith(".") ? "" : "..."}`;
+}
+
 export function formatDate(value?: string | null) {
   if (!value) return "Not specified";
   const date = new Date(value);
@@ -37,10 +56,10 @@ export function eventStakeholders(event: DigestEvent) {
 }
 
 export function eventSummary(event: DigestEvent) {
-  return (
+  return cleanText(
     event.summary?.plain_english_summary ||
     event.raw_summary ||
-    "Regulatory update detected from the source document. Review the source for full details."
+      "Regulatory update detected from the source document. Review the source for full details.",
   );
 }
 
@@ -58,5 +77,12 @@ export function isHighImpact(event: DigestEvent) {
 }
 
 export function stripMarkdownNoise(line: string) {
-  return line.replace(/^#{1,6}\s*/, "").replace(/^\*\s*/, "").replace(/\*\*/g, "").trim();
+  return cleanText(
+    line
+      .replace(/^#{1,6}\s*/, "")
+      .replace(/^\*\s*/, "")
+      .replace(/\*\*/g, "")
+      .trim(),
+    "",
+  );
 }

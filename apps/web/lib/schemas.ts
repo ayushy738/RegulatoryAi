@@ -77,10 +77,25 @@ export const eventBookmarkStateSchema = z.object({
   is_bookmarked: z.boolean(),
 });
 
+export const ragCitationSchema = z.looseObject({
+  document_id: z.coerce.number(),
+  title: z.string(),
+  issuer: z.string().nullable().optional(),
+  issue_date: z.string().nullable().optional(),
+  source_url: z.string(),
+  chunk_id: z.coerce.number().nullable().optional(),
+  page_number: z.coerce.number().nullable().optional(),
+  section_title: z.string().nullable().optional(),
+  evidence: z.string().nullable().optional(),
+});
+
 export const chatResponseSchema = z.object({
   reply: z.string(),
   model: z.string(),
   event_id: z.number().nullable(),
+  intent: z.string().nullable().optional(),
+  citations: z.array(ragCitationSchema).default([]),
+  related_questions: z.array(z.string()).default([]),
 });
 
 export const chatHistoryItemSchema = z.looseObject({
@@ -212,8 +227,8 @@ export const sourceHealthListSchema = z.array(sourceHealthSchema);
 export const sourcePageSchema = z.looseObject({
   id: z.number(),
   source_id: z.number(),
-  source_code: z.string(),
-  source_name: z.string(),
+  source_code: z.string().optional().default(""),
+  source_name: z.string().optional().default(""),
   name: z.string(),
   url: z.string(),
   page_type: z.string(),
@@ -225,6 +240,19 @@ export const sourcePageSchema = z.looseObject({
 });
 
 export const sourcePageListSchema = z.array(sourcePageSchema);
+
+export const adminUserSchema = z.looseObject({
+  id: z.string(),
+  email: z.string().nullable().optional(),
+  full_name: z.string().nullable().optional(),
+  role: z.enum(["user", "admin"]),
+  created_at: z.string().nullable().optional(),
+  email_enabled: z.boolean().nullable().optional(),
+  frequency: z.string().nullable().optional(),
+  topics: z.array(z.string()).default([]),
+});
+
+export const adminUserListSchema = z.array(adminUserSchema);
 
 export const sourcePageCheckpointSchema = z.looseObject({
   source_page_id: z.number(),
@@ -262,7 +290,7 @@ export const adminDocumentSchema = z.looseObject({
   file_hash: z.string().nullable().optional(),
   content_hash: z.string().nullable().optional(),
   fetched_at: z.string().nullable().optional(),
-  family_id: z.string().nullable().optional(),
+  family_id: z.number().nullable().optional(),
   family_title: z.string().nullable().optional(),
 });
 
@@ -331,6 +359,81 @@ export const adminAnalyticsSchema = z.looseObject({
     .optional(),
 });
 
+export const ragStatusSchema = z.looseObject({
+  chunks: z.coerce.number().default(0),
+  embeddings: z.coerce.number().default(0),
+  ready: z.coerce.number().default(0),
+  failed: z.coerce.number().default(0),
+  pending_jobs: z.coerce.number().default(0),
+  failed_jobs: z.coerce.number().default(0),
+  embedding_provider: z.record(z.string(), z.unknown()).default({}),
+  vector_store: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const ragQueueJobSchema = z.looseObject({
+  job_id: z.coerce.number(),
+  document_id: z.coerce.number(),
+  version_id: z.coerce.number().nullable().optional(),
+  status: z.string(),
+  attempts: z.coerce.number().default(0),
+  last_error: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+});
+
+export const ragQueueSchema = z.array(ragQueueJobSchema);
+
+export const ragDocumentChunkStatusSchema = z.looseObject({
+  document_id: z.coerce.number(),
+  title: z.string(),
+  status: z.string(),
+  chunk_count: z.coerce.number().default(0),
+  embedded_chunk_count: z.coerce.number().default(0),
+  provider: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  error: z.string().nullable().optional(),
+});
+
+export const ragDocumentChunkStatusListSchema = z.array(ragDocumentChunkStatusSchema);
+
+export const ragProcessResultSchema = z.looseObject({
+  processed: z.coerce.number().default(0),
+  completed: z.coerce.number().default(0),
+  failed: z.coerce.number().default(0),
+  requeued: z.coerce.number().optional(),
+  enqueued: z.coerce.number().optional(),
+  errors: z.array(z.unknown()).default([]),
+});
+
+export const ragRetrievalHitSchema = z.looseObject({
+  source: z.string(),
+  document_id: z.coerce.number(),
+  version_id: z.coerce.number().nullable().optional(),
+  family_id: z.coerce.number().nullable().optional(),
+  chunk_id: z.coerce.number().nullable().optional(),
+  title: z.string(),
+  source_url: z.string(),
+  final_score: z.coerce.number().default(0),
+  vector_score: z.coerce.number().default(0),
+  keyword_score: z.coerce.number().default(0),
+  graph_score: z.coerce.number().default(0),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const ragRetrievalPreviewSchema = z.looseObject({
+  intent: z.string().optional(),
+  retrieval_latency_ms: z.coerce.number().default(0),
+  hits: z.array(ragRetrievalHitSchema).default([]),
+  citations: z.array(ragCitationSchema).default([]),
+  related_questions: z.array(z.string()).default([]),
+  estimated_tokens: z.coerce.number().optional(),
+  context: z.string().optional(),
+  system_prompt: z.string().optional(),
+  user_prompt: z.string().optional(),
+});
+
+export const ragVectorSearchSchema = z.array(ragRetrievalHitSchema);
+
 export const systemDocumentSchema = z.looseObject({
   slug: z.string(),
   title: z.string(),
@@ -349,13 +452,21 @@ export type SubscriptionSettings = z.infer<typeof subscriptionSettingsSchema>;
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export type ChatHistoryItem = z.infer<typeof chatHistoryItemSchema>;
 export type ChatResponse = z.infer<typeof chatResponseSchema>;
+export type RagCitation = z.infer<typeof ragCitationSchema>;
 export type SourceHealth = z.infer<typeof sourceHealthSchema>;
 export type SourcePage = z.infer<typeof sourcePageSchema>;
+export type AdminUser = z.infer<typeof adminUserSchema>;
 export type SourcePageCheckpoint = z.infer<typeof sourcePageCheckpointSchema>;
 export type AdminDocument = z.infer<typeof adminDocumentSchema>;
 export type AdminEvent = z.infer<typeof adminEventSchema>;
 export type AdminFamily = z.infer<typeof adminFamilySchema>;
 export type AdminAnalytics = z.infer<typeof adminAnalyticsSchema>;
+export type RagStatus = z.infer<typeof ragStatusSchema>;
+export type RagQueueJob = z.infer<typeof ragQueueJobSchema>;
+export type RagDocumentChunkStatus = z.infer<typeof ragDocumentChunkStatusSchema>;
+export type RagProcessResult = z.infer<typeof ragProcessResultSchema>;
+export type RagRetrievalHit = z.infer<typeof ragRetrievalHitSchema>;
+export type RagRetrievalPreview = z.infer<typeof ragRetrievalPreviewSchema>;
 export type CrawlRun = z.infer<typeof crawlRunSchema>;
 export type CrawlTriggerResponse = z.infer<typeof crawlTriggerResponseSchema>;
 export type IntelligenceDeadline = z.infer<typeof intelligenceDeadlineSchema>;

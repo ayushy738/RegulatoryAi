@@ -1,11 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 
 import { AuthScreen } from "@/app/components/auth/AuthScreen";
 import { LandingPage } from "@/app/components/auth/LandingPage";
-import { Sidebar } from "@/app/components/layout/Sidebar";
-import { TopBar } from "@/app/components/layout/TopBar";
+import { AdminTopBar, TopBar } from "@/app/components/layout/TopBar";
+import { EvidenceDrawer } from "@/app/components/ui/EvidenceDrawer";
 import { RouteView } from "@/app/features/RouteView";
 import { useWorkspace, WorkspaceProvider } from "@/app/workspace/WorkspaceContext";
 import type { RouteKey } from "@/app/workspace/types";
@@ -30,12 +31,6 @@ function ResolvenShell() {
     canRead,
     authReady,
     loading,
-    demoMode,
-    isAdmin,
-    userEmail,
-    digestDate,
-    pipelineStatus,
-    events,
     statusMessage,
     email,
     password,
@@ -43,11 +38,15 @@ function ResolvenShell() {
     setEmail,
     setPassword,
     setStatusMessage,
-    setDemoMode,
     handleSignIn,
-    handleMagicLink,
-    handleSignOut,
   } = useWorkspace();
+  const isAdminRoute = route.startsWith("admin");
+
+  useEffect(() => {
+    if (!statusMessage) return undefined;
+    const timer = window.setTimeout(() => setStatusMessage(""), 2400);
+    return () => window.clearTimeout(timer);
+  }, [setStatusMessage, statusMessage]);
 
   if (route === "landing") {
     return (
@@ -59,8 +58,6 @@ function ResolvenShell() {
         onEmail={setEmail}
         onPassword={setPassword}
         onSignIn={handleSignIn}
-        onMagicLink={handleMagicLink}
-        onDemo={() => setDemoMode(true)}
       />
     );
   }
@@ -83,23 +80,14 @@ function ResolvenShell() {
         onEmail={setEmail}
         onPassword={setPassword}
         onSignIn={handleSignIn}
-        onMagicLink={handleMagicLink}
-        onDemo={() => setDemoMode(true)}
       />
     );
   }
 
   return (
-    <div className="app-shell">
-      <Sidebar route={route} isAdmin={isAdmin || demoMode} userEmail={userEmail} onSignOut={handleSignOut} />
-      <main className="main-shell">
-        <TopBar
-          route={route}
-          digestDate={digestDate}
-          pipelineStatus={pipelineStatus}
-          eventCount={events.length}
-          isAdmin={isAdmin || demoMode}
-        />
+    <div className={isAdminRoute ? "admin-shell" : "product-shell"}>
+      {isAdminRoute ? <AdminTopBar /> : <TopBar />}
+      <main className={isAdminRoute ? "admin-main-shell" : "product-main-shell"}>
         {statusMessage ? (
           <div className="status-banner">
             <AlertCircle size={18} />
@@ -111,6 +99,7 @@ function ResolvenShell() {
         ) : null}
         <RouteView />
       </main>
+      <EvidenceDrawer />
     </div>
   );
 }

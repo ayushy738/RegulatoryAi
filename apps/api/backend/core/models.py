@@ -236,6 +236,9 @@ class ChatResponse(BaseModel):
     reply: str
     event_id: int | None = None
     model: str
+    intent: str | None = None
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+    related_questions: list[str] = Field(default_factory=list)
 
 
 class SubscriptionSettings(BaseModel):
@@ -244,6 +247,10 @@ class SubscriptionSettings(BaseModel):
     topics: list[str] = Field(default_factory=list)
     email_enabled: bool = True
     frequency: Literal["daily", "instant"] = "daily"
+
+
+class UserUpdatePayload(BaseModel):
+    role: Literal["user", "admin"]
 
 
 class SourcePayload(BaseModel):

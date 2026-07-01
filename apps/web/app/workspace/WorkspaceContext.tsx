@@ -16,7 +16,10 @@ import {
   crawlSource,
   crawlSourcePage,
   downloadLatestExport,
+  enqueueExistingRagDocuments,
   markRead,
+  processRagJobs,
+  requeueProcessingRagJobs,
   saveSubscriptions,
   sendChat,
   toggleBookmark,
@@ -28,6 +31,7 @@ import {
   useAdminDocumentsQuery,
   useAdminEventsQuery,
   useAdminFamiliesQuery,
+  useAdminUsersQuery,
   useChatHistoryQuery,
   useCheckpointsQuery,
   useDeadlinesQuery,
@@ -36,6 +40,9 @@ import {
   useHealthQuery,
   useObligationsQuery,
   useReadinessQuery,
+  useRagChunksQuery,
+  useRagQueueQuery,
+  useRagStatusQuery,
   useRunsQuery,
   useSourcePagesQuery,
   useSourcesQuery,
@@ -44,14 +51,17 @@ import {
 } from "@/lib/queries";
 import { supabase } from "@/lib/supabase";
 
-import { eventStakeholders, eventSummary } from "./format";
+import { cleanText, eventStakeholders, eventSummary } from "./format";
 import { defaultSettings, normalizeRoute } from "./types";
 import type {
   ChatMessage,
+  EvidenceItem,
   IntelligenceTab,
   PipelineStatus,
   RouteKey,
 } from "./types";
+
+const DEMO_MODE_KEY = "resolven-local-preview";
 
 export type QueryStatus = {
   isLoading: boolean;
@@ -105,7 +115,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
 
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
+  const [demoMode, setDemoModeState] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
@@ -127,12 +137,28 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
 
   const token = session?.access_token;
   const canRead = Boolean(token || demoMode);
 
+  function setDemoMode(next: boolean) {
+    setDemoModeState(next);
+    if (typeof window === "undefined") return;
+    if (next) {
+      window.localStorage.setItem(DEMO_MODE_KEY, "true");
+    } else {
+      window.localStorage.removeItem(DEMO_MODE_KEY);
+    }
+  }
+
   /* ---------------- Auth ---------------- */
   useEffect(() => {
+    const persistedDemo =
+      typeof window !== "undefined" && window.localStorage.getItem(DEMO_MODE_KEY) === "true";
+    if (persistedDemo) {
+      setDemoModeState(true);
+    }
     if (!supabase) {
       setDemoMode(true);
       setAuthReady(true);
@@ -140,10 +166,12 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     }
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      if (data.session) setDemoMode(false);
       setAuthReady(true);
     });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      if (nextSession) setDemoMode(false);
       setAuthReady(true);
     });
     return () => data.subscription.unsubscribe();
@@ -165,22 +193,36 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const isAdmin = sourcesQuery.isSuccess && runsQuery.isSuccess;
 
   const intelligenceEnabled =
-    canRead && (route === "intelligence" || route === "deadlines" || route === "dashboard");
+    canRead &&
+    (route === "intelligence" ||
+      route === "deadlines" ||
+      route === "dashboard" ||
+      route === "event" ||
+      route === "saved" ||
+      route === "documents");
   const deadlinesQuery = useDeadlinesQuery(token, intelligenceEnabled);
   const obligationsQuery = useObligationsQuery(token, intelligenceEnabled);
   const stakeholdersQuery = useStakeholdersQuery(token, intelligenceEnabled);
   const readinessQuery = useReadinessQuery(token, intelligenceEnabled);
 
   const eventQuery = useEventQuery(initialEventId, token, canRead && route === "event");
-  const chatHistoryQuery = useChatHistoryQuery(token, canRead && route === "ask");
+  const chatHistoryQuery = useChatHistoryQuery(token, canRead && (route === "ask" || route === "saved"));
 
-  const adminEnabled = canRead && isAdmin && route.startsWith("admin");
+  const adminEnabled =
+    canRead &&
+    isAdmin &&
+    (route.startsWith("admin") || route === "dashboard" || route === "documents" || route === "saved");
   const sourcePagesQuery = useSourcePagesQuery(token, adminEnabled);
   const checkpointsQuery = useCheckpointsQuery(token, adminEnabled);
   const adminDocumentsQuery = useAdminDocumentsQuery(token, adminEnabled);
   const adminEventsQuery = useAdminEventsQuery(token, adminEnabled);
   const adminFamiliesQuery = useAdminFamiliesQuery(token, adminEnabled);
   const adminAnalyticsQuery = useAdminAnalyticsQuery(token, adminEnabled);
+  const adminUsersQuery = useAdminUsersQuery(token, adminEnabled);
+  const ragEnabled = canRead && isAdmin && (route.startsWith("admin") || route === "dashboard");
+  const ragStatusQuery = useRagStatusQuery(token, ragEnabled);
+  const ragQueueQuery = useRagQueueQuery(token, ragEnabled);
+  const ragChunksQuery = useRagChunksQuery(token, ragEnabled);
 
   /* ---------------- Derived data ---------------- */
   const digestData = digestQuery.data;
@@ -199,6 +241,10 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const adminEvents = useMemo(() => adminEventsQuery.data ?? [], [adminEventsQuery.data]);
   const families = useMemo(() => adminFamiliesQuery.data ?? [], [adminFamiliesQuery.data]);
   const analytics = adminAnalyticsQuery.data ?? null;
+  const adminUsers = useMemo(() => adminUsersQuery.data ?? [], [adminUsersQuery.data]);
+  const ragStatus = ragStatusQuery.data ?? null;
+  const ragQueue = useMemo(() => ragQueueQuery.data ?? [], [ragQueueQuery.data]);
+  const ragChunks = useMemo(() => ragChunksQuery.data ?? [], [ragChunksQuery.data]);
 
   const pipelineStatus: PipelineStatus = healthQuery.isError
     ? "offline"
@@ -217,6 +263,11 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const obligationsStatus = statusFrom(obligationsQuery);
   const stakeholdersStatus = statusFrom(stakeholdersQuery);
   const readinessStatus = statusFrom(readinessQuery);
+  const ragSystemStatus = combineStatus([
+    statusFrom(ragStatusQuery),
+    statusFrom(ragQueueQuery),
+    statusFrom(ragChunksQuery),
+  ]);
   const adminStatus = combineStatus([
     statusFrom(sourcePagesQuery),
     statusFrom(checkpointsQuery),
@@ -224,6 +275,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     statusFrom(adminEventsQuery),
     statusFrom(adminFamiliesQuery),
     statusFrom(adminAnalyticsQuery),
+    statusFrom(adminUsersQuery),
   ]);
 
   /* ---------------- Seed editable local state from server ---------------- */
@@ -240,6 +292,8 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
           role: item.role,
           content: item.content,
           created_at: item.created_at ?? null,
+          citations: [],
+          related_questions: [],
         })),
       );
     }
@@ -256,7 +310,10 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const filteredEvents = useMemo(() => {
     const today = new Date();
     return events.filter((event) => {
-      const text = `${event.title} ${event.issuing_body ?? ""} ${event.topic_tags.join(" ")} ${eventSummary(event)}`.toLowerCase();
+      const text = cleanText(
+        `${event.title} ${event.issuing_body ?? ""} ${event.topic_tags.join(" ")} ${eventSummary(event)}`,
+        "",
+      ).toLowerCase();
       if (query && !text.includes(query.toLowerCase())) return false;
       if (sourceFilter !== "all") {
         const sourceText = `${event.issuing_body ?? ""} ${event.source_url}`.toLowerCase();
@@ -381,6 +438,45 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     mutationFn: (message: string) => sendChat(message, selectedEvent?.id ?? null, token),
   });
 
+  const processRagMutation = useMutation({
+    mutationFn: () => processRagJobs(token, 1, false),
+    onMutate: () => setBusyAction("rag-process"),
+    onSuccess: (result) => {
+      setStatusMessage(
+        `RAG worker processed ${result.processed ?? 0} job(s): ${result.completed ?? 0} completed, ${result.failed ?? 0} failed.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.ragStatus });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.ragQueue });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.ragChunks });
+    },
+    onError: (error) => setStatusMessage(errorMessage(error, "Unable to process RAG queue.")),
+    onSettled: () => setBusyAction(null),
+  });
+
+  const requeueRagMutation = useMutation({
+    mutationFn: () => requeueProcessingRagJobs(token),
+    onMutate: () => setBusyAction("rag-requeue"),
+    onSuccess: (result) => {
+      setStatusMessage(`Requeued ${result.requeued ?? result.processed ?? 0} interrupted RAG job(s).`);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.ragStatus });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.ragQueue });
+    },
+    onError: (error) => setStatusMessage(errorMessage(error, "Unable to requeue RAG jobs.")),
+    onSettled: () => setBusyAction(null),
+  });
+
+  const enqueueRagMutation = useMutation({
+    mutationFn: () => enqueueExistingRagDocuments(token),
+    onMutate: () => setBusyAction("rag-enqueue"),
+    onSuccess: (result) => {
+      setStatusMessage(`Queued ${result.enqueued ?? result.processed ?? 0} eligible document(s) for RAG indexing.`);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.ragStatus });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.ragQueue });
+    },
+    onError: (error) => setStatusMessage(errorMessage(error, "Unable to enqueue RAG jobs.")),
+    onSettled: () => setBusyAction(null),
+  });
+
   /* ---------------- Handlers ---------------- */
   async function handleSignIn() {
     setAuthMessage("");
@@ -390,6 +486,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setAuthMessage(error.message);
+    else setDemoMode(false);
   }
 
   async function handleMagicLink() {
@@ -441,7 +538,17 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     setChatMessages(nextMessages);
     try {
       const response = await chatMutation.mutateAsync(message);
-      setChatMessages([...nextMessages, { role: "assistant", content: response.reply }]);
+      setChatMessages([
+        ...nextMessages,
+        {
+          role: "assistant",
+          content: response.reply,
+          intent: response.intent ?? null,
+          citations: response.citations ?? [],
+          related_questions: response.related_questions ?? [],
+          model: response.model,
+        },
+      ]);
     } catch (error) {
       setChatMessages([
         ...nextMessages,
@@ -467,6 +574,24 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     void obligationsQuery.refetch();
     void stakeholdersQuery.refetch();
     void readinessQuery.refetch();
+  }
+
+  function loadRagData() {
+    void ragStatusQuery.refetch();
+    void ragQueueQuery.refetch();
+    void ragChunksQuery.refetch();
+  }
+
+  function handleProcessRagJob() {
+    processRagMutation.mutate();
+  }
+
+  function handleRequeueRagJobs() {
+    requeueRagMutation.mutate();
+  }
+
+  function handleEnqueueRagDocuments() {
+    enqueueRagMutation.mutate();
   }
 
   const userEmail = session?.user.email ?? (demoMode ? "local-preview@resolven.ai" : "");
@@ -514,6 +639,10 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     adminEvents,
     families,
     analytics,
+    adminUsers,
+    ragStatus,
+    ragQueue,
+    ragChunks,
     token,
     canRead,
     userEmail,
@@ -521,6 +650,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     filteredEvents,
     savedEvents,
     activeDeadlines,
+    selectedEvidence,
     // status objects
     digestStatus,
     subscriptionsStatus,
@@ -531,6 +661,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     stakeholdersStatus,
     readinessStatus,
     adminStatus,
+    ragSystemStatus,
     // setters
     setEmail,
     setPassword,
@@ -546,15 +677,20 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     setDeadlineType,
     setDeadlineStakeholder,
     setChatInput,
+    setSelectedEvidence,
     // actions
     loadBaseData,
     loadIntelligenceData,
+    loadRagData,
     handleSignIn,
     handleMagicLink,
     handleSignOut,
     handleSaveSettings,
     handleBookmark,
     handleAsk,
+    handleProcessRagJob,
+    handleRequeueRagJobs,
+    handleEnqueueRagDocuments,
     handleToggleSource,
     handleSourceCrawl,
     handlePageCrawl,

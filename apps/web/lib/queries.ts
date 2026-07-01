@@ -5,6 +5,7 @@ import {
   getAdminDocuments,
   getAdminEvents,
   getAdminFamilies,
+  getAdminUsers,
   getChatHistory,
   getEvent,
   getEvents,
@@ -13,6 +14,9 @@ import {
   getIntelligenceObligations,
   getIntelligenceReadiness,
   getLatestDigest,
+  getRagChunks,
+  getRagQueue,
+  getRagStatus,
   getRuns,
   getSourcePageCheckpoints,
   getSourcePages,
@@ -43,6 +47,10 @@ export const queryKeys = {
     events: ["admin", "events"] as const,
     families: ["admin", "families"] as const,
     analytics: ["admin", "analytics"] as const,
+    users: ["admin", "users"] as const,
+    ragStatus: ["admin", "rag", "status"] as const,
+    ragQueue: ["admin", "rag", "queue"] as const,
+    ragChunks: ["admin", "rag", "chunks"] as const,
   },
 };
 
@@ -193,6 +201,38 @@ export function useAdminAnalyticsQuery(token: string | undefined, enabled: boole
   return useQuery({
     queryKey: queryKeys.admin.analytics,
     queryFn: () => getAdminAnalytics(token),
+    enabled,
+  });
+}
+
+export function useAdminUsersQuery(token: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.admin.users,
+    queryFn: () => getAdminUsers(token),
+    enabled,
+  });
+}
+
+export function useRagStatusQuery(token: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.admin.ragStatus,
+    queryFn: () => getRagStatus(token),
+    enabled,
+  });
+}
+
+export function useRagQueueQuery(token: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.admin.ragQueue,
+    queryFn: () => getRagQueue(token),
+    enabled,
+  });
+}
+
+export function useRagChunksQuery(token: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.admin.ragChunks,
+    queryFn: () => getRagChunks(token),
     enabled,
   });
 }

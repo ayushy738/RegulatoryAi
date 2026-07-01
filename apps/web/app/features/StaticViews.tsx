@@ -17,7 +17,7 @@ export function DocsView() {
           ["Chat", "/chat, /chat/history"],
           [
             "Admin",
-            "/admin/sources, /admin/pages, /admin/checkpoints, /admin/documents, /admin/events, /admin/families, /admin/analytics",
+            "/admin, /admin/sources, /admin/runs",
           ],
         ].map(([title, text]) => (
           <div key={title}>

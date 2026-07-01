@@ -1,17 +1,11 @@
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 
-import { AccountView } from "./AccountView";
 import {
-  AdminAnalyticsView,
-  AdminCheckpointsView,
   AdminDashboardView,
-  AdminDocumentsView,
-  AdminEventsView,
-  AdminFamiliesView,
   AdminGate,
-  AdminPagesView,
   AdminRunsView,
   AdminSourcesView,
+  AdminUsersView,
 } from "./AdminViews";
 import { AskView } from "./AskView";
 import { DashboardView } from "./DashboardView";
@@ -19,7 +13,6 @@ import { DeadlinesView } from "./DeadlinesView";
 import { EventDetailView } from "./EventDetailView";
 import { IntelligenceView } from "./IntelligenceView";
 import { LatestView } from "./LatestView";
-import { NotificationsView } from "./NotificationsView";
 import { SavedView } from "./SavedView";
 import { DocsView, FlowView } from "./StaticViews";
 
@@ -40,10 +33,6 @@ export function RouteView() {
       return <SavedView />;
     case "event":
       return <EventDetailView />;
-    case "notifications":
-      return <NotificationsView />;
-    case "account":
-      return <AccountView />;
     case "admin-dashboard":
       return (
         <AdminGate>
@@ -57,11 +46,7 @@ export function RouteView() {
         </AdminGate>
       );
     case "admin-pages":
-      return (
-        <AdminGate>
-          <AdminPagesView />
-        </AdminGate>
-      );
+      return <AdminGate><AdminSourcesView /></AdminGate>;
     case "admin-runs":
       return (
         <AdminGate>
@@ -69,33 +54,20 @@ export function RouteView() {
         </AdminGate>
       );
     case "admin-events":
-      return (
-        <AdminGate>
-          <AdminEventsView />
-        </AdminGate>
-      );
     case "admin-documents":
-      return (
-        <AdminGate>
-          <AdminDocumentsView />
-        </AdminGate>
-      );
     case "admin-families":
-      return (
-        <AdminGate>
-          <AdminFamiliesView />
-        </AdminGate>
-      );
+    case "admin-versions":
+    case "admin-graph":
+    case "admin-rag":
+    case "admin-queues":
     case "admin-checkpoints":
-      return (
-        <AdminGate>
-          <AdminCheckpointsView />
-        </AdminGate>
-      );
     case "admin-analytics":
+    case "admin-subscriptions":
+      return <AdminGate><AdminRunsView /></AdminGate>;
+    case "admin-users":
       return (
         <AdminGate>
-          <AdminAnalyticsView />
+          <AdminUsersView />
         </AdminGate>
       );
     case "api-docs":

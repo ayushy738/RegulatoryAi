@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -13,6 +15,16 @@ from sqlalchemy import text
 from backend.core.config import settings
 from backend.core.llm import get_llm_client
 from backend.pipeline.intelligence_gate import extract_deadline_intelligence
+
+logger = logging.getLogger(__name__)
+
+GRAPH_STATUS_PENDING = "PENDING"
+GRAPH_STATUS_PROCESSING = "PROCESSING"
+GRAPH_STATUS_COMPLETED = "COMPLETED"
+GRAPH_STATUS_FAILED = "FAILED"
+GRAPH_STATUS_SKIPPED = "SKIPPED"
+GRAPH_TERMINAL_SUCCESS_STATUSES = {GRAPH_STATUS_COMPLETED, GRAPH_STATUS_SKIPPED}
+GRAPH_RETRYABLE_STATUSES = {GRAPH_STATUS_PENDING, GRAPH_STATUS_FAILED}
 
 GRAPH_SYSTEM_PROMPT = """
 You are building a regulatory knowledge graph for Indian power-sector regulation.
@@ -171,6 +183,7 @@ class GraphPersistenceResult:
     family_after: int | None
     family_applied: bool
     error: str | None = None
+    latency_ms: int = 0
 
 
 def analyze_and_persist_regulatory_graph(
@@ -178,17 +191,182 @@ def analyze_and_persist_regulatory_graph(
     item: GraphInput,
     *,
     use_ai: bool = True,
+    skip_completed: bool = False,
 ) -> GraphPersistenceResult:
-    extraction, used_ai, error = extract_regulatory_knowledge(item, use_ai=use_ai)
-    result = persist_regulatory_knowledge_graph(session, item, extraction)
-    _upsert_extraction_audit(session, item, extraction, used_ai=used_ai, error=error)
+    started = time.perf_counter()
+    if skip_completed and _has_terminal_graph_extraction(session, item):
+        return _empty_graph_result(
+            item,
+            status=GRAPH_STATUS_SKIPPED,
+            latency_ms=_elapsed_ms(started),
+        )
+
+    if item.content_length < 250 or not item.text_content.strip():
+        error = "SKIPPED: document has insufficient extracted text for graph extraction."
+        latency_ms = _elapsed_ms(started)
+        _safe_upsert_extraction_audit(
+            session,
+            item,
+            {"_meta": {"reason": error, "latency_ms": latency_ms}},
+            used_ai=False,
+            error=error,
+            status=GRAPH_STATUS_SKIPPED,
+        )
+        return _empty_graph_result(
+            item,
+            status=GRAPH_STATUS_SKIPPED,
+            error=error,
+            latency_ms=latency_ms,
+        )
+
+    _safe_upsert_extraction_audit(
+        session,
+        item,
+        {},
+        used_ai=False,
+        error=None,
+        status=GRAPH_STATUS_PENDING,
+    )
+    _safe_upsert_extraction_audit(
+        session,
+        item,
+        {},
+        used_ai=False,
+        error=None,
+        status=GRAPH_STATUS_PROCESSING,
+    )
+
+    extraction: dict[str, Any] = {}
+    used_ai = False
+    ai_error: str | None = None
+    try:
+        extraction, used_ai, ai_error = extract_regulatory_knowledge(item, use_ai=use_ai)
+        with session.begin_nested():
+            result = persist_regulatory_knowledge_graph(session, item, extraction)
+        latency_ms = _elapsed_ms(started)
+        _safe_upsert_extraction_audit(
+            session,
+            item,
+            _with_extraction_meta(extraction, latency_ms=latency_ms),
+            used_ai=used_ai,
+            error=ai_error,
+            status=GRAPH_STATUS_COMPLETED,
+        )
+        return GraphPersistenceResult(
+            document_id=item.document_id,
+            used_ai=used_ai,
+            status=GRAPH_STATUS_COMPLETED,
+            error=ai_error,
+            latency_ms=latency_ms,
+            **result,
+        )
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        latency_ms = _elapsed_ms(started)
+        logger.warning(
+            "graph extraction failed for document %s version %s: %s",
+            item.document_id,
+            item.document_version_id,
+            error,
+        )
+        _safe_upsert_extraction_audit(
+            session,
+            item,
+            _with_extraction_meta(extraction or {}, error=error, latency_ms=latency_ms),
+            used_ai=used_ai,
+            error=error,
+            status=GRAPH_STATUS_FAILED,
+        )
+        return _empty_graph_result(
+            item,
+            status=GRAPH_STATUS_FAILED,
+            error=error,
+            latency_ms=latency_ms,
+        )
+
+
+def _empty_graph_result(
+    item: GraphInput,
+    *,
+    status: str,
+    error: str | None = None,
+    latency_ms: int = 0,
+) -> GraphPersistenceResult:
     return GraphPersistenceResult(
         document_id=item.document_id,
-        used_ai=used_ai,
-        status="AI" if used_ai else "HEURISTIC",
+        used_ai=False,
+        status=status,
+        entity_count=0,
+        relationship_count=0,
+        stakeholder_count=0,
+        obligation_count=0,
+        deadline_count=0,
+        family_before=item.family_id,
+        family_after=item.family_id,
+        family_applied=False,
         error=error,
-        **result,
+        latency_ms=latency_ms,
     )
+
+
+def _elapsed_ms(started: float) -> int:
+    return max(0, int((time.perf_counter() - started) * 1000))
+
+
+def _with_extraction_meta(extraction: dict[str, Any], **metadata: Any) -> dict[str, Any]:
+    payload = dict(extraction)
+    existing_meta = payload.get("_meta")
+    meta = dict(existing_meta) if isinstance(existing_meta, dict) else {}
+    meta.update({key: value for key, value in metadata.items() if value is not None})
+    payload["_meta"] = meta
+    return payload
+
+
+def _has_terminal_graph_extraction(session: Any, item: GraphInput) -> bool:
+    row = session.execute(
+        text(
+            """
+            select status, document_version_id
+            from regulatory_graph_extractions
+            where document_id = :document_id
+            """
+        ),
+        {"document_id": item.document_id},
+    ).mappings().first()
+    if not row or row["status"] not in GRAPH_TERMINAL_SUCCESS_STATUSES:
+        return False
+    if item.document_version_id is None:
+        return True
+    return row["document_version_id"] == item.document_version_id
+
+
+def _safe_upsert_extraction_audit(
+    session: Any,
+    item: GraphInput,
+    extraction: dict[str, Any],
+    *,
+    used_ai: bool,
+    error: str | None,
+    status: str,
+) -> None:
+    try:
+        with session.begin_nested():
+            _upsert_extraction_audit(
+                session,
+                item,
+                extraction,
+                used_ai=used_ai,
+                error=error,
+                status=status,
+            )
+    except Exception as exc:
+        logger.warning(
+            "graph status update failed for document %s version %s: %s: %s",
+            item.document_id,
+            item.document_version_id,
+            type(exc).__name__,
+            exc,
+        )
 
 
 def extract_regulatory_knowledge(
@@ -900,6 +1078,7 @@ def _upsert_extraction_audit(
     *,
     used_ai: bool,
     error: str | None,
+    status: str,
 ) -> None:
     model = (
         settings.llm_model_agent
@@ -910,7 +1089,6 @@ def _upsert_extraction_audit(
     provider = settings.llm_provider
     if provider == "offline" and settings.parallel_api_key:
         provider = "parallel"
-    status = "AI_EXTRACTED" if used_ai else ("FALLBACK_EXTRACTED" if error else "HEURISTIC")
     session.execute(
         text(
             """

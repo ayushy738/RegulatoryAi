@@ -23,6 +23,7 @@ from backend.core.models import (
     SourceUpdatePayload,
     SubscriptionSettings,
     SummaryPayload,
+    UserUpdatePayload,
 )
 from backend.core.system_docs import SYSTEM_DOCUMENTS
 from backend.core.utils import canonical_url, sha256_normalized_text
@@ -32,11 +33,20 @@ from backend.pipeline.change_detector import (
     is_related_title,
     title_similarity,
 )
-from backend.pipeline.family_registry import RegistryInput, register_document_version_family
+from backend.pipeline.family_registry import (
+    RegistryInput,
+    RegistryResult,
+    register_document_version_family,
+)
 from backend.pipeline.intelligence_gate import (
     assess_event_intelligence,
     attach_intelligence_to_summary,
 )
+from backend.pipeline.regulatory_knowledge_graph import (
+    GraphInput,
+    analyze_and_persist_regulatory_graph,
+)
+from backend.rag.indexing import enqueue_rag_index_job
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +302,49 @@ def list_sources() -> list[dict[str, Any]]:
     except SQLAlchemyError as exc:
         logger.warning("list_sources failed: %s", exc)
         return []
+
+
+def list_admin_users() -> list[dict[str, Any]]:
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select
+                      p.id::text as id,
+                      p.email,
+                      p.full_name,
+                      p.role::text as role,
+                      p.created_at,
+                      s.email_enabled,
+                      s.frequency,
+                      coalesce(s.topics, '{}') as topics
+                    from profiles p
+                    left join subscriptions s on s.user_id = p.id
+                    order by p.created_at desc
+                    """
+                )
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_admin_users failed: %s", exc)
+        return []
+
+
+def update_admin_user(user_id: str, payload: UserUpdatePayload) -> dict[str, Any]:
+    with session_scope() as session:
+        row = session.execute(
+            text(
+                """
+                update profiles
+                set role = cast(:role as user_role_t)
+                where id = cast(:user_id as uuid)
+                returning id::text as id, email, full_name, role::text as role, created_at
+                """
+            ),
+            {"user_id": user_id, "role": payload.role},
+        ).mappings().first()
+    return dict(row) if row else {}
 
 
 def create_source(payload: SourcePayload) -> dict[str, Any]:
@@ -1316,6 +1369,27 @@ def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
                 },
             ).first()
             if not version:
+                registry_result = _register_family_for_graph_extraction(
+                    session,
+                    document_id=document.id,
+                    version_id=latest.version_id if latest else None,
+                    extracted=extracted,
+                    source_url=url,
+                )
+                _run_graph_extraction_for_document(
+                    session,
+                    document_id=document.id,
+                    version_id=latest.version_id if latest else None,
+                    extracted=extracted,
+                    source_url=url,
+                    family_id=registry_result.family_id,
+                    assignment_type=registry_result.assignment_type,
+                )
+                _enqueue_rag_indexing_for_document(
+                    session,
+                    document_id=document.id,
+                    version_id=latest.version_id if latest else None,
+                )
                 change = detect_regulatory_change(extracted, prior=prior_reference)
                 _record_regulatory_change_audit(
                     session,
@@ -1329,6 +1403,27 @@ def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
                 )
                 return None
             if latest and latest.content_hash == content_hash:
+                registry_result = _register_family_for_graph_extraction(
+                    session,
+                    document_id=document.id,
+                    version_id=version.id,
+                    extracted=extracted,
+                    source_url=url,
+                )
+                _run_graph_extraction_for_document(
+                    session,
+                    document_id=document.id,
+                    version_id=version.id,
+                    extracted=extracted,
+                    source_url=url,
+                    family_id=registry_result.family_id,
+                    assignment_type=registry_result.assignment_type,
+                )
+                _enqueue_rag_indexing_for_document(
+                    session,
+                    document_id=document.id,
+                    version_id=version.id,
+                )
                 change = detect_regulatory_change(extracted, prior=prior_reference)
                 _record_regulatory_change_audit(
                     session,
@@ -1356,6 +1451,20 @@ def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
                     content_length=len(extracted.text),
                     first_seen_at=None,
                 ),
+            )
+            _run_graph_extraction_for_document(
+                session,
+                document_id=document.id,
+                version_id=version.id,
+                extracted=extracted,
+                source_url=url,
+                family_id=registry_result.family_id,
+                assignment_type=registry_result.assignment_type,
+            )
+            _enqueue_rag_indexing_for_document(
+                session,
+                document_id=document.id,
+                version_id=version.id,
             )
             if not prior_reference:
                 prior_reference = _find_family_prior_reference(
@@ -1464,6 +1573,102 @@ def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
             exc,
         )
         return None
+
+
+def _register_family_for_graph_extraction(
+    session: Any,
+    *,
+    document_id: int,
+    version_id: int | None,
+    extracted: ExtractedDoc,
+    source_url: str,
+) -> RegistryResult:
+    discovered = extracted.fetched.discovered
+    return register_document_version_family(
+        session,
+        RegistryInput(
+            document_id=document_id,
+            document_version_id=version_id,
+            title=discovered.title,
+            issuer=discovered.issuing_body,
+            source_url=source_url,
+            document_type=discovered.doc_type,
+            issue_date=discovered.issue_date,
+            content_hash=extracted.content_hash,
+            text_content=extracted.text,
+            content_length=len(extracted.text),
+            first_seen_at=None,
+        ),
+    )
+
+
+def _run_graph_extraction_for_document(
+    session: Any,
+    *,
+    document_id: int,
+    version_id: int | None,
+    extracted: ExtractedDoc,
+    source_url: str,
+    family_id: int | None,
+    assignment_type: str | None,
+) -> None:
+    discovered = extracted.fetched.discovered
+    item = GraphInput(
+        document_id=document_id,
+        document_version_id=version_id,
+        title=discovered.title,
+        issuer=discovered.issuing_body,
+        source_url=source_url,
+        document_type=discovered.doc_type,
+        issue_date=discovered.issue_date,
+        content_hash=extracted.content_hash,
+        text_content=extracted.text,
+        content_length=len(extracted.text),
+        family_id=family_id,
+        assignment_type=assignment_type,
+    )
+    try:
+        with session.begin_nested():
+            result = analyze_and_persist_regulatory_graph(
+                session,
+                item,
+                use_ai=True,
+                skip_completed=True,
+            )
+        if result.status == "FAILED":
+            logger.warning(
+                "graph extraction recorded FAILED for document %s version %s: %s",
+                document_id,
+                version_id,
+                result.error,
+            )
+    except Exception as exc:
+        logger.warning(
+            "graph extraction isolated failure for document %s version %s: %s: %s",
+            document_id,
+            version_id,
+            type(exc).__name__,
+            exc,
+        )
+
+
+def _enqueue_rag_indexing_for_document(
+    session: Any,
+    *,
+    document_id: int,
+    version_id: int | None,
+) -> None:
+    try:
+        with session.begin_nested():
+            enqueue_rag_index_job(session, document_id=document_id, version_id=version_id)
+    except Exception as exc:
+        logger.warning(
+            "RAG indexing enqueue failed for document %s version %s: %s: %s",
+            document_id,
+            version_id,
+            type(exc).__name__,
+            exc,
+        )
 
 
 def _prior_reference_from_row(row: Any, reference_type: str) -> PriorVersionReference:
