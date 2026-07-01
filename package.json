@@ -13,7 +13,6 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "api:dev": "npm run dev --workspace @regulatory-ai/api",
     "web:dev": "npm run dev --workspace @regulatory-ai/web"
   },
   "devDependencies": {
@@ -30,4 +29,3 @@
     "lightningcss": "1.32.0"
   }
 }
-

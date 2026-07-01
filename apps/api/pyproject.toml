@@ -3,6 +3,9 @@ line-length = 100
 target-version = "py311"
 extend-exclude = ["backend/pipeline/digest_parser.py"]
 
+[tool.vercel]
+entrypoint = "app:app"
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
