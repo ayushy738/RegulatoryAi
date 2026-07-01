@@ -20,7 +20,7 @@
     "turbo": "2.6.3"
   },
   "engines": {
-    "node": ">=22.13.0",
+    "node": "22.13.0",
     "npm": ">=10.0.0"
   },
   "dependencies": {
