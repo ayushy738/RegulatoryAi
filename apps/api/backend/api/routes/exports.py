@@ -6,19 +6,19 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from backend.api.deps import OptionalUserDep
+from backend.api.deps import UserDep
 from backend.core.models import EventSummary
-from backend.core.repository import DEMO_USER_ID, latest_digest, record_export
+from backend.core.repository import latest_digest, record_export
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
 
 @router.get("/latest")
 async def export_latest(
-    user: OptionalUserDep,
+    user: UserDep,
     format: Literal["json", "csv", "markdown"] = Query(default="json"),
 ) -> Response:
-    user_id = user.id if user else DEMO_USER_ID
+    user_id = user.id
     digest = latest_digest(user_id)
     if format == "json":
         body = json.dumps(digest.model_dump(mode="json"), indent=2)

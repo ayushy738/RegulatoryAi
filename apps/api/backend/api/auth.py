@@ -8,7 +8,6 @@ from supabase import create_client
 
 from backend.core.config import settings
 from backend.core.db import session_scope
-from backend.core.repository import DEMO_USER_ID
 
 
 @dataclass(frozen=True)
@@ -34,7 +33,7 @@ def _bearer_token(authorization: str | None) -> str | None:
 
 def _validate_token(token: str) -> CurrentUser:
     if not settings.supabase_project_url or not settings.supabase_anon_key:
-        raise HTTPException(status_code=500, detail="Supabase Auth is not configured")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     try:
         client = create_client(settings.supabase_project_url, settings.supabase_anon_key)
         response = client.auth.get_user(token)
@@ -65,18 +64,7 @@ def _validate_token(token: str) -> CurrentUser:
 async def current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
     token = _bearer_token(authorization)
     if token is None:
-        if not settings.auth_required:
-            return CurrentUser(id=DEMO_USER_ID, email="demo@regulatory.ai", role="admin")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
-    return _validate_token(token)
-
-
-async def optional_current_user(
-    authorization: str | None = Header(default=None),
-) -> CurrentUser | None:
-    token = _bearer_token(authorization)
-    if token is None:
-        return None
     return _validate_token(token)
 
 

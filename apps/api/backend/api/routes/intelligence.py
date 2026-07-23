@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 
-from backend.api.deps import OptionalUserDep
+from backend.api.deps import UserDep
 from backend.core.intelligence_repository import (
     get_stakeholder_intelligence,
     intelligence_readiness_report,
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 
 @router.get("/deadlines", response_model=list[IntelligenceDeadline])
 async def active_deadlines(
-    user: OptionalUserDep,
+    user: UserDep,
     issuer: str | None = None,
     deadline_type: str | None = None,
     stakeholder: str | None = None,
@@ -39,7 +39,7 @@ async def active_deadlines(
 
 @router.get("/obligations", response_model=list[StakeholderObligationGroup])
 async def obligations(
-    user: OptionalUserDep,
+    user: UserDep,
     stakeholder: str | None = None,
     issuer: str | None = None,
     limit: int = Query(default=200, ge=1, le=500),
@@ -49,7 +49,7 @@ async def obligations(
 
 
 @router.get("/stakeholders", response_model=list[StakeholderIntelligence])
-async def stakeholders(user: OptionalUserDep) -> list[StakeholderIntelligence]:
+async def stakeholders(user: UserDep) -> list[StakeholderIntelligence]:
     del user
     return list_stakeholder_intelligence()
 
@@ -57,13 +57,13 @@ async def stakeholders(user: OptionalUserDep) -> list[StakeholderIntelligence]:
 @router.get("/stakeholders/{stakeholder_slug}", response_model=StakeholderIntelligence)
 async def stakeholder_detail(
     stakeholder_slug: str,
-    user: OptionalUserDep,
+    user: UserDep,
 ) -> StakeholderIntelligence:
     del user
     return get_stakeholder_intelligence(stakeholder_slug)
 
 
 @router.get("/readiness", response_model=IntelligenceReadinessReport)
-async def readiness(user: OptionalUserDep) -> IntelligenceReadinessReport:
+async def readiness(user: UserDep) -> IntelligenceReadinessReport:
     del user
     return intelligence_readiness_report()

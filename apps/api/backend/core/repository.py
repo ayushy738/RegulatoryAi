@@ -50,7 +50,6 @@ from backend.rag.indexing import enqueue_rag_index_job
 
 logger = logging.getLogger(__name__)
 
-DEMO_USER_ID = "00000000-0000-4000-8000-000000000001"
 SUMMARY_MODEL = "non-ai-v1"
 TOPIC_KEYWORDS = {
     "solar": ["solar", "photovoltaic", "pv"],
@@ -134,7 +133,7 @@ left join user_event_state ues on ues.event_id = e.id and ues.user_id = :user_id
 
 
 def list_events(
-    user_id: str = DEMO_USER_ID,
+    user_id: str | None,
     query: str | None = None,
     jurisdiction: str | None = None,
     source: str | None = None,
@@ -199,7 +198,7 @@ def list_events(
         return []
 
 
-def get_event(event_id: int, user_id: str = DEMO_USER_ID) -> EventSummary | None:
+def get_event(event_id: int, user_id: str | None) -> EventSummary | None:
     query = f"{EVENT_SELECT} where e.id = :event_id"
     try:
         with session_scope() as session:
@@ -211,7 +210,7 @@ def get_event(event_id: int, user_id: str = DEMO_USER_ID) -> EventSummary | None
     return None
 
 
-def latest_digest(user_id: str = DEMO_USER_ID) -> DigestResponse:
+def latest_digest(user_id: str | None) -> DigestResponse:
     try:
         with session_scope() as session:
             digest = session.execute(
@@ -253,7 +252,7 @@ def latest_digest(user_id: str = DEMO_USER_ID) -> DigestResponse:
         return DigestResponse(digest_date=date.today(), event_count=0, events=[])
 
 
-def digest_by_date(digest_date: date, user_id: str = DEMO_USER_ID) -> DigestResponse:
+def digest_by_date(digest_date: date, user_id: str | None) -> DigestResponse:
     try:
         with session_scope() as session:
             digest = session.execute(
@@ -1255,7 +1254,7 @@ def create_digest_for_events(run_date: date, event_ids: list[int]) -> DigestResp
     except SQLAlchemyError as exc:
         logger.warning("create_digest_for_events failed: %s", exc)
         return DigestResponse(digest_date=run_date, event_count=0, events=[])
-    return latest_digest()
+    return latest_digest(user_id=None)
 
 
 def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
@@ -2020,12 +2019,6 @@ def _topic_tags(value: str) -> list[str]:
 
 def mark_event_state(user_id: str, event_id: int, *, is_read: bool | None = None,
                      is_bookmarked: bool | None = None) -> dict[str, bool | int]:
-    if user_id == DEMO_USER_ID:
-        return {
-            "event_id": event_id,
-            "is_read": bool(is_read),
-            "is_bookmarked": bool(is_bookmarked),
-        }
     values = {"user_id": user_id, "event_id": event_id}
     assignments = []
     if is_read is not None:
@@ -2073,8 +2066,6 @@ DEFAULT_SUBSCRIPTION = SubscriptionSettings(
 
 
 def get_subscription(user_id: str) -> SubscriptionSettings:
-    if user_id == DEMO_USER_ID:
-        return DEFAULT_SUBSCRIPTION
     try:
         with session_scope() as session:
             row = session.execute(
@@ -2102,8 +2093,6 @@ def get_subscription(user_id: str) -> SubscriptionSettings:
 
 
 def update_subscription(user_id: str, payload: SubscriptionSettings) -> SubscriptionSettings:
-    if user_id == DEMO_USER_ID:
-        return payload
     with session_scope() as session:
         session.execute(
             text(
@@ -2135,8 +2124,6 @@ def update_subscription(user_id: str, payload: SubscriptionSettings) -> Subscrip
 
 
 def save_chat_message(user_id: str, role: str, content: str, event_id: int | None = None) -> None:
-    if user_id == DEMO_USER_ID:
-        return
     try:
         with session_scope() as session:
             session.execute(
@@ -2153,8 +2140,6 @@ def save_chat_message(user_id: str, role: str, content: str, event_id: int | Non
 
 
 def chat_history(user_id: str, event_id: int | None = None) -> list[dict[str, Any]]:
-    if user_id == DEMO_USER_ID:
-        return []
     clause = "event_id is null" if event_id is None else "event_id = :event_id"
     with session_scope() as session:
         rows = session.execute(
@@ -2173,8 +2158,6 @@ def chat_history(user_id: str, event_id: int | None = None) -> list[dict[str, An
 
 
 def record_export(user_id: str, export_type: str, export_format: str, row_count: int) -> None:
-    if user_id == DEMO_USER_ID:
-        return
     try:
         with session_scope() as session:
             session.execute(

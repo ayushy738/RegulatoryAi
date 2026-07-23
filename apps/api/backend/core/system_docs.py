@@ -9,7 +9,7 @@ Base URL comes from `API_BASE_URL` or `NEXT_PUBLIC_API_BASE_URL`.
 
 Authentication uses Supabase Auth access tokens: `Authorization: Bearer <supabase-access-token>`.
 
-Local development may set `AUTH_REQUIRED=false`, which returns a demo user for app testing.
+Authentication is required for all product and administrative endpoints in every environment.
 
 ## Health
 - `GET /health` - runtime readiness, DB connectivity, storage, and provider status.
