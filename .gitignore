@@ -21,5 +21,9 @@ data/
 *.sqlite
 *.log
 site-artifacts/
-docs/
+docs/*
+!docs/architecture/
+docs/architecture/*
+!docs/architecture/identity-schema.md
+!docs/architecture/identity-coexistence.md
 ui-audit/chrome-profile/

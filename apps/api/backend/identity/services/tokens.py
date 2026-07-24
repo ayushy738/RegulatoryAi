@@ -29,6 +29,7 @@ class AccessTokenClaims:
     user_id: UUID
     session_id: UUID
     auth_version: int
+    role: str
     issued_at: datetime
     expires_at: datetime
     token_id: UUID
@@ -72,11 +73,15 @@ class JwtService:
         user_id: UUID,
         session_id: UUID,
         auth_version: int,
+        role: str,
         now: datetime | None = None,
     ) -> tuple[str, AccessTokenClaims]:
         issued_at = (now or datetime.now(UTC)).astimezone(UTC)
         expires_at = issued_at + self._access_ttl
         token_id = uuid4()
+        normalized_role = role.strip().lower()
+        if not normalized_role or len(normalized_role) > 64:
+            raise ValueError("JWT roles must contain between 1 and 64 characters")
         payload: dict[str, Any] = {
             "iss": self._issuer,
             "aud": self._audience,
@@ -84,9 +89,11 @@ class JwtService:
             "sid": str(session_id),
             "av": auth_version,
             "iat": issued_at,
+            "nbf": issued_at,
             "exp": expires_at,
             "jti": str(token_id),
             "typ": ACCESS_TOKEN_TYPE,
+            "role": normalized_role,
             "user_id": str(user_id),
             "session_id": str(session_id),
             "auth_version": auth_version,
@@ -103,6 +110,7 @@ class JwtService:
             user_id=user_id,
             session_id=session_id,
             auth_version=auth_version,
+            role=normalized_role,
             issued_at=issued_at,
             expires_at=expires_at,
             token_id=token_id,
@@ -131,9 +139,11 @@ class JwtService:
                         "sid",
                         "av",
                         "iat",
+                        "nbf",
                         "exp",
                         "jti",
                         "typ",
+                        "role",
                         "user_id",
                         "session_id",
                         "auth_version",
@@ -146,6 +156,7 @@ class JwtService:
                 raise InvalidIdentityTokenError()
             auth_version = payload["av"]
             issued_at = payload["iat"]
+            not_before = payload["nbf"]
             expires_at = payload["exp"]
             if (
                 isinstance(auth_version, bool)
@@ -153,6 +164,8 @@ class JwtService:
                 or auth_version <= 0
                 or isinstance(issued_at, bool)
                 or not isinstance(issued_at, int | float)
+                or isinstance(not_before, bool)
+                or not isinstance(not_before, int | float)
                 or isinstance(expires_at, bool)
                 or not isinstance(expires_at, int | float)
             ):
@@ -166,6 +179,9 @@ class JwtService:
                 or not isinstance(payload["issued_at"], int | float)
                 or isinstance(payload["expiry"], bool)
                 or not isinstance(payload["expiry"], int | float)
+                or not isinstance(payload["role"], str)
+                or not payload["role"]
+                or len(payload["role"]) > 64
             ):
                 raise InvalidIdentityTokenError()
             if (
@@ -174,12 +190,14 @@ class JwtService:
                 or auth_version != payload["auth_version"]
                 or issued_at != payload["issued_at"]
                 or expires_at != payload["expiry"]
+                or not_before != issued_at
             ):
                 raise InvalidIdentityTokenError()
             return AccessTokenClaims(
                 user_id=UUID(payload["sub"]),
                 session_id=UUID(payload["sid"]),
                 auth_version=auth_version,
+                role=payload["role"],
                 issued_at=datetime.fromtimestamp(issued_at, tz=UTC),
                 expires_at=datetime.fromtimestamp(expires_at, tz=UTC),
                 token_id=UUID(payload["jti"]),

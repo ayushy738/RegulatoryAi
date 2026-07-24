@@ -63,6 +63,68 @@ When event tables are empty:
 The app accepts either the Supabase project URL or the Data API URL ending in
 `/rest/v1`; runtime code normalizes it to the project root for Auth and Storage.
 
+## Parallel Authentication
+
+The API supports first-party identity authentication alongside the existing
+Supabase bearer-token flow. Supabase Auth remains enabled and existing clients
+do not need to change.
+
+First-party endpoints:
+
+- `POST /identity/login`
+- `POST /identity/refresh`
+- `POST /identity/logout`
+- `GET /identity/me`
+- `GET /identity/sessions`
+- `DELETE /identity/sessions/{session_id}`
+- `POST /identity/password/setup`
+- `POST /identity/password/change`
+- `POST /identity/session/exchange`
+
+Access tokens are short-lived HS256 JWTs signed with the configured identity
+key. They contain `kid`, issuer, audience, `sub`, `session_id`,
+`auth_version`, role, `iat`, `nbf`, and `exp`. The API validates the token,
+the server-side session, current account state, reconciliation status, current
+role, and `auth_version` on every identity-authenticated request. The JWT role
+is not used as a standalone authorization authority; admin authorization still
+uses server-side role state.
+
+Login and session exchange create a random 256-bit refresh token. Only a
+peppered HMAC-SHA256 digest is stored. Refresh rotates the token and increments
+the session generation; presenting the replaced token revokes the session as a
+replay attempt. Password changes increment `auth_version`, rotate the current
+session, and revoke other sessions.
+
+The access and refresh cookies are `HttpOnly`; all production identity cookies
+are `Secure` and use the configured `SameSite` and domain settings. Cookie-based
+state-changing requests also require the signed, session-bound CSRF token in
+the `X-CSRF-Token` header. Authentication responses are marked `no-store`.
+Database-backed weighted sliding-window counters protect login and refresh,
+while repeated password failures impose account lockouts. Authentication
+outcomes, lockouts, token replay, and session revocation are written to
+`identity.audit_events` with hashed request metadata.
+
+First-party password reset is intentionally not exposed in this PR. Its future
+endpoint must use the existing password rate-limit configuration before it is
+enabled.
+
+### Frontend authentication during coexistence
+
+The web application continues to authenticate exclusively through Supabase
+while the backend supports both legacy and first-party identity tokens.
+
+- `/login` uses Supabase email/password authentication.
+- The frontend auth provider restores and refreshes the Supabase browser
+  session and listens for authentication changes.
+- Product and admin pages redirect unauthenticated users to `/login`.
+- The shared API client obtains the current Supabase access token for every
+  backend request and attaches it as a bearer token.
+- Logout signs out through Supabase, clears cached application data, and
+  redirects to `/login`.
+
+The frontend does not call `/identity/login` or use first-party JWTs in this
+phase. See `apps/web/README.md` for route and environment-variable details.
+
 For Parallel AI:
 
 ```bash

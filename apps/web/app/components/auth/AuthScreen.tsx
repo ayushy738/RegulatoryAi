@@ -1,12 +1,13 @@
-import { ArrowRight, FileSearch, LockKeyhole, Network, ShieldCheck } from "lucide-react";
+import { ArrowRight, FileSearch, Loader2, LockKeyhole, Network, ShieldCheck } from "lucide-react";
 
 export function AuthScreen(props: {
   email: string;
   password: string;
   message: string;
+  loading: boolean;
   onEmail: (value: string) => void;
   onPassword: (value: string) => void;
-  onSignIn: () => void;
+  onSignIn: () => Promise<void>;
 }) {
   return (
     <main className="auth-premium-screen">
@@ -14,7 +15,9 @@ export function AuthScreen(props: {
         <img className="auth-premium-logo" src="/logo_wordmark.png" alt="Resolven" />
         <div>
           <p className="auth-eyebrow">Regulatory intelligence workspace</p>
-          <h1>Evidence-first monitoring for teams that live inside regulation.</h1>
+          <h1>
+            Evidence-first monitoring for teams that live inside <em>regulation.</em>
+          </h1>
           <p>
             Track official updates, deadlines, obligations, stakeholders, and source evidence in one calm
             operational surface.
@@ -46,7 +49,14 @@ export function AuthScreen(props: {
         </div>
       </section>
 
-      <section className="auth-premium-panel" aria-label="Sign in">
+      <form
+        className="auth-premium-panel"
+        aria-label="Sign in"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void props.onSignIn();
+        }}
+      >
         <div className="auth-card-header">
           <LockKeyhole size={21} />
           <div>
@@ -62,6 +72,8 @@ export function AuthScreen(props: {
             placeholder="analyst@company.com"
             type="email"
             autoComplete="email"
+            required
+            disabled={props.loading}
           />
         </label>
         <label>
@@ -72,14 +84,33 @@ export function AuthScreen(props: {
             placeholder="Enter password"
             type="password"
             autoComplete="current-password"
+            required
+            disabled={props.loading}
           />
         </label>
-        <button className="primary-button full auth-submit" type="button" onClick={props.onSignIn}>
-          Sign In
-          <ArrowRight size={16} />
+        <button className="primary-button full auth-submit" type="submit" disabled={props.loading}>
+          {props.loading ? (
+            <>
+              <Loader2 className="spin" size={16} />
+              Signing in...
+            </>
+          ) : (
+            <>
+              Sign In
+              <ArrowRight size={16} />
+            </>
+          )}
         </button>
-        {props.message ? <p className="notice">{props.message}</p> : null}
-      </section>
+        {props.message ? (
+          <p className="notice auth-error" role="alert" aria-live="polite">
+            {props.message}
+          </p>
+        ) : null}
+        <p className="auth-security-note">
+          <ShieldCheck size={15} />
+          Your session is secured by Supabase during the identity migration.
+        </p>
+      </form>
     </main>
   );
 }

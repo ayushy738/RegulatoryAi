@@ -15,6 +15,7 @@ from backend.identity.exceptions import (
     RateLimitExceededError,
     ReconciliationDriftError,
     SessionExchangeReplayError,
+    SessionNotFoundError,
 )
 from backend.identity.models import (
     AuditEventModel,
@@ -24,6 +25,7 @@ from backend.identity.models import (
 )
 from backend.identity.repositories.audit import AuditRepository
 from backend.identity.repositories.reconciliation import IdentityReconciliationRepository
+from backend.identity.repositories.role_assignments import RoleAssignmentsRepository
 from backend.identity.repositories.session_exchanges import SessionExchangesRepository
 from backend.identity.repositories.users import UsersRepository
 from backend.identity.services.password import PasswordService
@@ -58,7 +60,19 @@ class FirstPartyPrincipal:
     session_id: UUID
     auth_version: int
     email: str
+    role: str
     authenticated_at: datetime
+
+
+@dataclass(frozen=True)
+class FirstPartySession:
+    session_id: UUID
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None
+    device: str | None
+    is_current: bool
 
 
 @dataclass(frozen=True)
@@ -86,6 +100,7 @@ class AuthenticationService:
         metadata_hasher: SecurityMetadataHasher,
         rate_limits: AuthenticationRateLimitService,
         reconciliation: IdentityReconciliationRepository,
+        role_assignments: RoleAssignmentsRepository,
         exchanges: SessionExchangesRepository,
         session_ttl: timedelta,
         password_min_length: int,
@@ -114,6 +129,7 @@ class AuthenticationService:
         self._metadata_hasher = metadata_hasher
         self._rate_limits = rate_limits
         self._reconciliation = reconciliation
+        self._role_assignments = role_assignments
         self._exchanges = exchanges
         self._session_ttl = session_ttl
         self._password_min_length = password_min_length
@@ -174,6 +190,13 @@ class AuthenticationService:
             user.password_hash if user is not None else None,
             password,
         )
+        if (
+            user is not None
+            and user.locked_until is not None
+            and _as_utc(user.locked_until) <= observed_at
+        ):
+            user.failed_login_count = 0
+            user.locked_until = None
         reason_code = self._login_rejection_reason(user, password_matches, observed_at)
         if reason_code is not None:
             if (
@@ -183,7 +206,15 @@ class AuthenticationService:
                 and not self._is_locked(user, observed_at)
                 and not password_matches
             ):
-                self._record_failed_login(user, observed_at)
+                account_locked = self._record_failed_login(user, observed_at)
+                if account_locked:
+                    self._append_audit(
+                        action="authentication.account_locked",
+                        outcome=AuditOutcome.DENIED,
+                        reason_code="FAILED_LOGIN_LIMIT_REACHED",
+                        context=context,
+                        target_user_id=user.id,
+                    )
             self._append_audit(
                 action="authentication.login",
                 outcome=AuditOutcome.FAILURE,
@@ -248,6 +279,7 @@ class AuthenticationService:
             session_id=claims.session_id,
             auth_version=user.auth_version,
             email=user.email,
+            role=claims.role,
             authenticated_at=claims.issued_at,
         )
 
@@ -420,12 +452,14 @@ class AuthenticationService:
             auth_session.refresh_token_hash if auth_session is not None else None,
             refresh_token,
         ):
+            session_was_revoked = True
             if auth_session is not None and auth_session.revoked_at is None:
                 self._revoke_session(
                     auth_session,
                     observed_at,
                     "Refresh token replay or mismatch",
                 )
+                session_was_revoked = False
             self._append_audit(
                 action="authentication.refresh",
                 outcome=AuditOutcome.DENIED,
@@ -434,6 +468,24 @@ class AuthenticationService:
                 target_user_id=observed_session.user_id,
                 session_id=session_id,
             )
+            self._append_audit(
+                action="authentication.token_replay",
+                outcome=AuditOutcome.DENIED,
+                reason_code="REFRESH_REPLAY_DETECTED",
+                context=context,
+                target_user_id=observed_session.user_id,
+                session_id=session_id,
+            )
+            if not session_was_revoked:
+                self._append_audit(
+                    action="authentication.session_revoked",
+                    outcome=AuditOutcome.DENIED,
+                    reason_code="REFRESH_REPLAY_DETECTED",
+                    context=context,
+                    target_user_id=observed_session.user_id,
+                    session_id=session_id,
+                    metadata={"reason": "Refresh token replay or mismatch"},
+                )
             raise InvalidSessionError("REFRESH_REPLAY_DETECTED")
 
         rejection_reason = self._session_rejection_reason(
@@ -463,6 +515,7 @@ class AuthenticationService:
             user_id=user.id,
             session_id=session_id,
             auth_version=user.auth_version,
+            role=self._role_for_user(user.id),
             now=observed_at,
         )
         self._append_audit(
@@ -521,6 +574,7 @@ class AuthenticationService:
             auth_session.refresh_token_hash,
             refresh_token,
         )
+        was_revoked = auth_session.revoked_at is not None
         if auth_session.revoked_at is None:
             self._revoke_session(
                 auth_session,
@@ -536,6 +590,83 @@ class AuthenticationService:
             target_user_id=auth_session.user_id,
             session_id=session_id,
         )
+        if not was_revoked:
+            self._append_audit(
+                action="authentication.session_revoked",
+                outcome=(
+                    AuditOutcome.SUCCESS if token_matches else AuditOutcome.DENIED
+                ),
+                reason_code=None if token_matches else "REFRESH_REPLAY_DETECTED",
+                context=context,
+                actor_user_id=auth_session.user_id if token_matches else None,
+                target_user_id=auth_session.user_id,
+                session_id=session_id,
+                metadata={"reason": auth_session.revocation_reason or "unknown"},
+            )
+        if not token_matches:
+            self._append_audit(
+                action="authentication.token_replay",
+                outcome=AuditOutcome.DENIED,
+                reason_code="REFRESH_REPLAY_DETECTED",
+                context=context,
+                target_user_id=auth_session.user_id,
+                session_id=session_id,
+            )
+
+    def list_sessions(
+        self,
+        *,
+        principal: FirstPartyPrincipal,
+        now: datetime | None = None,
+    ) -> list[FirstPartySession]:
+        observed_at = _as_utc(now or datetime.now(UTC))
+        self._validate_principal_state(principal, observed_at)
+        return [
+            FirstPartySession(
+                session_id=auth_session.sid,
+                created_at=_as_utc(auth_session.created_at),
+                last_seen_at=_as_utc(auth_session.last_seen_at),
+                expires_at=_as_utc(auth_session.expires_at),
+                revoked_at=(
+                    _as_utc(auth_session.revoked_at)
+                    if auth_session.revoked_at is not None
+                    else None
+                ),
+                device=auth_session.device,
+                is_current=auth_session.sid == principal.session_id,
+            )
+            for auth_session in self._sessions.list_for_user(principal.user_id)
+        ]
+
+    def revoke_session(
+        self,
+        *,
+        principal: FirstPartyPrincipal,
+        session_id: UUID,
+        context: RequestSecurityContext,
+        now: datetime | None = None,
+    ) -> bool:
+        observed_at = _as_utc(now or datetime.now(UTC))
+        self._validate_principal_state(principal, observed_at)
+        auth_session = self._sessions.get_for_update(session_id)
+        if auth_session is None or auth_session.user_id != principal.user_id:
+            raise SessionNotFoundError()
+        was_revoked = auth_session.revoked_at is not None
+        if auth_session.revoked_at is None:
+            self._revoke_session(auth_session, observed_at, "User session revocation")
+        self._append_audit(
+            action="authentication.session_revoked",
+            outcome=AuditOutcome.SUCCESS,
+            context=context,
+            actor_user_id=principal.user_id,
+            target_user_id=principal.user_id,
+            session_id=session_id,
+            metadata={
+                "current_session": session_id == principal.session_id,
+                "already_revoked": was_revoked,
+            },
+        )
+        return session_id == principal.session_id
 
     def setup_password(
         self,
@@ -629,6 +760,7 @@ class AuthenticationService:
             user_id=principal.user_id,
             session_id=principal.session_id,
             auth_version=principal.auth_version,
+            role=principal.role,
             issued_at=observed_at,
             expires_at=observed_at,
             token_id=uuid4(),
@@ -703,6 +835,7 @@ class AuthenticationService:
             user_id=user.id,
             session_id=auth_session.sid,
             auth_version=user.auth_version,
+            role=self._role_for_user(user.id),
             now=observed_at,
         )
         self._append_audit(
@@ -743,7 +876,11 @@ class AuthenticationService:
                 created_at=observed_at,
                 last_seen_at=observed_at,
                 expires_at=session_expires_at,
-                device=device,
+                device=(
+                    self._metadata_hasher.hash_value("session-device", device).hex()
+                    if device
+                    else None
+                ),
                 ip_hash=context.ip_hash,
                 user_agent_hash=context.user_agent_hash,
                 refresh_token_hash=self._refresh_tokens.digest(refresh_token),
@@ -754,6 +891,7 @@ class AuthenticationService:
             user_id=user.id,
             session_id=session_id,
             auth_version=user.auth_version,
+            role=self._role_for_user(user.id),
             now=observed_at,
         )
         return IssuedIdentitySession(
@@ -795,10 +933,38 @@ class AuthenticationService:
             or user.auth_version != claims.auth_version
         ):
             raise InvalidIdentityTokenError("AUTH_VERSION_MISMATCH")
+        if self._role_for_user(user.id) != claims.role:
+            raise InvalidIdentityTokenError("ROLE_CHANGED")
         if user.status != IdentityUserStatus.ACTIVE or user.deleted_at is not None:
             raise InvalidIdentityTokenError("ACCOUNT_UNAVAILABLE")
         if self._reconciliation.has_drift(user.id):
             raise InvalidIdentityTokenError("RECONCILIATION_DRIFT")
+
+    def _validate_principal_state(
+        self,
+        principal: FirstPartyPrincipal,
+        observed_at: datetime,
+    ) -> None:
+        auth_session = self._sessions.get(principal.session_id)
+        user = self._users.get(principal.user_id)
+        claims = AccessTokenClaims(
+            user_id=principal.user_id,
+            session_id=principal.session_id,
+            auth_version=principal.auth_version,
+            role=principal.role,
+            issued_at=principal.authenticated_at,
+            expires_at=observed_at,
+            token_id=uuid4(),
+        )
+        self._validate_access_state(
+            claims=claims,
+            auth_session=auth_session,
+            user=user,
+            observed_at=observed_at,
+        )
+
+    def _role_for_user(self, user_id: UUID) -> str:
+        return self._role_assignments.get_active_role_code(user_id) or "user"
 
     def _session_rejection_reason(
         self,
@@ -833,10 +999,13 @@ class AuthenticationService:
             return "INVALID_CREDENTIALS"
         if user.password_hash is None:
             return "PASSWORD_NOT_ENROLLED"
+        if user.status == IdentityUserStatus.LOCKED or self._is_locked(
+            user,
+            observed_at,
+        ):
+            return "ACCOUNT_LOCKED"
         if user.status != IdentityUserStatus.ACTIVE or user.deleted_at is not None:
             return "ACCOUNT_UNAVAILABLE"
-        if self._is_locked(user, observed_at):
-            return "ACCOUNT_LOCKED"
         if not password_matches:
             return "INVALID_CREDENTIALS"
         return None
@@ -845,10 +1014,12 @@ class AuthenticationService:
         self,
         user: IdentityUserModel,
         observed_at: datetime,
-    ) -> None:
+    ) -> bool:
         user.failed_login_count += 1
         if user.failed_login_count >= self._failed_login_limit:
             user.locked_until = observed_at + self._account_lock_duration
+            return True
+        return False
 
     @staticmethod
     def _is_locked(user: IdentityUserModel, observed_at: datetime) -> bool:

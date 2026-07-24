@@ -14,7 +14,7 @@ from pydantic import SecretStr
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from backend.api import identity_deps
+from backend.api import auth, identity_deps
 from backend.api.auth import (
     CurrentUser,
     SupabaseCredential,
@@ -79,6 +79,8 @@ def identity_api(
     )
     monkeypatch.setattr(identity_auth, "session_scope", test_session_scope)
     monkeypatch.setattr(identity_deps, "session_scope", test_session_scope)
+    monkeypatch.setattr(auth, "session_scope", test_session_scope)
+    monkeypatch.setattr(auth, "_role_for_user", lambda _user_id: "user")
     monkeypatch.setattr(identity_deps, "PasswordService", lambda: fast_passwords)
     monkeypatch.setattr(settings, "identity_jwt_signing_key", SecretStr("s" * 32))
     monkeypatch.setattr(settings, "identity_token_pepper", SecretStr("p" * 32))
@@ -167,6 +169,96 @@ def test_identity_endpoints_complete_isolated_session_lifecycle(
         "password.change",
         "authentication.logout",
     }.issubset(actions)
+
+
+def test_identity_me_and_session_management(
+    identity_api: tuple[TestClient, Session, IdentityUserModel],
+) -> None:
+    client, session, user = identity_api
+    client.post("/identity/password/setup", json={"new_password": PASSWORD})
+    first_login = client.post(
+        "/identity/login",
+        json={"email": user.email, "password": PASSWORD, "device": "first browser"},
+    )
+    first_session_id = first_login.json()["session_id"]
+
+    second_login = client.post(
+        "/identity/login",
+        json={"email": user.email, "password": PASSWORD, "device": "second browser"},
+    )
+    second_session_id = second_login.json()["session_id"]
+    csrf_token = second_login.json()["csrf_token"]
+
+    current = client.get("/identity/me")
+    sessions = client.get("/identity/sessions")
+
+    assert current.status_code == 200
+    assert current.json() == {
+        "user_id": str(user.id),
+        "email": user.email,
+        "role": "user",
+        "source": "identity",
+        "session_id": second_session_id,
+        "auth_version": user.auth_version,
+        "authenticated_at": current.json()["authenticated_at"],
+    }
+    assert sessions.status_code == 200
+    assert {item["session_id"] for item in sessions.json()} == {
+        first_session_id,
+        second_session_id,
+    }
+    assert sum(item["is_current"] for item in sessions.json()) == 1
+    assert all(
+        len(item["device_fingerprint"]) == 64
+        for item in sessions.json()
+        if item["device_fingerprint"] is not None
+    )
+    assert "first browser" not in sessions.text
+    assert "second browser" not in sessions.text
+
+    revoked_other = client.delete(
+        f"/identity/sessions/{first_session_id}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert revoked_other.status_code == 204
+    assert SessionsRepository(session).get(UUID(first_session_id)).revoked_at is not None
+
+    revoked_current = client.delete(
+        f"/identity/sessions/{second_session_id}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert revoked_current.status_code == 204
+    assert SessionsRepository(session).get(UUID(second_session_id)).revoked_at is not None
+    assert client.get("/identity/sessions").status_code == 401
+
+
+def test_production_identity_cookies_have_required_security_flags(
+    identity_api: tuple[TestClient, Session, IdentityUserModel],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, user = identity_api
+    client.post("/identity/password/setup", json={"new_password": PASSWORD})
+    monkeypatch.setattr(settings, "environment", "production")
+
+    response = client.post(
+        "/identity/login",
+        json={"email": user.email, "password": PASSWORD},
+    )
+
+    cookies = response.headers.get_list("set-cookie")
+    assert response.status_code == 200
+    assert len(cookies) == 3
+    assert all("Secure" in value and "SameSite=lax" in value for value in cookies)
+    assert all(
+        "HttpOnly" in value
+        for value in cookies
+        if "resolven_identity_csrf=" not in value
+    )
+    assert all(
+        "HttpOnly" not in value
+        for value in cookies
+        if "resolven_identity_csrf=" in value
+    )
 
 
 def test_identity_login_rejects_user_without_password(

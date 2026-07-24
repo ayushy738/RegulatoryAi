@@ -1,14 +1,13 @@
-# vinext-starter
+# Resolven Web
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+React 19 and TypeScript frontend for the Resolven Regulatory Intelligence
+Platform. The application uses the Next.js App Router API through vinext/Vite.
 
 ## Prerequisites
 
 - Node.js `>=22.13.0`
 
-## Quick Start
+## Quick start
 
 ```bash
 npm install
@@ -16,55 +15,49 @@ npm run dev
 npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+Configure either the `NEXT_PUBLIC_*` or `VITE_*` variants:
 
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```dotenv
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable-anon-key>
 ```
 
-## Useful Commands
+## Authentication during coexistence
+
+The browser authenticates only with Supabase Auth during the identity
+coexistence phase:
+
+1. `/login` calls `supabase.auth.signInWithPassword()`.
+2. `AuthProvider` restores the persisted session on startup and subscribes to
+   `onAuthStateChange`.
+3. Supabase stores and refreshes the browser session. Its local-storage key is
+   managed by the SDK and has the form `sb-<project-ref>-auth-token`.
+4. `ProtectedRoute` redirects unauthenticated product and admin routes to
+   `/login`.
+5. The shared API client reads the current Supabase session immediately before
+   every backend request and adds `Authorization: Bearer <access-token>`.
+6. Sign out calls `supabase.auth.signOut()`, clears application query state,
+   and returns the user to `/login`.
+
+The frontend does not call `/identity/login` and does not store or send
+first-party identity JWTs. The backend can continue accepting both token types,
+but Supabase remains the browser authentication source until the later cutover.
+
+Public route:
+
+- `/landing`
+
+Authentication route:
+
+- `/login`
+
+All routes rendered through `ResolvenApp`, other than the landing page, require
+an active Supabase session. Backend authorization remains authoritative;
+frontend route protection is only the user-facing gate.
+
+## Useful commands
 
 - `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+- `npm run build`: verify the vinext build
+- `npm run typecheck`: run TypeScript validation

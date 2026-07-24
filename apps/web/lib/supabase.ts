@@ -17,4 +17,12 @@ const supabaseAnonKey =
 const supabaseProjectUrl = supabaseUrl?.replace(/\/rest\/v1\/?$/, "");
 
 export const supabase =
-  supabaseProjectUrl && supabaseAnonKey ? createClient(supabaseProjectUrl, supabaseAnonKey) : null;
+  supabaseProjectUrl && supabaseAnonKey
+    ? createClient(supabaseProjectUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
+    : null;

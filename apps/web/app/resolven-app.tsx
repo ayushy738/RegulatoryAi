@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AlertCircle, Loader2, LockKeyhole, X } from "lucide-react";
 
 import { LandingPage } from "@/app/components/auth/LandingPage";
+import { ProtectedRoute } from "@/app/components/auth/ProtectedRoute";
 import { AdminTopBar, TopBar } from "@/app/components/layout/TopBar";
 import { EvidenceDrawer } from "@/app/components/ui/EvidenceDrawer";
 import { RouteView } from "@/app/features/RouteView";
@@ -17,11 +18,13 @@ export function ResolvenApp({
   initialRoute: RouteKey;
   initialEventId?: number;
 }) {
-  return (
+  const workspace = (
     <WorkspaceProvider initialRoute={initialRoute} initialEventId={initialEventId}>
       <ResolvenShell />
     </WorkspaceProvider>
   );
+
+  return initialRoute === "landing" ? workspace : <ProtectedRoute>{workspace}</ProtectedRoute>;
 }
 
 function ResolvenShell() {

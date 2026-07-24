@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import jwt
 import pytest
 from argon2 import PasswordHasher
 from argon2.low_level import Type
@@ -16,6 +17,7 @@ from backend.identity.exceptions import (
     InvalidCredentialsError,
     InvalidIdentityTokenError,
     InvalidSessionError,
+    RateLimitExceededError,
     ReconciliationDriftError,
     SessionExchangeReplayError,
 )
@@ -27,6 +29,7 @@ from backend.identity.models import (
 from backend.identity.repositories import (
     AuditRepository,
     AuthenticationRateLimitsRepository,
+    RoleAssignmentsRepository,
     SessionExchangesRepository,
     SessionsRepository,
     UsersRepository,
@@ -128,6 +131,7 @@ def auth_harness() -> Iterator[AuthHarness]:
             AuthenticationRateLimitsRepository(session)
         ),
         reconciliation=reconciliation,
+        role_assignments=RoleAssignmentsRepository(session),
         exchanges=SessionExchangesRepository(session),
         session_ttl=timedelta(days=30),
         password_min_length=12,
@@ -253,6 +257,56 @@ def test_repeated_failures_lock_account_and_correct_password_stays_denied(
             device=None,
             context=auth_harness.context,
         )
+    actions = list(
+        auth_harness.session.execute(select(AuditEventModel.action)).scalars()
+    )
+    assert actions.count("authentication.account_locked") == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "reason_code"),
+    [
+        (IdentityUserStatus.DISABLED, "ACCOUNT_UNAVAILABLE"),
+        (IdentityUserStatus.LOCKED, "ACCOUNT_LOCKED"),
+    ],
+)
+def test_disabled_and_locked_accounts_cannot_login(
+    auth_harness: AuthHarness,
+    status: IdentityUserStatus,
+    reason_code: str,
+) -> None:
+    password_hash = PasswordService(
+        PasswordHasher(
+            time_cost=1,
+            memory_cost=8192,
+            parallelism=1,
+            hash_len=16,
+            salt_len=8,
+            type=Type.ID,
+        )
+    ).hash_password(PASSWORD)
+    user = auth_harness.add_user(
+        email=f"{status.value}@example.com",
+        password_hash=password_hash,
+    )
+    user.status = status
+
+    with pytest.raises(InvalidCredentialsError):
+        auth_harness.service.login(
+            email=user.email,
+            password=PASSWORD,
+            device=None,
+            context=auth_harness.context,
+        )
+
+    event = auth_harness.session.execute(
+        select(AuditEventModel)
+        .where(AuditEventModel.action == "authentication.login")
+        .order_by(AuditEventModel.occurred_at.desc())
+    ).scalars().first()
+    assert event is not None
+    assert event.outcome == AuditOutcome.FAILURE
+    assert event.reason_code == reason_code
 
 
 def test_refresh_rotates_token_and_replay_revokes_session(
@@ -288,6 +342,11 @@ def test_refresh_rotates_token_and_replay_revokes_session(
             context=auth_harness.context,
         )
     assert auth_harness.sessions.get(original.session_id).revoked_at is not None
+    actions = set(
+        auth_harness.session.execute(select(AuditEventModel.action)).scalars()
+    )
+    assert "authentication.token_replay" in actions
+    assert "authentication.session_revoked" in actions
 
 
 def test_logout_revokes_only_the_presented_session(auth_harness: AuthHarness) -> None:
@@ -334,11 +393,126 @@ def test_jwt_validation_rejects_expired_tokens() -> None:
         user_id=uuid4(),
         session_id=uuid4(),
         auth_version=1,
+        role="user",
         now=datetime.now(UTC) - timedelta(hours=1),
     )
 
     with pytest.raises(InvalidIdentityTokenError):
         jwt_service.verify_access_token(token)
+
+
+def test_jwt_contains_and_validates_required_identity_claims() -> None:
+    jwt_service = JwtService(
+        signing_key=SIGNING_KEY,
+        key_id="test-key",
+        issuer="test-issuer",
+        audience="test-audience",
+        access_ttl=timedelta(minutes=5),
+        clock_skew=timedelta(0),
+    )
+    user_id = uuid4()
+    session_id = uuid4()
+
+    token, expected = jwt_service.issue_access_token(
+        user_id=user_id,
+        session_id=session_id,
+        auth_version=7,
+        role="admin",
+    )
+    header = jwt.get_unverified_header(token)
+    payload = jwt.decode(
+        token,
+        options={
+            "verify_signature": False,
+            "verify_aud": False,
+            "verify_exp": False,
+        },
+    )
+    verified = jwt_service.verify_access_token(token)
+
+    assert header["kid"] == "test-key"
+    assert payload["iss"] == "test-issuer"
+    assert payload["aud"] == "test-audience"
+    assert payload["sub"] == str(user_id)
+    assert payload["session_id"] == str(session_id)
+    assert payload["auth_version"] == 7
+    assert payload["role"] == "admin"
+    assert payload["nbf"] == payload["iat"]
+    assert payload["exp"] > payload["iat"]
+    assert verified.user_id == expected.user_id
+    assert verified.session_id == expected.session_id
+    assert verified.auth_version == expected.auth_version
+    assert verified.role == expected.role
+    assert verified.token_id == expected.token_id
+
+
+def test_database_rate_limiter_blocks_and_recovers_after_window(
+    auth_harness: AuthHarness,
+) -> None:
+    limiter = AuthenticationRateLimitService(
+        AuthenticationRateLimitsRepository(auth_harness.session)
+    )
+    observed_at = datetime.now(UTC)
+    subject_hash = b"z" * 32
+
+    limiter.consume(
+        scope="test.login",
+        subject_hash=subject_hash,
+        limit=2,
+        window=timedelta(minutes=1),
+        now=observed_at,
+    )
+    limiter.consume(
+        scope="test.login",
+        subject_hash=subject_hash,
+        limit=2,
+        window=timedelta(minutes=1),
+        now=observed_at,
+    )
+    with pytest.raises(RateLimitExceededError):
+        limiter.consume(
+            scope="test.login",
+            subject_hash=subject_hash,
+            limit=2,
+            window=timedelta(minutes=1),
+            now=observed_at,
+        )
+
+    limiter.consume(
+        scope="test.login",
+        subject_hash=subject_hash,
+        limit=2,
+        window=timedelta(minutes=1),
+        now=observed_at + timedelta(minutes=2),
+    )
+
+
+def test_database_rate_limiter_prevents_fixed_window_boundary_burst(
+    auth_harness: AuthHarness,
+) -> None:
+    limiter = AuthenticationRateLimitService(
+        AuthenticationRateLimitsRepository(auth_harness.session)
+    )
+    end_of_bucket = datetime(2030, 1, 1, 0, 0, 59, tzinfo=UTC)
+    subject_hash = b"y" * 32
+
+    for _ in range(2):
+        limiter.consume(
+            scope="test.sliding-login",
+            subject_hash=subject_hash,
+            limit=2,
+            window=timedelta(minutes=1),
+            now=end_of_bucket,
+        )
+
+    with pytest.raises(RateLimitExceededError):
+        limiter.consume(
+            scope="test.sliding-login",
+            subject_hash=subject_hash,
+            limit=2,
+            window=timedelta(minutes=1),
+            now=end_of_bucket + timedelta(seconds=2),
+        )
 
 
 def test_jwt_verification_key_ring_supports_zero_downtime_rotation() -> None:
@@ -355,6 +529,7 @@ def test_jwt_verification_key_ring_supports_zero_downtime_rotation() -> None:
         user_id=uuid4(),
         session_id=uuid4(),
         auth_version=1,
+        role="admin",
     )
     rotated_service = JwtService(
         signing_key=new_key,

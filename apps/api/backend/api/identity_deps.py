@@ -24,11 +24,13 @@ from backend.identity.exceptions import (
     RateLimitExceededError,
     ReconciliationDriftError,
     SessionExchangeReplayError,
+    SessionNotFoundError,
 )
 from backend.identity.repositories import (
     AuditRepository,
     AuthenticationRateLimitsRepository,
     IdentityReconciliationRepository,
+    RoleAssignmentsRepository,
     SessionExchangesRepository,
     SessionsRepository,
     UsersRepository,
@@ -86,6 +88,7 @@ def build_authentication_service(session: Session) -> AuthenticationService:
             AuthenticationRateLimitsRepository(session)
         ),
         reconciliation=IdentityReconciliationRepository(session),
+        role_assignments=RoleAssignmentsRepository(session),
         exchanges=SessionExchangesRepository(session),
         session_ttl=timedelta(seconds=settings.identity_session_ttl_seconds),
         password_min_length=settings.identity_password_min_length,
@@ -143,6 +146,8 @@ def identity_error_to_http(error: IdentityAuthenticationError) -> HTTPException:
         status_code = status.HTTP_403_FORBIDDEN
     elif isinstance(error, (ReconciliationDriftError, SessionExchangeReplayError)):
         status_code = status.HTTP_409_CONFLICT
+    elif isinstance(error, SessionNotFoundError):
+        status_code = status.HTTP_404_NOT_FOUND
     elif isinstance(
         error,
         (InvalidCredentialsError, InvalidIdentityTokenError, InvalidSessionError),

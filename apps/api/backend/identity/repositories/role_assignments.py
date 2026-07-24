@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.identity.models import UserRoleAssignmentModel
+from backend.identity.models import RoleModel, UserRoleAssignmentModel
 
 
 class RoleAssignmentsRepository:
@@ -24,6 +24,20 @@ class RoleAssignmentsRepository:
         statement = select(UserRoleAssignmentModel).where(
             UserRoleAssignmentModel.user_id == user_id,
             UserRoleAssignmentModel.revoked_at.is_(None),
+        )
+        return self._session.execute(statement).scalar_one_or_none()
+
+    def get_active_role_code(self, user_id: UUID) -> str | None:
+        statement = (
+            select(RoleModel.code)
+            .join(
+                UserRoleAssignmentModel,
+                UserRoleAssignmentModel.role_id == RoleModel.id,
+            )
+            .where(
+                UserRoleAssignmentModel.user_id == user_id,
+                UserRoleAssignmentModel.revoked_at.is_(None),
+            )
         )
         return self._session.execute(statement).scalar_one_or_none()
 

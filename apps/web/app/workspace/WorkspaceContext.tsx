@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { useAuth } from "@/app/components/auth/AuthProvider";
 import type {
   DigestEvent,
   DigestResponse,
@@ -49,7 +50,6 @@ import {
   useStakeholdersQuery,
   useSubscriptionsQuery,
 } from "@/lib/queries";
-import { supabase } from "@/lib/supabase";
 
 import { cleanText, eventStakeholders, eventSummary } from "./format";
 import { defaultSettings, normalizeRoute } from "./types";
@@ -110,9 +110,14 @@ function errorMessage(error: unknown, fallback: string) {
 function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number) {
   const route = normalizeRoute(initialRoute);
   const queryClient = useQueryClient();
+  const {
+    session,
+    user,
+    loading: authLoading,
+    login: authenticate,
+    logout: endSession,
+  } = useAuth();
 
-  const [session, setSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
@@ -142,40 +147,16 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
 
   const token = session?.access_token;
-  const user = session?.user ?? null;
   const isAuthenticated = Boolean(session);
-  const canRead = true;
+  const authReady = !authLoading;
+  const canRead = isAuthenticated;
 
   function resolvePendingAuthentication(nextSession: Session) {
-    setSession(nextSession);
     setAuthModalOpen(false);
     setAuthMessage("");
     authWaiterRef.current?.resolve(nextSession);
     authWaiterRef.current = null;
   }
-
-  /* ---------------- Auth ---------------- */
-  useEffect(() => {
-    if (!supabase) {
-      setAuthReady(true);
-      return;
-    }
-    let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setAuthReady(true);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (nextSession) resolvePendingAuthentication(nextSession);
-      else setSession(null);
-      setAuthReady(true);
-    });
-    return () => {
-      mounted = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -483,56 +464,30 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   /* ---------------- Handlers ---------------- */
   async function login(nextEmail = email, nextPassword = password) {
     setAuthMessage("");
-    if (!supabase) {
-      const error = new Error("Authentication is not configured.");
-      setAuthMessage(error.message);
+    try {
+      const nextSession = await authenticate(nextEmail, nextPassword);
+      resolvePendingAuthentication(nextSession);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions });
+      return nextSession;
+    } catch (error) {
+      setAuthMessage(errorMessage(error, "Unable to sign in."));
       throw error;
     }
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: nextEmail,
-      password: nextPassword,
-    });
-    if (error) {
-      setAuthMessage(error.message);
-      throw error;
-    }
-    const nextSession = data.session ?? (await supabase.auth.getSession()).data.session;
-    if (!nextSession) {
-      const missingSession = new Error("Sign in succeeded but no session was returned.");
-      setAuthMessage(missingSession.message);
-      throw missingSession;
-    }
-    resolvePendingAuthentication(nextSession);
-    void queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions });
-    return nextSession;
   }
 
   async function logout() {
-    if (supabase) await supabase.auth.signOut();
-    setSession(null);
-    setAuthModalOpen(false);
-    authWaiterRef.current?.reject(new Error("Signed out."));
-    authWaiterRef.current = null;
-    queryClient.clear();
+    try {
+      await endSession();
+    } finally {
+      setAuthModalOpen(false);
+      authWaiterRef.current?.reject(new Error("Signed out."));
+      authWaiterRef.current = null;
+      queryClient.clear();
+    }
   }
 
   async function ensureAuthenticated() {
     if (session) return session;
-    if (!supabase) {
-      const error = new Error("Authentication is not configured.");
-      setAuthMessage(error.message);
-      setAuthModalOpen(true);
-      throw error;
-    }
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      setAuthMessage(error.message);
-      throw error;
-    }
-    if (data.session) {
-      setSession(data.session);
-      return data.session;
-    }
     authWaiterRef.current?.reject(new Error("A newer sign-in request replaced this one."));
     setAuthMessage("Sign in to save notification preferences.");
     setAuthModalOpen(true);
@@ -550,19 +505,6 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
 
   async function handleSignIn() {
     await login().catch(() => undefined);
-  }
-
-  async function handleMagicLink() {
-    setAuthMessage("");
-    if (!supabase) {
-      setAuthMessage("Authentication is not configured.");
-      return;
-    }
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setAuthMessage(error ? error.message : "Magic link sent. Check your inbox.");
   }
 
   async function handleSignOut() {
@@ -654,9 +596,9 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     enqueueRagMutation.mutate();
   }
 
-  const userEmail = session?.user.email ?? "";
+  const userEmail = user?.email ?? "";
   const bootstrapping = canRead && digestQuery.isLoading;
-  const loading = !authReady || bootstrapping;
+  const loading = authLoading || bootstrapping;
 
   return {
     route,
@@ -744,7 +686,6 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
     loadIntelligenceData,
     loadRagData,
     handleSignIn,
-    handleMagicLink,
     handleSignOut,
     login,
     logout,

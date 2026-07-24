@@ -95,12 +95,23 @@ const API_BASE_URL =
 
 async function getSessionAccessToken() {
   if (!supabase) return undefined;
-  try {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token;
-  } catch {
-    return undefined;
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+  if (error) throw error;
+  return session?.access_token;
+}
+
+async function authorizedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const accessToken = await getSessionAccessToken();
+  const headers = new Headers(init.headers);
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  } else {
+    headers.delete("Authorization");
   }
+  return fetch(input, { ...init, headers });
 }
 
 export class ApiError extends Error {
@@ -125,18 +136,12 @@ export class ValidationError extends Error {
 
 export async function apiFetch<T>(
   path: string,
-  token?: string,
+  _token?: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const accessToken = token ?? (await getSessionAccessToken());
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+  const headers = new Headers(init.headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const response = await authorizedFetch(`${API_BASE_URL}${path}`, { ...init, headers });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new ApiError(detail || `API request failed: ${response.status}`, response.status);
@@ -456,12 +461,9 @@ export function exportLatestUrl(format: "json" | "csv" | "markdown") {
 
 export async function downloadLatestExport(
   format: "json" | "csv" | "markdown",
-  token?: string,
+  _token?: string,
 ) {
-  const accessToken = token ?? (await getSessionAccessToken());
-  const response = await fetch(exportLatestUrl(format), {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  });
+  const response = await authorizedFetch(exportLatestUrl(format));
   if (!response.ok) throw new ApiError(`Export failed: ${response.status}`, response.status);
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") ?? "";

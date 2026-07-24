@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from backend.api.auth import SupabaseCredentialDep
+from backend.api.deps import UserDep
 from backend.api.identity_cookies import IdentityCookieManager
 from backend.api.identity_deps import (
     IDENTITY_REFRESH_COOKIE,
@@ -19,6 +20,8 @@ from backend.api.identity_deps import (
 )
 from backend.core.db import session_scope
 from backend.identity.auth_schemas import (
+    IdentityMeResponse,
+    IdentitySessionResponse,
     LoginRequest,
     PasswordChangeRequest,
     PasswordSetupRequest,
@@ -101,6 +104,66 @@ def logout(request: Request, response: Response) -> None:
             )
         )
     cookies.clear_session(response)
+
+
+@router.get("/me", response_model=IdentityMeResponse)
+def me(user: UserDep, response: Response) -> IdentityMeResponse:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return IdentityMeResponse(
+        user_id=UUID(user.id),
+        email=user.email,
+        role=user.role,
+        source=user.source,
+        session_id=user.session_id,
+        auth_version=user.auth_version,
+        authenticated_at=user.authenticated_at,
+    )
+
+
+@router.get("/sessions", response_model=list[IdentitySessionResponse])
+def list_sessions(
+    identity: IdentityPrincipalDep,
+    response: Response,
+) -> list[IdentitySessionResponse]:
+    auth_sessions = _execute(
+        lambda service: service.list_sessions(principal=identity.principal)
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return [
+        IdentitySessionResponse(
+            session_id=auth_session.session_id,
+            created_at=auth_session.created_at,
+            last_seen_at=auth_session.last_seen_at,
+            expires_at=auth_session.expires_at,
+            revoked_at=auth_session.revoked_at,
+            device_fingerprint=auth_session.device,
+            is_current=auth_session.is_current,
+        )
+        for auth_session in auth_sessions
+    ]
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_session(
+    session_id: UUID,
+    request: Request,
+    response: Response,
+    identity: IdentityPrincipalDep,
+) -> None:
+    if identity.credential_source == "cookie":
+        require_cookie_csrf(request, session_id=identity.principal.session_id)
+    context = request_security_context(request)
+    revoked_current_session = _execute(
+        lambda service: service.revoke_session(
+            principal=identity.principal,
+            session_id=session_id,
+            context=context,
+        )
+    )
+    if revoked_current_session:
+        cookies.clear_session(response)
 
 
 @router.post("/password/setup", response_model=PasswordSetupResponse)

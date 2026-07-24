@@ -51,6 +51,26 @@ class SessionResponse(IdentityAuthSchema):
     csrf_token: str
 
 
+class IdentityMeResponse(IdentityAuthSchema):
+    user_id: UUID
+    email: str | None
+    role: str
+    source: str
+    session_id: str | None = None
+    auth_version: int | None = None
+    authenticated_at: datetime
+
+
+class IdentitySessionResponse(IdentityAuthSchema):
+    session_id: UUID
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None
+    device_fingerprint: str | None
+    is_current: bool
+
+
 class PasswordSetupResponse(IdentityAuthSchema):
     user_id: UUID
     password_configured: bool = True

@@ -34,6 +34,11 @@ class InvalidSessionError(IdentityAuthenticationError):
         super().__init__(code, "Invalid or expired identity session")
 
 
+class SessionNotFoundError(IdentityAuthenticationError):
+    def __init__(self) -> None:
+        super().__init__("SESSION_NOT_FOUND", "Identity session not found")
+
+
 class CsrfValidationError(IdentityAuthenticationError):
     def __init__(self) -> None:
         super().__init__("CSRF_VALIDATION_FAILED", "CSRF validation failed")
