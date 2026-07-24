@@ -9,6 +9,7 @@ from backend.api.routes import (
     digests,
     events,
     exports,
+    identity_auth,
     intelligence,
     meta,
     subscriptions,
@@ -40,6 +41,7 @@ app.include_router(admin.router)
 app.include_router(exports.router)
 app.include_router(meta.router)
 app.include_router(intelligence.router)
+app.include_router(identity_auth.router)
 
 
 @app.get("/health")
