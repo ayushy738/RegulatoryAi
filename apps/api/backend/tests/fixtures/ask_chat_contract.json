@@ -1,0 +1,74 @@
+{
+  "success": {
+    "reply": "Grounded answer.\n\nCitations:\n1. Electricity Rules | Ministry of Power | 2026-07-01 | https://example.test/rules | chunk=501, page=7",
+    "event_id": 42,
+    "model": "contract-model",
+    "intent": "regulation_lookup",
+    "citations": [
+      {
+        "document_id": 17,
+        "title": "Electricity Rules",
+        "issuer": "Ministry of Power",
+        "issue_date": "2026-07-01",
+        "source_url": "https://example.test/rules",
+        "chunk_id": 501,
+        "page_number": 7,
+        "section_title": "Applicability",
+        "evidence": "The rules apply to licensed distribution entities."
+      }
+    ],
+    "related_questions": [
+      "Which entities are licensed?"
+    ]
+  },
+  "no_citations": {
+    "reply": "I do not have enough retrieved evidence to answer this from the regulatory corpus. No citation-backed chunks or graph facts were found for this question.",
+    "event_id": null,
+    "model": "contract-model",
+    "intent": "general",
+    "citations": [],
+    "related_questions": [
+      "Try a named regulation"
+    ]
+  },
+  "model_failure": {
+    "status_code": 502,
+    "body": {
+      "detail": "The AI service is temporarily unavailable.",
+      "code": "MODEL_UNAVAILABLE"
+    }
+  },
+  "retrieval_failure": {
+    "status_code": 500,
+    "body": {
+      "detail": "Regulatory evidence retrieval is temporarily unavailable.",
+      "code": "RETRIEVAL_UNAVAILABLE"
+    }
+  },
+  "history": [
+    {
+      "id": 9,
+      "event_id": 77,
+      "role": "assistant",
+      "content": "Newest answer",
+      "created_at": "2026-07-26T10:05:00+00:00"
+    },
+    {
+      "id": 8,
+      "event_id": 77,
+      "role": "user",
+      "content": "Earlier question",
+      "created_at": "2026-07-26T10:04:00+00:00"
+    }
+  ],
+  "history_datetime_failure": {
+    "status_code": 500,
+    "body": "Internal Server Error"
+  },
+  "auth_rejection": {
+    "status_code": 401,
+    "body": {
+      "detail": "Missing bearer token"
+    }
+  }
+}

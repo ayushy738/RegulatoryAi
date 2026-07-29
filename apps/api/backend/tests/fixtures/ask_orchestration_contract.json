@@ -1,0 +1,82 @@
+{
+  "schema_version": "1",
+  "policy_version": "ask-ai-orchestrator-v1",
+  "participation_classes": [
+    "mandatory",
+    "conditional_mandatory",
+    "supporting",
+    "optional",
+    "fallback",
+    "skipped"
+  ],
+  "capability_terminal_states": [
+    "satisfied",
+    "partial",
+    "no_match",
+    "ambiguous",
+    "contradictory",
+    "timed_out",
+    "unavailable",
+    "invalid_output",
+    "superseded",
+    "cancelled",
+    "skipped"
+  ],
+  "section_terminal_states": [
+    "ready",
+    "ready_without_synthesis",
+    "degraded",
+    "empty_by_evidence",
+    "omitted",
+    "needs_clarification",
+    "cancelled"
+  ],
+  "capabilities": {
+    "intent_classifier": ["interpretation_result"],
+    "entity_resolver": ["resolution_set"],
+    "regulatory_retriever": ["evidence_unit"],
+    "knowledge_graph": ["structured_fact"],
+    "timeline_builder": ["timeline_event"],
+    "news_retriever": ["evidence_unit"],
+    "general_ai": ["general_knowledge_unit"],
+    "citation_verifier": ["verification_result"],
+    "response_composer": ["candidate_claim", "section_draft"],
+    "follow_up_generator": ["follow_up_candidates"]
+  },
+  "artifact_kinds": [
+    "research_request",
+    "interpretation_result",
+    "resolution_set",
+    "approved_work_plan",
+    "evidence_unit",
+    "structured_fact",
+    "timeline_event",
+    "general_knowledge_unit",
+    "candidate_claim",
+    "verification_result",
+    "section_draft",
+    "follow_up_candidates",
+    "completion_summary"
+  ],
+  "provenance_classes": [
+    "internal_regulatory_corpus",
+    "live_web_sources",
+    "general_ai_knowledge"
+  ],
+  "content_derivations": [
+    "direct",
+    "extracted",
+    "inferred",
+    "summarized",
+    "generated"
+  ],
+  "verification_statuses": [
+    "pending",
+    "supported",
+    "partially_supported",
+    "unsupported",
+    "contradictory",
+    "unverifiable",
+    "not_applicable"
+  ]
+}

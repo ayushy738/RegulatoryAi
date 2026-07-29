@@ -1,10 +1,17 @@
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi.responses import JSONResponse
 
+from backend.api.ask_errors import safe_ask_error
+from backend.api.ask_metrics import AskMetrics
 from backend.api.deps import UserDep
 from backend.api.ratelimit import limit_chat
+from backend.ask.decision.shadow import (
+    DecisionShadowService,
+    LoggingShadowComparisonRecorder,
+)
 from backend.core.config import settings
 from backend.core.llm import get_llm_client
 from backend.core.models import ChatRequest, ChatResponse
@@ -12,7 +19,7 @@ from backend.core.repository import chat_history as get_chat_history
 from backend.core.repository import save_chat_message
 from backend.rag.audit import record_chat_retrieval_audit
 from backend.rag.context_builder import build_context
-from backend.rag.models import BuiltContext, citation_to_dict
+from backend.rag.models import BuiltContext, IntentName, citation_to_dict
 from backend.rag.retrieval import RetrievalProviderFactory
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -29,28 +36,76 @@ SYSTEM_PROMPT = (
 
 
 @router.post("", response_model=ChatResponse, dependencies=[Depends(limit_chat)])
-async def chat(request: ChatRequest, user: UserDep) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    user: UserDep,
+    http_request: Request,
+    background_tasks: BackgroundTasks,
+) -> ChatResponse | JSONResponse:
     started = time.perf_counter()
+    metrics = AskMetrics(http_request)
+    metrics.record("auth", "success", metrics.request_started)
     model = settings.llm_model_chat or "offline-demo"
     history = [
         {"role": item["role"], "content": item["content"]}
         for item in reversed(get_chat_history(user.id, request.event_id)[-8:])
     ]
-    save_chat_message(user.id, "user", request.message, request.event_id)
+    persistence_started = metrics.start()
+    user_persisted = save_chat_message(user.id, "user", request.message, request.event_id)
+    metrics.record(
+        "user_persistence",
+        "suppressed_failure" if user_persisted is False else "success",
+        persistence_started,
+    )
 
     retrieval_provider = RetrievalProviderFactory.get_provider()
-    retrieval = retrieval_provider.hybrid_search(
-        request.message,
-        limit=settings.rag_top_k,
-        event_id=request.event_id,
+    retrieval_started = metrics.start()
+    try:
+        retrieval = retrieval_provider.hybrid_search(
+            request.message,
+            limit=settings.rag_top_k,
+            event_id=request.event_id,
+        )
+    except Exception as exc:
+        metrics.record("retrieval", "unavailable", retrieval_started)
+        metrics.finish("unavailable")
+        return safe_ask_error(
+            http_request,
+            status_code=500,
+            code="RETRIEVAL_UNAVAILABLE",
+            detail="Regulatory evidence retrieval is temporarily unavailable.",
+            internal_detail=f"{type(exc).__name__}: {exc}",
+        )
+    metrics.record(
+        "retrieval",
+        "success" if retrieval.hits else "no_match",
+        retrieval_started,
+    )
+    _schedule_decision_shadow(
+        background_tasks=background_tasks,
+        metrics=metrics,
+        query=request.message,
+        legacy_intent=retrieval.intent.name,
     )
     context = build_context(retrieval)
     if not context.citations:
+        metrics.record("model", "skipped", metrics.start())
         reply = (
             "I do not have enough retrieved evidence to answer this from the regulatory "
             "corpus. No citation-backed chunks or graph facts were found for this question."
         )
-        save_chat_message(user.id, "assistant", reply, request.event_id)
+        persistence_started = metrics.start()
+        assistant_persisted = save_chat_message(
+            user.id,
+            "assistant",
+            reply,
+            request.event_id,
+        )
+        metrics.record(
+            "assistant_persistence",
+            "suppressed_failure" if assistant_persisted is False else "success",
+            persistence_started,
+        )
         _record_audit(
             user_id=user.id,
             event_id=request.event_id,
@@ -61,6 +116,7 @@ async def chat(request: ChatRequest, user: UserDep) -> ChatResponse:
             retrieval=retrieval,
             started=started,
         )
+        metrics.finish("no_match")
         return ChatResponse(
             reply=reply,
             event_id=request.event_id,
@@ -70,6 +126,7 @@ async def chat(request: ChatRequest, user: UserDep) -> ChatResponse:
             related_questions=context.related_questions,
         )
 
+    model_started = metrics.start()
     try:
         reply = get_llm_client().complete_text(
             system=SYSTEM_PROMPT,
@@ -82,10 +139,30 @@ async def chat(request: ChatRequest, user: UserDep) -> ChatResponse:
             history=history,
         )
     except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        metrics.record("model", "unavailable", model_started)
+        metrics.finish("unavailable")
+        return safe_ask_error(
+            http_request,
+            status_code=502,
+            code="MODEL_UNAVAILABLE",
+            detail="The AI service is temporarily unavailable.",
+            internal_detail=f"{type(exc).__name__}: {exc}",
+        )
+    metrics.record("model", "success", model_started)
 
     reply = _ensure_citation_text(reply, context)
-    save_chat_message(user.id, "assistant", reply, request.event_id)
+    persistence_started = metrics.start()
+    assistant_persisted = save_chat_message(
+        user.id,
+        "assistant",
+        reply,
+        request.event_id,
+    )
+    metrics.record(
+        "assistant_persistence",
+        "suppressed_failure" if assistant_persisted is False else "success",
+        persistence_started,
+    )
     _record_audit(
         user_id=user.id,
         event_id=request.event_id,
@@ -96,6 +173,7 @@ async def chat(request: ChatRequest, user: UserDep) -> ChatResponse:
         retrieval=retrieval,
         started=started,
     )
+    metrics.finish("success")
     return ChatResponse(
         reply=reply,
         event_id=request.event_id,
@@ -157,3 +235,31 @@ def _ensure_citation_text(reply: str, context: BuiltContext) -> str:
 
 def _elapsed_ms(started: float) -> int:
     return max(0, int((time.perf_counter() - started) * 1000))
+
+
+def _schedule_decision_shadow(
+    *,
+    background_tasks: BackgroundTasks,
+    metrics: AskMetrics,
+    query: str,
+    legacy_intent: IntentName,
+) -> None:
+    if not settings.ask_ai_decision_engine_enabled:
+        return
+    try:
+        service = get_decision_shadow_service(metrics.correlation_id)
+        background_tasks.add_task(
+            service.evaluate_and_record,
+            query=query,
+            legacy_intent=legacy_intent,
+        )
+    except Exception:
+        return
+
+
+def get_decision_shadow_service(correlation_id: str) -> DecisionShadowService:
+    return DecisionShadowService(
+        recorder=LoggingShadowComparisonRecorder(
+            correlation_id=correlation_id,
+        )
+    )

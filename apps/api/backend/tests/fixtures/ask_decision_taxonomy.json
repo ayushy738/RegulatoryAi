@@ -1,0 +1,251 @@
+{
+  "schema_version": "1",
+  "policy_version": "ask-ai-decision-v1",
+  "intent_precedence": [
+    "interaction_context",
+    "multi_part",
+    "compliance",
+    "comparison",
+    "amendment_or_version_change",
+    "deadline",
+    "timeline",
+    "consultation",
+    "live_recency",
+    "named_regulation",
+    "definition",
+    "bare_entity",
+    "stakeholder",
+    "known_result_summarization",
+    "general_question"
+  ],
+  "intents": [
+    {
+      "intent": "definition",
+      "response_strategy": "definition_card"
+    },
+    {
+      "intent": "entity_lookup",
+      "response_strategy": "entity_intelligence_page"
+    },
+    {
+      "intent": "regulation_lookup",
+      "response_strategy": "official_documents_overview"
+    },
+    {
+      "intent": "deadline",
+      "response_strategy": "deadline_cards_timeline"
+    },
+    {
+      "intent": "stakeholder",
+      "response_strategy": "stakeholder_cards"
+    },
+    {
+      "intent": "comparison",
+      "response_strategy": "comparison_table"
+    },
+    {
+      "intent": "news",
+      "response_strategy": "latest_intelligence"
+    },
+    {
+      "intent": "timeline",
+      "response_strategy": "timeline"
+    },
+    {
+      "intent": "compliance_question",
+      "response_strategy": "compliance_checklist"
+    },
+    {
+      "intent": "summarization",
+      "response_strategy": "executive_summary"
+    },
+    {
+      "intent": "document_explanation",
+      "response_strategy": "document_explanation"
+    },
+    {
+      "intent": "amendment",
+      "response_strategy": "amendment_cards"
+    },
+    {
+      "intent": "consultation",
+      "response_strategy": "consultation_deadline_cards"
+    },
+    {
+      "intent": "general_question",
+      "response_strategy": "conversation"
+    },
+    {
+      "intent": "multi_part_question",
+      "response_strategy": "research_report"
+    }
+  ],
+  "subtypes": {
+    "regulator_lookup": [
+      "stakeholder"
+    ],
+    "obligation_discovery": [
+      "compliance_question"
+    ],
+    "version_comparison": [
+      "comparison"
+    ],
+    "beginner_explanation": [
+      "definition",
+      "document_explanation"
+    ],
+    "official_document_search": [
+      "regulation_lookup"
+    ]
+  },
+  "representative_queries": [
+    {
+      "query": "DSM",
+      "primary": "entity_lookup",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "entity_intelligence_page"
+    },
+    {
+      "query": "What is DSM?",
+      "primary": "definition",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "definition_card"
+    },
+    {
+      "query": "Latest DSM",
+      "primary": "news",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "latest_intelligence"
+    },
+    {
+      "query": "DSM amendment",
+      "primary": "amendment",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "amendment_cards"
+    },
+    {
+      "query": "DSM consultation",
+      "primary": "consultation",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "consultation_deadline_cards"
+    },
+    {
+      "query": "Compare DSM and ABT",
+      "primary": "comparison",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "comparison_table"
+    },
+    {
+      "query": "Who regulates DSM?",
+      "primary": "stakeholder",
+      "secondary": [],
+      "subtypes": [
+        "regulator_lookup"
+      ],
+      "response_strategy": "stakeholder_cards"
+    },
+    {
+      "query": "DSM timeline",
+      "primary": "timeline",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "timeline"
+    },
+    {
+      "query": "Explain DSM to a beginner",
+      "primary": "definition",
+      "secondary": [],
+      "subtypes": [
+        "beginner_explanation"
+      ],
+      "response_strategy": "definition_card"
+    },
+    {
+      "query": "What DSM deadlines apply to generators?",
+      "primary": "compliance_question",
+      "secondary": [
+        "deadline"
+      ],
+      "subtypes": [
+        "obligation_discovery"
+      ],
+      "response_strategy": "compliance_checklist"
+    },
+    {
+      "query": "What changed in the 2023 DSM amendment?",
+      "primary": "amendment",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "amendment_cards"
+    },
+    {
+      "query": "DSM before 2021",
+      "primary": "entity_lookup",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "entity_intelligence_page"
+    },
+    {
+      "query": "Is the latest DSM draft binding?",
+      "primary": "compliance_question",
+      "secondary": [
+        "news"
+      ],
+      "subtypes": [],
+      "response_strategy": "compliance_checklist"
+    },
+    {
+      "query": "Summarize this regulation",
+      "primary": "summarization",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "executive_summary"
+    },
+    {
+      "query": "Explain clause 4",
+      "primary": "document_explanation",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "document_explanation"
+    },
+    {
+      "query": "Compare DSM and ABT and show the latest consultation",
+      "primary": "multi_part_question",
+      "secondary": [
+        "comparison",
+        "consultation"
+      ],
+      "subtypes": [],
+      "response_strategy": "research_report"
+    },
+    {
+      "query": "What is green hydrogen?",
+      "primary": "definition",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "definition_card"
+    },
+    {
+      "query": "Write a poem about electricity",
+      "primary": "general_question",
+      "secondary": [],
+      "subtypes": [],
+      "response_strategy": "conversation"
+    },
+    {
+      "query": "Latest tariff policy changes this month",
+      "primary": "amendment",
+      "secondary": [
+        "news"
+      ],
+      "subtypes": [],
+      "response_strategy": "amendment_cards"
+    }
+  ]
+}

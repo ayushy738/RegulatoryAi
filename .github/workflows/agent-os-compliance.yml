@@ -1,0 +1,38 @@
+name: Agent OS Compliance
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.13.0"
+          cache: npm
+      - run: pip install -r apps/api/requirements.txt
+      - run: npm ci
+      - name: Run compliance framework tests
+        run: python -m pytest -q tests/agent_os_compliance
+      - name: Validate repository and execute required checks
+        env:
+          GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/check_agent_os.py --run-tests --report artifacts/agent-os-compliance-report.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-os-compliance-report
+          path: artifacts/agent-os-compliance-report.md

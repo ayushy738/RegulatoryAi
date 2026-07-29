@@ -7,28 +7,33 @@ import {
   AdminSourcesView,
   AdminUsersView,
 } from "./AdminViews";
-import { AskView } from "./AskView";
+import { AskRoute } from "./AskRoute";
 import { DashboardView } from "./DashboardView";
 import { DeadlinesView } from "./DeadlinesView";
 import { EventDetailView } from "./EventDetailView";
 import { IntelligenceView } from "./IntelligenceView";
 import { LatestView } from "./LatestView";
+import { ManualDocumentSearchRoute } from "./ManualDocumentSearchRoute";
 import { SavedView } from "./SavedView";
 import { DocsView, FlowView } from "./StaticViews";
 
 export function RouteView() {
-  const { route } = useWorkspace();
+  const { route, v2AskEnabled } = useWorkspace();
   switch (route) {
     case "dashboard":
       return <DashboardView />;
     case "latest":
       return <LatestView />;
+    case "browse":
+      return v2AskEnabled
+        ? <ManualDocumentSearchRoute />
+        : <LatestView />;
     case "intelligence":
       return <IntelligenceView />;
     case "deadlines":
       return <DeadlinesView />;
     case "ask":
-      return <AskView />;
+      return <AskRoute />;
     case "saved":
       return <SavedView />;
     case "event":

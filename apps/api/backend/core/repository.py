@@ -2123,7 +2123,12 @@ def update_subscription(user_id: str, payload: SubscriptionSettings) -> Subscrip
     return payload
 
 
-def save_chat_message(user_id: str, role: str, content: str, event_id: int | None = None) -> None:
+def save_chat_message(
+    user_id: str,
+    role: str,
+    content: str,
+    event_id: int | None = None,
+) -> bool:
     try:
         with session_scope() as session:
             session.execute(
@@ -2136,7 +2141,8 @@ def save_chat_message(user_id: str, role: str, content: str, event_id: int | Non
                 {"user_id": user_id, "event_id": event_id, "role": role, "content": content},
             )
     except SQLAlchemyError:
-        return
+        return False
+    return True
 
 
 def chat_history(user_id: str, event_id: int | None = None) -> list[dict[str, Any]]:

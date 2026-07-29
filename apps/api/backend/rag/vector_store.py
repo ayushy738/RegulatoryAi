@@ -161,14 +161,50 @@ class SupabasePgVectorStore(VectorStore):
                     """
                     select
                       (select count(*) from document_chunks) as chunks,
-                      (select count(*) from document_chunk_embeddings) as embeddings
+                      (select count(*) from document_chunk_embeddings) as embeddings,
+                      (
+                        select format_type(a.atttypid, a.atttypmod)
+                        from pg_attribute a
+                        join pg_class c on c.oid = a.attrelid
+                        join pg_namespace n on n.oid = c.relnamespace
+                        where c.relname = 'document_chunk_embeddings'
+                          and n.nspname = current_schema()
+                          and a.attname = 'embedding'
+                          and a.attnum > 0
+                          and not a.attisdropped
+                        limit 1
+                      ) as column_type
                     """
                 )
             ).mappings().first()
+            identities = session.execute(
+                text(
+                    """
+                    select
+                      provider,
+                      model,
+                      embedding_dimension as dimension,
+                      count(*) as count
+                    from document_chunk_embeddings
+                    group by provider, model, embedding_dimension
+                    order by provider, model, embedding_dimension
+                    """
+                )
+            ).mappings()
             return {
                 "provider": self.provider_name,
                 "chunks": int(row["chunks"] if row else 0),
                 "embeddings": int(row["embeddings"] if row else 0),
+                "column_type": row["column_type"] if row else None,
+                "identities": [
+                    {
+                        "provider": item["provider"],
+                        "model": item["model"],
+                        "dimension": int(item["dimension"]),
+                        "count": int(item["count"]),
+                    }
+                    for item in identities
+                ],
             }
 
 

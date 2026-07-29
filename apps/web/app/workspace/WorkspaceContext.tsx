@@ -50,6 +50,7 @@ import {
   useStakeholdersQuery,
   useSubscriptionsQuery,
 } from "@/lib/queries";
+import { askAiV2UiEnabled } from "@/lib/ask-ai-flags";
 
 import { cleanText, eventStakeholders, eventSummary } from "./format";
 import { defaultSettings, normalizeRoute } from "./types";
@@ -107,8 +108,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number) {
-  const route = normalizeRoute(initialRoute);
+function useWorkspaceController(
+  initialRoute: RouteKey,
+  initialEventId: number | undefined,
+  v2AskEnabled: boolean,
+) {
+  const route = normalizeRoute(initialRoute, v2AskEnabled);
   const queryClient = useQueryClient();
   const {
     session,
@@ -150,6 +155,9 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const isAuthenticated = Boolean(session);
   const authReady = !authLoading;
   const canRead = isAuthenticated;
+  const isolatedV2Surface =
+    route === "ask" || (v2AskEnabled && route === "browse");
+  const legacyBaseEnabled = canRead && !isolatedV2Surface;
 
   function resolvePendingAuthentication(nextSession: Session) {
     setAuthModalOpen(false);
@@ -166,10 +174,13 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
 
   /* ---------------- Server state (TanStack Query) ---------------- */
   const healthQuery = useHealthQuery();
-  const digestQuery = useDigestQuery(token, canRead);
-  const subscriptionsQuery = useSubscriptionsQuery(token, isAuthenticated);
-  const sourcesQuery = useSourcesQuery(token, isAuthenticated);
-  const runsQuery = useRunsQuery(token, isAuthenticated);
+  const digestQuery = useDigestQuery(token, legacyBaseEnabled);
+  const subscriptionsQuery = useSubscriptionsQuery(
+    token,
+    isAuthenticated && !isolatedV2Surface,
+  );
+  const sourcesQuery = useSourcesQuery(token, legacyBaseEnabled);
+  const runsQuery = useRunsQuery(token, legacyBaseEnabled);
 
   const isAdmin = sourcesQuery.isSuccess && runsQuery.isSuccess;
 
@@ -187,7 +198,11 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   const readinessQuery = useReadinessQuery(token, intelligenceEnabled);
 
   const eventQuery = useEventQuery(initialEventId, token, canRead && route === "event");
-  const chatHistoryQuery = useChatHistoryQuery(token, canRead && (route === "ask" || route === "saved"));
+  const chatHistoryQuery = useChatHistoryQuery(
+    token,
+    canRead &&
+      (route === "saved" || (route === "ask" && !isolatedV2Surface)),
+  );
 
   const adminEnabled =
     canRead &&
@@ -552,6 +567,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
         },
       ]);
     } catch (error) {
+      setChatInput(message);
       setChatMessages([
         ...nextMessages,
         {
@@ -565,6 +581,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
   }
 
   function loadBaseData() {
+    if (isolatedV2Surface) return;
     void digestQuery.refetch();
     void subscriptionsQuery.refetch();
     void sourcesQuery.refetch();
@@ -602,6 +619,7 @@ function useWorkspaceController(initialRoute: RouteKey, initialEventId?: number)
 
   return {
     route,
+    v2AskEnabled,
     initialEventId,
     session,
     user,
@@ -711,13 +729,19 @@ const WorkspaceContext = createContext<WorkspaceController | null>(null);
 export function WorkspaceProvider({
   initialRoute,
   initialEventId,
+  v2AskEnabled = askAiV2UiEnabled,
   children,
 }: {
   initialRoute: RouteKey;
   initialEventId?: number;
+  v2AskEnabled?: boolean;
   children: ReactNode;
 }) {
-  const controller = useWorkspaceController(initialRoute, initialEventId);
+  const controller = useWorkspaceController(
+    initialRoute,
+    initialEventId,
+    v2AskEnabled,
+  );
   return <WorkspaceContext.Provider value={controller}>{children}</WorkspaceContext.Provider>;
 }
 

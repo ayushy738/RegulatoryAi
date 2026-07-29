@@ -31,6 +31,7 @@ export const routeTitles: Record<NormalizedRoute, string> = {
   landing: "Resolven Regulatory AI",
   dashboard: "Regulatory Intelligence Dashboard",
   latest: "Latest Regulatory Updates",
+  browse: "Manual Document Search",
   intelligence: "Intelligence Center",
   deadlines: "Deadlines Center",
   ask: "Ask AI",
