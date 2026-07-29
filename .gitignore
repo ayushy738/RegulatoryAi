@@ -22,8 +22,11 @@ data/
 *.log
 site-artifacts/
 docs/*
-!docs/architecture/
+.codex
+
 docs/architecture/*
-!docs/architecture/identity-schema.md
-!docs/architecture/identity-coexistence.md
+
+
+# Local compliance reports (uploaded as CI artifacts)
+artifacts/
 ui-audit/chrome-profile/

@@ -1,0 +1,142 @@
+version = 1
+agent_os_dir = "docs/ASK_AI"
+config_path = ".agent-os-compliance.toml"
+frozen_approval_env = "AGENT_OS_ALLOW_FROZEN_UPDATE"
+report_path = "artifacts/agent-os-compliance-report.md"
+
+required_files = [
+  ".codex/AGENTS.md",
+  ".codex/PLANNER.md",
+  ".codex/REVIEW.md",
+  "docs/ASK_AI/00_MASTER_LOOP.md",
+  "docs/ASK_AI/01_PRODUCT_SPEC.md",
+  "docs/ASK_AI/02_ARCHITECTURE.md",
+  "docs/ASK_AI/03_TASKS.md",
+  "docs/ASK_AI/04_CURRENT_STATE.md",
+  "docs/ASK_AI/05_DECISIONS.md",
+  "docs/ASK_AI/06_PROGRESS.md",
+  "docs/ASK_AI/07_TEST_PLAN.md",
+  "docs/ASK_AI/08_BLOCKERS.md",
+  "docs/ASK_AI/09_CHANGELOG.md",
+  "docs/ASK_AI/AGENT_OS_COMPLIANCE.md",
+]
+
+application_patterns = [
+  "apps/**/*.py",
+  "apps/**/*.ts",
+  "apps/**/*.tsx",
+  "apps/**/*.sql",
+  "packages/**/*.py",
+  "packages/**/*.ts",
+  "packages/**/*.tsx",
+]
+public_behavior_patterns = [
+  "apps/api/backend/api/routes/**",
+  "apps/web/app/**",
+  "apps/web/lib/api.ts",
+  "apps/web/lib/schemas.ts",
+]
+architecture_patterns = [
+  ".agent-os-compliance.toml",
+  ".github/workflows/**",
+  "apps/api/backend/migrations/**",
+  "scripts/agent_os_compliance/**",
+]
+generated_artifact_patterns = [
+  "artifacts/**",
+  "*.tmp",
+  "*.temp",
+  "*.bak",
+  "*.orig",
+  "*.rej",
+  "**/__pycache__/**",
+  "**/.pytest_cache/**",
+  "**/.next/**",
+  "**/dist/**",
+  "**/coverage/**",
+]
+allowed_external_dependencies = [
+  "None",
+  "Existing repository",
+  "approved window",
+]
+allowed_branches = [
+  "main",
+  "master",
+  "codex/*",
+  "feature/*",
+  "fix/*",
+  "test/*",
+  "docs/*",
+  "chore/*",
+]
+commit_message_pattern = "^(feat|fix|test|docs|chore|refactor|perf|build|ci)(\\([a-z0-9-]+\\))?: .+"
+
+[documents]
+tasks = "docs/ASK_AI/03_TASKS.md"
+current_state = "docs/ASK_AI/04_CURRENT_STATE.md"
+decisions = "docs/ASK_AI/05_DECISIONS.md"
+progress = "docs/ASK_AI/06_PROGRESS.md"
+blockers = "docs/ASK_AI/08_BLOCKERS.md"
+changelog = "docs/ASK_AI/09_CHANGELOG.md"
+
+[frozen_files]
+"docs/ASK_AI/ASK_AI_AUDIT.md" = "99F15619F77EAB48BFF5DA2B176DFA5457494650B98C109AA74D09CA9CBD4D35"
+"docs/ASK_AI/ASK_AI_PRODUCT_SPEC.md" = "5A0C1AF4276F07FB16DE6D579890D1EA36A419F433C79BAF3CFEC0A6190DE220"
+"docs/ASK_AI/ASK_AI_DECISION_ENGINE.md" = "CD440CDA8C5D9F7647D1815B195106D1F383CBA42B46B98F4C25291A13949F02"
+"docs/ASK_AI/ASK_AI_ORCHESTRATOR.md" = "1C6062175F2C12511464EBD0D7567D570ACBECFDD21873C12233EA8EFBE8A654"
+"docs/ASK_AI/ASK_AI_IMPLEMENTATION_PLAN.md" = "2EA77C5CE7F3BCCAA8371998D8B9C1BAF4A729F622D7645AA8AFDF16F76D8634"
+
+[required_sections]
+"docs/ASK_AI/00_MASTER_LOOP.md" = ["Execution loop", "Completion criteria", "Testing rules", "Retry policy", "Blocker policy", "Commit policy", "Resume"]
+"docs/ASK_AI/01_PRODUCT_SPEC.md" = ["Vision", "Objectives", "Users", "Core workflows", "Functional requirements", "Non-functional requirements", "Success metrics"]
+"docs/ASK_AI/02_ARCHITECTURE.md" = ["Frontend", "Backend", "API", "Orchestration", "Storage", "Citations", "History", "Audit", "Security"]
+"docs/ASK_AI/03_TASKS.md" = ["Status and priority", "Universal task subtasks", "Next task"]
+"docs/ASK_AI/04_CURRENT_STATE.md" = ["Current feature", "Current task", "Completed work", "Remaining work", "Known issues", "Next recommended task"]
+"docs/ASK_AI/05_DECISIONS.md" = ["Decision", "Reason", "Alternatives", "Tradeoffs", "Affected", "Future impact"]
+"docs/ASK_AI/06_PROGRESS.md" = ["Work completed", "Files modified", "Tests executed", "Problems encountered", "Next action"]
+"docs/ASK_AI/07_TEST_PLAN.md" = ["Unit tests", "Integration tests", "API tests", "UI tests", "Performance tests", "Security tests"]
+"docs/ASK_AI/08_BLOCKERS.md" = ["Description", "Severity", "Possible solutions", "Dependencies", "Owner", "Status"]
+"docs/ASK_AI/09_CHANGELOG.md" = ["Unreleased", "Added"]
+
+[[test_commands]]
+name = "compliance unit tests"
+category = "unit"
+cwd = "."
+command = "python -m pytest -q tests/agent_os_compliance"
+
+[[test_commands]]
+name = "API unit and integration tests"
+category = "integration"
+cwd = "apps/api"
+command = "python -m pytest"
+
+[[test_commands]]
+name = "API lint"
+category = "lint"
+cwd = "apps/api"
+command = "python -m ruff check backend"
+
+[[test_commands]]
+name = "API compile check"
+category = "build"
+cwd = "apps/api"
+command = "python -m backend.tools.compile_check"
+
+[[test_commands]]
+name = "web component tests"
+category = "unit"
+cwd = "."
+command = "npm run test --workspace @regulatory-ai/web"
+
+[[test_commands]]
+name = "web typecheck"
+category = "typecheck"
+cwd = "."
+command = "npm run typecheck --workspace @regulatory-ai/web"
+
+[[test_commands]]
+name = "web build"
+category = "build"
+cwd = "."
+command = "npm run build --workspace @regulatory-ai/web"

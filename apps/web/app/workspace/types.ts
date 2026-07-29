@@ -34,7 +34,7 @@ export type RouteKey =
   | "api-docs"
   | "flow";
 
-export type NormalizedRoute = Exclude<RouteKey, "today" | "browse">;
+export type NormalizedRoute = Exclude<RouteKey, "today">;
 
 export type NavItem = {
   href: string;
@@ -90,8 +90,11 @@ export const defaultSettings: SubscriptionSettings = {
   frequency: "daily",
 };
 
-export function normalizeRoute(route: RouteKey): NormalizedRoute {
+export function normalizeRoute(
+  route: RouteKey,
+  v2BrowseEnabled = false,
+): NormalizedRoute {
   if (route === "today") return "dashboard";
-  if (route === "browse") return "latest";
+  if (route === "browse" && !v2BrowseEnabled) return "latest";
   return route;
 }

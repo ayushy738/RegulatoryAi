@@ -3,9 +3,16 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.ask_errors import AskCorrelationMiddleware
 from backend.api.routes import (
     admin,
     chat,
+    chat_documents,
+    chat_entities,
+    chat_evidence,
+    chat_runs,
+    chat_search,
+    chat_sessions,
     digests,
     events,
     exports,
@@ -24,6 +31,7 @@ seed_system_documents()
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
+app.add_middleware(AskCorrelationMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -36,6 +44,13 @@ app.add_middleware(
 app.include_router(digests.router)
 app.include_router(events.router)
 app.include_router(chat.router)
+app.include_router(chat_documents.router)
+app.include_router(chat_entities.router)
+app.include_router(chat_search.router)
+app.include_router(chat_sessions.router)
+app.include_router(chat_runs.router)
+app.include_router(chat_evidence.router)
+app.include_router(chat_evidence.saved_items_router)
 app.include_router(subscriptions.router)
 app.include_router(admin.router)
 app.include_router(exports.router)

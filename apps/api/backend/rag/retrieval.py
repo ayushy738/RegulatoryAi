@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -10,11 +11,28 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from backend.core.config import settings
 from backend.core.db import session_scope
-from backend.rag.embeddings import EmbeddingProviderFactory
+from backend.rag.embedding_health import (
+    inspect_runtime_embedding_compatibility,
+    vector_preflight_outcome,
+)
+from backend.rag.embeddings import EmbeddingProvider, EmbeddingProviderFactory
 from backend.rag.intent import detect_intent
-from backend.rag.models import Citation, HybridRetrievalResult, RetrievalHit
+from backend.rag.models import (
+    Citation,
+    HybridRetrievalResult,
+    RetrievalBranch,
+    RetrievalBranchHealth,
+    RetrievalBranchStatus,
+    RetrievalHit,
+)
+from backend.rag.outcomes import (
+    PartialRetrievalBranchResult,
+    RetrievalBranchExecution,
+    RetrievalBranchPreflightFailure,
+    execute_retrieval_branch,
+)
 from backend.rag.ranker import rank_hits
-from backend.rag.vector_store import VectorStoreFactory
+from backend.rag.vector_store import VectorStore, VectorStoreFactory
 
 
 class RetrievalProvider(ABC):
@@ -68,7 +86,32 @@ class RetrievalProvider(ABC):
 class SupabaseHybridRetrieval(RetrievalProvider):
     provider_name = "supabase"
 
+    def __init__(
+        self,
+        *,
+        embedding_provider: EmbeddingProvider | None = None,
+        vector_store: VectorStore | None = None,
+    ) -> None:
+        self._embedding_provider = embedding_provider
+        self._vector_store = vector_store
+
     def keyword_search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        event_id: int | None = None,
+    ) -> list[RetrievalHit]:
+        return list(
+            self.branch_search(
+                RetrievalBranch.KEYWORD,
+                query,
+                limit=limit,
+                event_id=event_id,
+            ).hits
+        )
+
+    def _keyword_search(
         self,
         query: str,
         *,
@@ -110,12 +153,9 @@ class SupabaseHybridRetrieval(RetrievalProvider):
             limit :limit
             """
         )
-        try:
-            with session_scope() as session:
-                rows = session.execute(sql, params).mappings()
-                return [_chunk_hit(row, source="keyword") for row in rows]
-        except SQLAlchemyError:
-            return []
+        with session_scope() as session:
+            rows = session.execute(sql, params).mappings()
+            return [_chunk_hit(row, source="keyword") for row in rows]
 
     def vector_search(
         self,
@@ -124,15 +164,56 @@ class SupabaseHybridRetrieval(RetrievalProvider):
         limit: int,
         event_id: int | None = None,
     ) -> list[RetrievalHit]:
-        try:
-            embedding = EmbeddingProviderFactory.get_provider().embed(query)
-            return VectorStoreFactory.get_provider().similarity_search(
-                embedding,
+        return list(
+            self.branch_search(
+                RetrievalBranch.VECTOR,
+                query,
                 limit=limit,
                 event_id=event_id,
+            ).hits
+        )
+
+    def _vector_search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        event_id: int | None = None,
+    ) -> list[RetrievalHit]:
+        try:
+            embedding_provider = (
+                self._embedding_provider
+                or EmbeddingProviderFactory.get_provider()
             )
-        except Exception:
-            return []
+            vector_store = self._vector_store or VectorStoreFactory.get_provider()
+        except Exception as exc:
+            raise RetrievalBranchPreflightFailure(
+                status=RetrievalBranchStatus.UNAVAILABLE,
+                health=RetrievalBranchHealth.FAILED,
+                safe_failure_code="EMBEDDING_PROVIDER_UNAVAILABLE",
+            ) from exc
+        compatibility = inspect_runtime_embedding_compatibility(
+            embedding_provider,
+            vector_store,
+        )
+        preflight = vector_preflight_outcome(compatibility)
+        if preflight is not None:
+            if preflight.status is RetrievalBranchStatus.NO_MATCH:
+                return []
+            raise RetrievalBranchPreflightFailure(
+                status=preflight.status,
+                health=preflight.health,
+                safe_failure_code=(
+                    preflight.safe_failure_code
+                    or "EMBEDDING_HEALTH_INVALID_METADATA"
+                ),
+            )
+        embedding = embedding_provider.embed(query)
+        return vector_store.similarity_search(
+            embedding,
+            limit=limit,
+            event_id=event_id,
+        )
 
     def graph_search(
         self,
@@ -141,11 +222,39 @@ class SupabaseHybridRetrieval(RetrievalProvider):
         limit: int,
         event_id: int | None = None,
     ) -> list[RetrievalHit]:
+        return list(
+            self.branch_search(
+                RetrievalBranch.GRAPH,
+                query,
+                limit=limit,
+                event_id=event_id,
+            ).hits
+        )
+
+    def _graph_search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        event_id: int | None = None,
+    ) -> list[RetrievalHit] | PartialRetrievalBranchResult:
         hits = []
-        hits.extend(_deadline_hits(query, limit=limit, event_id=event_id))
-        hits.extend(_obligation_hits(query, limit=limit, event_id=event_id))
-        hits.extend(_stakeholder_hits(query, limit=limit, event_id=event_id))
-        hits.extend(_relationship_hits(query, limit=limit, event_id=event_id))
+        failures = 0
+        graph_workers = (
+            _deadline_hits,
+            _obligation_hits,
+            _stakeholder_hits,
+            _relationship_hits,
+        )
+        for worker in graph_workers:
+            try:
+                hits.extend(worker(query, limit=limit, event_id=event_id))
+            except SQLAlchemyError:
+                failures += 1
+        if failures == len(graph_workers):
+            raise RuntimeError("All graph retrieval units are unavailable")
+        if failures:
+            return PartialRetrievalBranchResult(hits=tuple(hits[:limit]))
         return hits[:limit]
 
     def family_search(
@@ -155,12 +264,27 @@ class SupabaseHybridRetrieval(RetrievalProvider):
         limit: int,
         event_id: int | None = None,
     ) -> list[RetrievalHit]:
+        return list(
+            self.branch_search(
+                RetrievalBranch.FAMILY_VERSION,
+                query,
+                limit=limit,
+                event_id=event_id,
+            ).hits
+        )
+
+    def _family_search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        event_id: int | None = None,
+    ) -> list[RetrievalHit]:
         del event_id
-        try:
-            with session_scope() as session:
-                rows = session.execute(
-                    text(
-                        """
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
                         select
                           d.id as document_id,
                           d.title,
@@ -183,13 +307,11 @@ class SupabaseHybridRetrieval(RetrievalProvider):
                            or coalesce(dvr.referenced_instrument, '') ilike '%' || :query || '%'
                         order by d.issue_date desc nulls last, dvr.registry_version_id desc
                         limit :limit
-                        """
-                    ),
-                    {"query": query, "limit": limit},
-                ).mappings()
-                return [_family_hit(row) for row in rows]
-        except SQLAlchemyError:
-            return []
+                    """
+                ),
+                {"query": query, "limit": limit},
+            ).mappings()
+            return [_family_hit(row) for row in rows]
 
     def summary_search(
         self,
@@ -198,13 +320,28 @@ class SupabaseHybridRetrieval(RetrievalProvider):
         limit: int,
         event_id: int | None = None,
     ) -> list[RetrievalHit]:
+        return list(
+            self.branch_search(
+                RetrievalBranch.SUMMARY,
+                query,
+                limit=limit,
+                event_id=event_id,
+            ).hits
+        )
+
+    def _summary_search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        event_id: int | None = None,
+    ) -> list[RetrievalHit]:
         event_clause = "and e.id = :event_id" if event_id is not None else ""
         params = {"query": query, "limit": limit, "event_id": event_id}
-        try:
-            with session_scope() as session:
-                rows = session.execute(
-                    text(
-                        f"""
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    f"""
                         select
                           d.id as document_id,
                           d.title,
@@ -228,13 +365,34 @@ class SupabaseHybridRetrieval(RetrievalProvider):
                         {event_clause}
                         order by keyword_score desc nulls last, e.detected_at desc
                         limit :limit
-                        """
-                    ),
-                    params,
-                ).mappings()
-                return [_summary_hit(row) for row in rows]
-        except SQLAlchemyError:
-            return []
+                    """
+                ),
+                params,
+            ).mappings()
+            return [_summary_hit(row) for row in rows]
+
+    def branch_search(
+        self,
+        branch: RetrievalBranch,
+        query: str,
+        *,
+        limit: int,
+        event_id: int | None = None,
+        clock: Callable[[], float] = time.perf_counter,
+    ) -> RetrievalBranchExecution:
+        workers = {
+            RetrievalBranch.VECTOR: self._vector_search,
+            RetrievalBranch.KEYWORD: self._keyword_search,
+            RetrievalBranch.GRAPH: self._graph_search,
+            RetrievalBranch.FAMILY_VERSION: self._family_search,
+            RetrievalBranch.SUMMARY: self._summary_search,
+        }
+        worker = workers[branch]
+        return execute_retrieval_branch(
+            branch=branch,
+            worker=lambda: worker(query, limit=limit, event_id=event_id),
+            clock=clock,
+        )
 
     def hybrid_search(
         self,
@@ -247,20 +405,24 @@ class SupabaseHybridRetrieval(RetrievalProvider):
         intent = detect_intent(query)
         search_limit = max(limit, settings.rag_top_k)
         tasks = {
-            "vector": lambda: self.vector_search(query, limit=search_limit, event_id=event_id),
-            "keyword": lambda: self.keyword_search(query, limit=search_limit, event_id=event_id),
-            "graph": lambda: self.graph_search(query, limit=search_limit, event_id=event_id),
-            "family": lambda: self.family_search(query, limit=search_limit, event_id=event_id),
-            "summary": lambda: self.summary_search(query, limit=search_limit, event_id=event_id),
+            branch: (
+                lambda selected=branch: self.branch_search(
+                    selected,
+                    query,
+                    limit=search_limit,
+                    event_id=event_id,
+                )
+            )
+            for branch in RetrievalBranch
         }
         hits: list[RetrievalHit] = []
+        branch_executions: list[RetrievalBranchExecution] = []
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(task) for task in tasks.values()]
             for future in as_completed(futures):
-                try:
-                    hits.extend(future.result())
-                except Exception:
-                    continue
+                execution = future.result()
+                hits.extend(execution.hits)
+                branch_executions.append(execution)
         ranked = rank_hits(hits, intent, limit=limit)
         citations = _dedupe_citations([hit.citation() for hit in ranked])
         return HybridRetrievalResult(
@@ -272,13 +434,27 @@ class SupabaseHybridRetrieval(RetrievalProvider):
             related_questions=_related_questions(intent.name),
             related_documents=citations[:5],
             retrieval_latency_ms=_elapsed_ms(started),
+            branch_outcomes=[
+                execution.outcome
+                for execution in sorted(
+                    branch_executions,
+                    key=lambda item: list(RetrievalBranch).index(
+                        item.outcome.branch
+                    ),
+                )
+            ],
         )
 
     def health(self) -> dict[str, Any]:
+        vector_store = self._vector_store or VectorStoreFactory.get_provider()
+        embedding_provider = (
+            self._embedding_provider
+            or EmbeddingProviderFactory.get_provider()
+        )
         return {
             "provider": self.provider_name,
-            "vector_store": VectorStoreFactory.get_provider().health(),
-            "embedding_provider": EmbeddingProviderFactory.get_provider().health(),
+            "vector_store": vector_store.health(),
+            "embedding_provider": embedding_provider.health(),
         }
 
 
@@ -431,12 +607,9 @@ def _relationship_hits(query: str, *, limit: int, event_id: int | None) -> list[
 
 
 def _graph_rows(sql: str, params: dict[str, Any]) -> list[RetrievalHit]:
-    try:
-        with session_scope() as session:
-            rows = session.execute(text(sql), params).mappings()
-            return [_graph_hit(row) for row in rows]
-    except SQLAlchemyError:
-        return []
+    with session_scope() as session:
+        rows = session.execute(text(sql), params).mappings()
+        return [_graph_hit(row) for row in rows]
 
 
 def _chunk_hit(row: Any, *, source: str) -> RetrievalHit:

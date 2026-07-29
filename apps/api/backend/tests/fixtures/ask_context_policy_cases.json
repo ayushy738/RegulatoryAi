@@ -1,0 +1,235 @@
+{
+  "schema_version": "1",
+  "policy_version": "ask-ai-decision-v1",
+  "context_precedence": [
+    "interaction_context",
+    "explicit_current_turn",
+    "conversation_scope",
+    "regulatory_defaults",
+    "clarification"
+  ],
+  "context_cases": [
+    {
+      "name": "interaction_entity_precedes_current_and_conversation",
+      "request": {
+        "interaction_context": {
+          "entity_ids": ["in.central.cerc"]
+        },
+        "current_turn": {
+          "entity_ids": ["in.central.mnre"]
+        },
+        "conversation_scope": {
+          "entity_ids": ["in.central.dsm"]
+        }
+      },
+      "expected": {
+        "status": "resolved",
+        "entity_ids": ["in.central.cerc"],
+        "entity_source": "interaction_context"
+      }
+    },
+    {
+      "name": "current_turn_precedes_conversation",
+      "request": {
+        "current_turn": {
+          "entity_ids": ["in.central.mnre"],
+          "jurisdiction": "India/Central"
+        },
+        "conversation_scope": {
+          "entity_ids": ["in.central.cerc"],
+          "jurisdiction": "India/State"
+        }
+      },
+      "expected": {
+        "status": "resolved",
+        "entity_ids": ["in.central.mnre"],
+        "entity_source": "explicit_current_turn",
+        "jurisdiction": "India/Central",
+        "jurisdiction_source": "explicit_current_turn"
+      }
+    },
+    {
+      "name": "unique_pronoun_antecedent_uses_conversation_scope",
+      "request": {
+        "conversation_scope": {
+          "jurisdiction": "India/Central"
+        },
+        "unresolved_reference": "it",
+        "reference_candidates": [
+          {
+            "canonical_id": "in.central.dsm",
+            "label": "Deviation Settlement Mechanism"
+          }
+        ]
+      },
+      "expected": {
+        "status": "resolved",
+        "entity_ids": ["in.central.dsm"],
+        "entity_source": "conversation_scope",
+        "jurisdiction": "India/Central",
+        "jurisdiction_source": "conversation_scope"
+      }
+    },
+    {
+      "name": "ambiguous_pronoun_requires_one_question",
+      "request": {
+        "unresolved_reference": "it",
+        "reference_candidates": [
+          {
+            "canonical_id": "in.central.dsm",
+            "label": "Deviation Settlement Mechanism"
+          },
+          {
+            "canonical_id": "in.central.abt",
+            "label": "Availability Based Tariff"
+          }
+        ]
+      },
+      "expected": {
+        "status": "clarification_required",
+        "candidate_count": 2
+      }
+    },
+    {
+      "name": "defaults_are_visible_assumptions",
+      "request": {
+        "regulatory_defaults": {
+          "jurisdiction": "India/Central",
+          "stakeholder": "generator"
+        }
+      },
+      "expected": {
+        "status": "resolved",
+        "jurisdiction": "India/Central",
+        "jurisdiction_source": "regulatory_default",
+        "stakeholder": "generator",
+        "stakeholder_source": "regulatory_default",
+        "assumption_count": 2
+      }
+    },
+    {
+      "name": "current_turn_reset_blocks_retained_scope",
+      "request": {
+        "current_turn": {
+          "reset_fields": ["entities", "jurisdiction"]
+        },
+        "conversation_scope": {
+          "entity_ids": ["in.central.dsm"],
+          "jurisdiction": "India/State"
+        },
+        "regulatory_defaults": {
+          "jurisdiction": "India/Central"
+        }
+      },
+      "expected": {
+        "status": "resolved",
+        "entity_ids": [],
+        "entity_source": "explicit_current_turn",
+        "jurisdiction": "India/Central",
+        "jurisdiction_source": "regulatory_default",
+        "assumption_count": 1
+      }
+    }
+  ],
+  "decomposition_cases": [
+    {
+      "name": "frozen_three_part_example",
+      "request": {
+        "shared_scope": {
+          "entity_ids": ["in.central.dsm"],
+          "jurisdiction": "India/Central",
+          "stakeholder": "generator"
+        },
+        "clauses": [
+          {
+            "question": "Explain DSM.",
+            "intent": "definition"
+          },
+          {
+            "question": "List its current obligations for generators.",
+            "intent": "compliance_question",
+            "scope_override": {
+              "time_scope": "current"
+            }
+          },
+          {
+            "question": "Show the latest consultation.",
+            "intent": "consultation",
+            "scope_override": {
+              "time_scope": "latest/open"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "overall_intent": "multi_part_question",
+        "component_intents": [
+          "definition",
+          "compliance_question",
+          "consultation"
+        ],
+        "question_ids": ["question-1", "question-2", "question-3"],
+        "time_scopes": [null, "current", "latest/open"],
+        "scope_conflicts": ["time_scope"]
+      }
+    },
+    {
+      "name": "global_time_applies_to_every_clause",
+      "request": {
+        "shared_scope": {
+          "entity_ids": ["in.central.dsm"],
+          "jurisdiction": "India/Central"
+        },
+        "global_time_scope": "2025",
+        "clauses": [
+          {
+            "question": "Explain DSM.",
+            "intent": "definition"
+          },
+          {
+            "question": "Show its consultations.",
+            "intent": "consultation"
+          }
+        ]
+      },
+      "expected": {
+        "overall_intent": "multi_part_question",
+        "component_intents": ["definition", "consultation"],
+        "question_ids": ["question-1", "question-2"],
+        "time_scopes": ["2025", "2025"],
+        "scope_conflicts": []
+      }
+    },
+    {
+      "name": "contradictory_jurisdictions_remain_separate",
+      "request": {
+        "shared_scope": {
+          "entity_ids": ["in.central.rpo"]
+        },
+        "clauses": [
+          {
+            "question": "Explain the central RPO.",
+            "intent": "definition",
+            "scope_override": {
+              "jurisdiction": "India/Central"
+            }
+          },
+          {
+            "question": "List the Gujarat RPO obligations.",
+            "intent": "compliance_question",
+            "scope_override": {
+              "jurisdiction": "India/Gujarat"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "overall_intent": "multi_part_question",
+        "component_intents": ["definition", "compliance_question"],
+        "question_ids": ["question-1", "question-2"],
+        "jurisdictions": ["India/Central", "India/Gujarat"],
+        "scope_conflicts": ["jurisdiction"]
+      }
+    }
+  ]
+}

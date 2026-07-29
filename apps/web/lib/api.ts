@@ -2,6 +2,40 @@ import type { z } from "zod";
 
 import { supabase } from "./supabase";
 import {
+  askMessageEvidenceSchema,
+  askMessageSourcesSchema,
+  askSavedItemListSchema,
+} from "./ask-ai-evidence";
+import {
+  askEntityLookupRequestSchema,
+  askEntityLookupResponseSchema,
+} from "./ask-ai-entities";
+import type { AskEntityLookupRequest } from "./ask-ai-entities";
+import {
+  askManualDocumentSearchRequestSchema,
+  askManualDocumentSearchResponseSchema,
+} from "./ask-ai-manual-search";
+import type {
+  AskManualDocumentSearchRequest,
+} from "./ask-ai-manual-search";
+import {
+  askFederatedSearchRequestSchema,
+  askFederatedSearchResponseSchema,
+} from "./ask-ai-search";
+import type { AskFederatedSearchRequest } from "./ask-ai-search";
+import {
+  askSessionExportSchema,
+  askSessionListQuerySchema,
+  askSessionListSchema,
+  askSessionPatchRequestSchema,
+  askSessionSchema,
+} from "./ask-ai-sessions";
+import type {
+  AskSessionListQuery,
+  AskSessionPatchRequest,
+} from "./ask-ai-sessions";
+import { askTurnListSchema } from "./ask-ai-turns";
+import {
   adminAnalyticsSchema,
   adminDocumentListSchema,
   adminEventListSchema,
@@ -73,6 +107,10 @@ export type {
 } from "./schemas";
 
 import type { SourceHealth, SourcePage, SubscriptionSettings } from "./schemas";
+import {
+  parseAskErrorResponse,
+} from "./ask-ai-errors";
+import type { AskErrorCode } from "./ask-ai-errors";
 
 export type SourceCreatePayload = Pick<
   SourceHealth,
@@ -103,8 +141,12 @@ async function getSessionAccessToken() {
   return session?.access_token;
 }
 
-async function authorizedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
-  const accessToken = await getSessionAccessToken();
+async function authorizedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  providedAccessToken?: string,
+) {
+  const accessToken = providedAccessToken ?? (await getSessionAccessToken());
   const headers = new Headers(init.headers);
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
@@ -116,10 +158,19 @@ async function authorizedFetch(input: RequestInfo | URL, init: RequestInit = {})
 
 export class ApiError extends Error {
   status?: number;
-  constructor(message: string, status?: number) {
+  code?: AskErrorCode;
+  correlationId?: string;
+  constructor(
+    message: string,
+    status?: number,
+    code?: AskErrorCode,
+    correlationId?: string,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.correlationId = correlationId;
   }
 }
 
@@ -136,16 +187,30 @@ export class ValidationError extends Error {
 
 export async function apiFetch<T>(
   path: string,
-  _token?: string,
+  token?: string,
   init: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await authorizedFetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  const response = await authorizedFetch(
+    `${API_BASE_URL}${path}`,
+    { ...init, headers },
+    token,
+  );
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new ApiError(detail || `API request failed: ${response.status}`, response.status);
+    const parsed = parseAskErrorResponse(
+      detail,
+      response.headers.get("x-correlation-id") ?? undefined,
+    );
+    throw new ApiError(
+      parsed.message || `API request failed: ${response.status}`,
+      response.status,
+      parsed.code,
+      parsed.correlationId,
+    );
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -255,6 +320,184 @@ export function sendChat(message: string, eventId: number | null, token?: string
 export function getChatHistory(token?: string, eventId?: number | null) {
   const suffix = eventId ? `?event_id=${eventId}` : "";
   return validatedFetch(`/chat/history${suffix}`, chatHistorySchema, token);
+}
+
+export function getAskSessions(
+  token: string,
+  page: AskSessionListQuery = {},
+) {
+  const query = askSessionListQuerySchema.parse(page);
+  const params = new URLSearchParams();
+  if (query.cursor) params.set("cursor", query.cursor);
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  if (query.q !== undefined) params.set("q", query.q);
+  if (query.knowledge_mode !== undefined) {
+    params.set("knowledge_mode", query.knowledge_mode);
+  }
+  if (query.entity !== undefined) params.set("entity", query.entity);
+  if (query.archived !== undefined) {
+    params.set("archived", String(query.archived));
+  }
+  if (query.pinned !== undefined) params.set("pinned", String(query.pinned));
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  return validatedFetch(`/chat/sessions${suffix}`, askSessionListSchema, token);
+}
+
+export function resolveAskEntity(
+  request: AskEntityLookupRequest,
+  token: string,
+) {
+  const payload = askEntityLookupRequestSchema.parse(request);
+  return validatedFetch(
+    "/chat/entities/resolve",
+    askEntityLookupResponseSchema,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function searchAskResearch(
+  request: AskFederatedSearchRequest,
+  token: string,
+) {
+  const payload = askFederatedSearchRequestSchema.parse(request);
+  return validatedFetch(
+    "/chat/search",
+    askFederatedSearchResponseSchema,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function searchAskDocuments(
+  request: AskManualDocumentSearchRequest,
+  token: string,
+) {
+  const payload = askManualDocumentSearchRequestSchema.parse(request);
+  return validatedFetch(
+    "/chat/documents/search",
+    askManualDocumentSearchResponseSchema,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function getAskSession(sessionId: string, token: string) {
+  return validatedFetch(
+    `/chat/sessions/${encodeURIComponent(sessionId)}`,
+    askSessionSchema,
+    token,
+  );
+}
+
+export function patchAskSession(
+  sessionId: string,
+  patch: AskSessionPatchRequest,
+  token: string,
+) {
+  const payload = askSessionPatchRequestSchema.parse(patch);
+  return validatedFetch(
+    `/chat/sessions/${encodeURIComponent(sessionId)}`,
+    askSessionSchema,
+    token,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+function postAskSessionAction(
+  sessionId: string,
+  action: "archive" | "restore" | "duplicate",
+  token: string,
+) {
+  return validatedFetch(
+    `/chat/sessions/${encodeURIComponent(sessionId)}/${action}`,
+    askSessionSchema,
+    token,
+    { method: "POST" },
+  );
+}
+
+export function archiveAskSession(sessionId: string, token: string) {
+  return postAskSessionAction(sessionId, "archive", token);
+}
+
+export function restoreAskSession(sessionId: string, token: string) {
+  return postAskSessionAction(sessionId, "restore", token);
+}
+
+export function duplicateAskSession(sessionId: string, token: string) {
+  return postAskSessionAction(sessionId, "duplicate", token);
+}
+
+export function exportAskSession(sessionId: string, token: string) {
+  return validatedFetch(
+    `/chat/sessions/${encodeURIComponent(sessionId)}/export`,
+    askSessionExportSchema,
+    token,
+  );
+}
+
+export async function deleteAskSession(sessionId: string, token: string) {
+  await apiFetch<void>(
+    `/chat/sessions/${encodeURIComponent(sessionId)}`,
+    token,
+    { method: "DELETE" },
+  );
+}
+
+export function getAskSessionMessages(
+  sessionId: string,
+  token: string,
+  page: { cursor?: string | null; limit?: number } = {},
+) {
+  const params = new URLSearchParams();
+  if (page.cursor) params.set("cursor", page.cursor);
+  if (page.limit !== undefined) params.set("limit", String(page.limit));
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const encodedSessionId = encodeURIComponent(sessionId);
+  return validatedFetch(
+    `/chat/sessions/${encodedSessionId}/messages${suffix}`,
+    askTurnListSchema,
+    token,
+  );
+}
+
+export function getAskMessageEvidence(messageId: string, token: string) {
+  return validatedFetch(
+    `/chat/messages/${encodeURIComponent(messageId)}`,
+    askMessageEvidenceSchema,
+    token,
+  );
+}
+
+export function getAskMessageSources(messageId: string, token: string) {
+  const encodedMessageId = encodeURIComponent(messageId);
+  return validatedFetch(
+    `/chat/messages/${encodedMessageId}/sources`,
+    askMessageSourcesSchema,
+    token,
+  );
+}
+
+export function getAskSavedItems(sessionId: string, token: string) {
+  const encodedSessionId = encodeURIComponent(sessionId);
+  return validatedFetch(
+    `/chat/sessions/${encodedSessionId}/saved-items`,
+    askSavedItemListSchema,
+    token,
+  );
 }
 
 export function markRead(eventId: number, token?: string) {
