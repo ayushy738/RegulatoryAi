@@ -33,15 +33,23 @@ import {
   ResearchWorkspaceShell,
   type ResearchSubmitCapability,
 } from "./ResearchWorkspaceShell";
+import {
+  StructuredResponseCanvas,
+  type StructuredCanvasActionHandlers,
+} from "./StructuredResponseCanvas";
 
 export function ResearchWorkspace({
   onSubmit,
   downloadExport,
   entityCorePage = null,
+  structuredResponse = null,
+  structuredActionHandlers = {},
 }: {
   onSubmit?: ResearchSubmitCapability;
   downloadExport?: ResearchExportDownloader;
   entityCorePage?: unknown | null;
+  structuredResponse?: unknown | null;
+  structuredActionHandlers?: StructuredCanvasActionHandlers;
 }) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [entityResult, setEntityResult] =
@@ -273,7 +281,12 @@ export function ResearchWorkspace({
         />
       }
       canvasContent={
-        onSubmit === undefined ? (
+        structuredResponse !== null ? (
+          <StructuredResponseCanvas
+            response={structuredResponse}
+            actionHandlers={structuredActionHandlers}
+          />
+        ) : onSubmit === undefined ? (
           entityResult === null &&
           (searchResult !== null ||
             searchError !== null ||

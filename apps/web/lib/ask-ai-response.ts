@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { changeCardValidationErrors } from "./ask-ai-change-cards";
+import { complianceCardValidationErrors } from "./ask-ai-compliance-cards";
 import { coreCardValidationErrors } from "./ask-ai-core-cards";
 
 export const askResponseStrategyValues = [
@@ -160,6 +162,18 @@ export const askResponseCardSchema = z
       });
     }
     for (const message of coreCardValidationErrors(value)) {
+      context.addIssue({
+        code: "custom",
+        message,
+      });
+    }
+    for (const message of complianceCardValidationErrors(value)) {
+      context.addIssue({
+        code: "custom",
+        message,
+      });
+    }
+    for (const message of changeCardValidationErrors(value)) {
       context.addIssue({
         code: "custom",
         message,

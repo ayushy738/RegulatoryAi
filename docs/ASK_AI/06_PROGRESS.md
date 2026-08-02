@@ -5243,3 +5243,879 @@ No frozen specification or application code file was modified.
 Execute E1.7 Production-volume migration rehearsal under
 `B010_PRODUCTION_MIGRATION_APPROVAL.md`, then continue the highest-priority
 eligible task sequence without requesting another governance decision.
+
+---
+
+## 2026-08-01 — Iteration E7.3
+
+### Work completed
+
+- Implemented the isolated B-009 claim-support verifier over accepted E7.2
+  Candidate Claims and E7.1 admitted official evidence.
+- Revalidated strict claim/admission/source/chunk/excerpt/scope/status identity
+  before semantic execution and retained SHA-256-bound evidence snapshots.
+- Added exact atomic claim and evidence span contracts, material-qualifier
+  coverage, Supported/Partial Support/Contradiction/Unknown normalization,
+  weakest-proposition aggregation, and the approved high-risk/material
+  confidence thresholds.
+- Added a maximum of one correction pass. Corrections can only narrow text and
+  reuse the same or a strict subset of admitted evidence; the corrected claim
+  is reverified and append-only correction lineage is retained.
+- Added checksum-bound grounded-prose release approval matching for exact
+  provider, verifier, model, prompt, and policy versions. Missing, mismatched,
+  failed, timed-out, over-budget, or malformed execution remains evidence-only.
+- Preserved canonical Orchestrator Verification Result artifacts and safe
+  terminal codes without adding a production provider, route, persistence,
+  migration, frontend behavior, or legacy serving change.
+- Reviewer confirmed the task is narrow, fail-closed, source-authority
+  preserving, deterministic, and compatible. E7.6 is now active.
+
+### Files modified
+
+- `apps/api/backend/ask/claim_verification.py`
+- `apps/api/backend/tests/test_ask_ai_claim_verification.py`
+- `apps/api/backend/tests/test_ask_ai_decision_calibration_contract.py`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/08_BLOCKERS.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused verifier/Candidate Claim/evidence/Orchestrator/Decision-calibration
+  slice — passed, 128 tests.
+- Ruff over the verifier, tests, and touched Decision-calibration machinery —
+  passed with zero findings.
+- API virtual-environment typecheck probe — unavailable because `mypy` is not
+  installed; no typecheck result is claimed and no dependency was added.
+
+### Problems encountered
+
+- Static compliance identified E7.3 as the first eligible P0 task while E6.3
+  was incorrectly active. The task pointers were corrected before Builder
+  work began.
+- The prior synthetic Decision-calibration contract fixture expected a
+  compliance-deadline dimension for an absolute date, while the frozen time
+  policy correctly classifies that expression as publication/issue time. The
+  test-only expected label was corrected; no product policy changed.
+- E3.7/E5.8 remain isolated behind B-018 because no production gold labels or
+  checksum signoff were fabricated.
+
+### Next action
+
+Execute E7.6 Citation persistence and API, then continue the highest-priority
+eligible task.
+
+---
+
+## 2026-08-01 — Iteration E7.6
+
+### Work completed
+
+- Added expand-only migration `0035` for stable claim/evidence keys, complete
+  verifier identity and latency, structured verifier-result integrity,
+  provenance/confidence payloads, and exact restoration indexes. Existing
+  rows receive deterministic IDs/source keys without content mutation.
+- Implemented the canonical atomic writer for one owner/run/response-version
+  material claim and its ordered official citations. It persists exact admitted
+  source snapshots, verifier artifacts and correction lineage, provenance,
+  confidence, and provider/verifier/model/prompt/policy identity.
+- Added deterministic replay, stable-identity conflict refusal, official-lane
+  enforcement, and transaction rollback when any owned source identity is
+  missing.
+- Added an off-by-default authenticated citation detail endpoint with identical
+  owner/non-owner not-found behavior, exact snapshot restoration, validated
+  safe verifier summaries, and current/superseded source status.
+- Added matching frontend Zod and transport contracts without mounting new UI,
+  changing the legacy route, adding a provider, or enabling a rollout flag.
+- Reviewer confirmed scope, ownership isolation, immutable snapshot behavior,
+  feature-flag compatibility, migration safety, and strict API contracts.
+- E7.9 was explicitly attached to B-018 because its B-009 shadow acceptance
+  requires independently reviewed checksum-bound regulatory claim labels that
+  are not present. E6.3 is now the highest-priority eligible task.
+
+### Files modified
+
+- `apps/api/backend/migrations/0035_ask_ai_citation_verification.sql`
+- `apps/api/backend/migrations/README.md`
+- `apps/api/backend/ask/citation_persistence.py`
+- `apps/api/backend/ask/persistence.py`
+- `apps/api/backend/ask/schemas.py`
+- `apps/api/backend/api/routes/chat_evidence.py`
+- `apps/api/backend/tests/test_ask_ai_citation_persistence.py`
+- `apps/api/backend/tests/test_ask_ai_evidence_api.py`
+- `apps/web/lib/ask-ai-evidence.ts`
+- `apps/web/lib/ask-ai-evidence.test.ts`
+- `apps/web/lib/api.ts`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/08_BLOCKERS.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Dedicated PostgreSQL `0035` migration/persistence suite — passed, 4 tests.
+- Affected evidence API and claim-verifier slice — passed, 23 tests.
+- Final focused evidence API regression — passed, 9 tests.
+- Frontend citation/evidence contract suite — passed, 4 tests.
+- Frontend TypeScript validation with incremental output disabled — passed.
+- Ruff over all E7.6 backend and test files with cache disabled — passed with
+  zero findings.
+- `git diff --check` — passed; only configured Windows LF/CRLF notices were
+  emitted.
+- Static Agent OS compliance — active task, blocker linkage, document
+  integrity/synchronization, progress, hygiene, security, dependencies, and
+  test-execution records passed. The command retained the repository baseline
+  failures for branch `ask-ai-review` and the five frozen files already
+  differing from `origin/master`; E7.6 modified none of those frozen files.
+
+### Problems encountered
+
+- The first database fixture assumed a nonexistent `chat_messages.completed_at`
+  column and embedded JSON containing a colon in SQLAlchemy `text()`. The
+  fixture was corrected to the canonical schema and `jsonb_build_object`; no
+  runtime contract changed.
+- Strict verifier Python models intentionally require tuples. Persisted JSON
+  restores arrays, so the public safe-summary boundary now revalidates through
+  Pydantic's strict JSON parser instead of weakening the runtime model.
+- Windows denied writes to pre-existing Ruff, Vite, and TypeScript cache files.
+  Ruff was run cacheless, TypeScript incremental output was disabled, and the
+  focused Vitest command was executed with approved workspace cache access.
+
+### Next action
+
+Execute E6.3 Live-source capability under B-005, then continue the
+highest-priority eligible task. E7.9 remains isolated behind B-018; no
+regulatory labels or release approval were fabricated.
+
+---
+
+## 2026-08-01 — Iteration E6.3
+
+### Work completed
+
+- Implemented strict version-1 B-005 Live Intelligence contracts for exact
+  source registries, provider families, entitlements, retention, connector
+  security, time windows, provider output, admission, evidence, cache records,
+  provider outcomes, and aggregate terminal results.
+- Froze the eight approved official host/publisher pairs and approved
+  official-direct, source-retaining Parallel.ai, Reuters, and Dow Jones/Factiva
+  provider families. Default connectors remain disabled and contain no
+  credentials or network implementation.
+- Enforced exact HTTPS hosts, credential-free safe URLs, declared TLS/DNS/
+  robots/text-extraction controls, active entitlement, publisher/source-type/
+  license identity, known publication/retrieval time, excerpt SHA-256, and
+  fixed-clock requested-window admission.
+- Added every B-005 today, breaking, news, recent, bounded, open-consultation,
+  and recently-closed window; L1–L5 trust, badges, and confidence ceilings;
+  canonical live-only Orchestrator Evidence Units; exact non-legal-force
+  disclosure; and policy/registry/entitlement/provider ancestry.
+- Added exact duplicate consolidation that retains every underlying live
+  source identity, per-user/fan-out/provider limits, at most two retries,
+  nonretryable permanent failures, healthy no-match/failure separation,
+  partial provider preservation, deterministic cache keys/TTLs, and stale
+  fallback with a Low ceiling and exact stale badge.
+- Preserved live/internal lane separation, marked provider content untrusted,
+  excluded missing/future/tampered/unlicensed/unapproved items, and added no
+  migration, persistence write, route, rollout flag, frontend, legacy serving,
+  credential, or external call.
+- Reviewer confirmed B-005 alignment, strictness, deterministic terminal
+  behavior, safe-detail exclusion, disabled-by-default compatibility, and
+  canonical Orchestrator provenance. E6.6 is now active.
+
+### Files modified
+
+- `apps/api/backend/ask/live_intelligence.py`
+- `apps/api/backend/tests/test_ask_ai_live_intelligence.py`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused Live Intelligence suite — passed, 30 tests.
+- Affected Live Intelligence/knowledge-mode/General-AI/Orchestrator/provenance
+  slice — passed, 191 tests.
+- Ruff over the E6.3 module and tests with cache disabled — passed with zero
+  findings.
+- Python compile validation with a disposable external bytecode cache — passed;
+  the generated cache was removed after validation.
+- `git diff --check` — passed with only configured Windows LF/CRLF notices.
+- Static Agent OS compliance — active task, blocker linkage, documentation
+  integrity/synchronization, progress, hygiene, security, dependencies, and
+  recorded test execution passed. Only the unchanged repository baseline
+  failures for branch `ask-ai-review` and five frozen-file differences against
+  `origin/master` remain; E6.3 modified no frozen specification.
+
+### Problems encountered
+
+- The first affected-suite command named a nonexistent provenance test file and
+  collected no tests. The canonical filename was discovered with `rg`; the
+  corrected five-file slice passed. The invalid command is not counted as
+  verification evidence.
+- Exact duplicate policy initially consolidated a licensed and industry test
+  fixture because both intentionally reused the same excerpt hash. The fixtures
+  were corrected to represent distinct events, and deduplication was strengthened
+  to retain all source lineage for URL, content-hash, or publisher/headline
+  identity matches.
+- The default workspace bytecode cache remained permission-restricted on
+  Windows. Compile validation used a bounded disposable workspace cache, which
+  was path-verified and removed.
+
+### Next action
+
+Execute E6.6 Capability-specific degradation, then continue the
+highest-priority eligible task. E7.9 remains isolated behind B-018.
+
+---
+
+## 2026-08-01 — Iteration E6.6
+
+### Work completed
+
+- Added a strict product projection over the canonical Orchestrator failure
+  transition. It preserves exact affected and unaffected sections, admitted
+  artifacts, terminal meaning, and confidence impact without duplicating
+  orchestration policy.
+- Added distinct safe presentation for healthy official/live no-match,
+  partial, unavailable, timed-out, invalid-output, ambiguity, and verification
+  states. Optional empty live, timeline, and follow-up outcomes can remain
+  visually omitted while completed research stays visible.
+- Limited retry commands to the transient official, live, General AI, and
+  Citation Verifier states already executable through E10.6. Added safe local
+  manual-document-search navigation only for relevant evidence paths and
+  focused intent/entity input commands where user clarification is required.
+- Added a matching strict Zod boundary and an isolated accessible renderer.
+  Command actions require a real handler, navigation remains keyboard native,
+  and internal safe codes or raw provider/runtime detail are never rendered.
+- Added one shared backend/frontend contract fixture and focused regression
+  coverage. No migration, route mounting, provider, persistence, rollout flag,
+  business-logic change, or legacy serving change was introduced.
+- Reviewer confirmed scope, failure-policy alignment, safe-copy separation,
+  action executability, accessibility, compatibility, and documentation sync.
+  E6.4 is now the highest-priority eligible task.
+
+### Files modified
+
+- `apps/api/backend/ask/degradation.py`
+- `apps/api/backend/tests/fixtures/ask_degradation_contract.json`
+- `apps/api/backend/tests/test_ask_ai_capability_degradation.py`
+- `apps/web/lib/ask-ai-degradation.ts`
+- `apps/web/app/features/ask-ai/CapabilityDegradation.tsx`
+- `apps/web/app/features/ask-ai/CapabilityDegradation.test.tsx`
+- `apps/web/app/globals.css`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/08_BLOCKERS.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused backend capability-degradation suite — passed, 18 tests.
+- Affected backend failure/retry/knowledge-mode slice — passed, 119 tests.
+- Focused frontend capability-degradation suite — passed, 4 tests.
+- Affected frontend degradation/ModePrimitives slice — passed, 18 tests.
+- Frontend TypeScript validation with incremental output disabled — passed.
+- Ruff over the new backend module and tests with cache disabled — passed
+  with zero findings.
+- `git diff --check` — passed; only configured Windows LF/CRLF notices were
+  emitted.
+
+### Problems encountered
+
+- B-005 requires at least 14 consecutive days and 500 eligible production-
+  shadow requests before E6.7 can pass. No such elapsed production evidence or
+  independent review export exists locally, so B-019 records that external
+  execution requirement and no synthetic shadow result was fabricated.
+- Windows cache permissions required cacheless Ruff and non-incremental
+  TypeScript execution; the source and test results were unaffected.
+
+### Next action
+
+Execute E6.4 Internal/live event reconciliation. E6.7 remains isolated behind
+B-019, and the other recorded blockers do not constrain this independent task.
+
+---
+
+## 2026-08-01 — Iteration E6.4
+
+### Work completed
+
+- Added a strict immutable reconciliation boundary over canonical E5.6
+  Timeline Events. It accepts only internal-regulatory or live provenance,
+  requires complete source/ancestry and timezone-aware observation metadata,
+  and refuses General AI or live-established legal authority.
+- Consolidated exact duplicate fingerprints into one stable visual event with
+  independent official-basis and live-coverage subsections. Every original
+  event, source ID, ancestry path, label, type, date, publication time,
+  retrieval time, and reported status remains inspectable.
+- Kept different fingerprints with the same entity/event identity as separate
+  near-duplicate visual events connected only by a deterministic cluster ID.
+- Preserved event-identity, date, event-type, material-description, and legal-
+  status disagreements as readable typed conflicts. Established official
+  status controls only when official observations agree; live reporting is
+  retained separately, official disagreement selects no status, and all
+  conflicts require the contradiction penalty and forbid High confidence.
+- Added deterministic order, stable IDs, strict output invariants, truthful
+  no-events behavior, evidence-cutoff enforcement, collision refusal, and
+  input-order-independent JSON.
+- Added no migration, API/route, provider, persistence, frontend, rollout flag,
+  or legacy-serving change. Reviewer confirmed frozen-spec alignment, lane
+  separation, conflict visibility, authority limits, deterministic behavior,
+  and minimal scope.
+
+### Files modified
+
+- `apps/api/backend/ask/event_reconciliation.py`
+- `apps/api/backend/tests/test_ask_ai_event_reconciliation.py`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Initial focused characterization — failed at collection because the E6.4
+  module did not exist, proving the missing boundary before implementation.
+- Focused event-reconciliation suite — passed, 10 tests.
+- Affected event-reconciliation/timeline/live/provenance/knowledge-mode slice
+  — passed, 138 tests.
+- Ruff over the new module and focused tests with cache disabled — passed with
+  zero findings.
+- Python compile validation for the new module — passed.
+- `git diff --check` — passed; only configured Windows LF/CRLF notices were
+  emitted.
+- Static Agent OS compliance — active task, blocker linkage, documentation
+  integrity/synchronization, progress, hygiene, security, dependencies, and
+  recorded test execution passed. Only the unchanged repository baseline
+  failures for branch `ask-ai-review` and five frozen-file differences against
+  `origin/master` remain; E6.4 modified no frozen specification.
+
+### Problems encountered
+
+- The first fixture IDs used readable text where the existing Timeline Event
+  contract requires a 32-character hexadecimal digest. Fixtures were corrected
+  to deterministic SHA-256 identities; runtime policy was unchanged.
+- Task review found that a caller-supplied fingerprint could otherwise group
+  different event keys and that material-description conflicts exposed opaque
+  comparison fingerprints. Reconciliation now records event-identity conflict
+  explicitly and emits readable labels while retaining deterministic internal
+  comparison.
+
+### Next action
+
+Execute E7.7 Inline citation and evidence UI. E6.7 remains isolated behind
+B-019; B-016/B-017/B-018 remain scoped to their recorded tasks.
+
+---
+
+## 2026-08-01 — Iteration E7.7
+
+### Work completed
+
+- Added a strict citation-selection builder over existing E2/E7.6 frontend
+  contracts. It requires exact message version, citation, claim, and source
+  identity; grounded regulatory mode; official provenance; and identical
+  evidence/locator snapshots before rendering.
+- Added compact inline citation primitives with visible Supported, Partially
+  supported, Contradictory, Unverifiable, Verifying, or unavailable state.
+  Only terminally verified citations with a real handler become native buttons;
+  pending/unknown citations remain named and noninteractive.
+- Added an isolated responsive evidence panel that immediately presents the
+  saved source title, issuer, locator, claim, excerpt, retrieval/publication
+  metadata, and safe known action while current detail loads through the
+  existing E7.6 API contract.
+- Validated current detail against the exact selected message/version/citation/
+  claim/source identity before showing current, superseded, unclassified, or
+  not-applicable status. Failure and malformed/crossed payloads retain the
+  saved snapshot and display safe copy without raw error detail.
+- Added stale-load fencing, HTTPS-only external actions, optional real pin
+  handling, close-button focus, Escape handling, unique ARIA relationships,
+  focus-visible states, and single-column mobile presentation.
+- Added no route mounting, global workspace state, API contract, persistence,
+  migration, provider, flag, or legacy EvidenceDrawer change. Reviewer
+  confirmed support-state truthfulness, identity safety, accessibility,
+  progressive loading, failure isolation, and minimal scope.
+
+### Files modified
+
+- `apps/web/lib/ask-ai-turns.ts`
+- `apps/web/lib/ask-ai-citations.ts`
+- `apps/web/app/features/ask-ai/CitationEvidence.tsx`
+- `apps/web/app/features/ask-ai/CitationEvidence.test.tsx`
+- `apps/web/app/globals.css`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Initial focused characterization — failed because the E7.7 citation contract
+  and component did not exist, proving the missing UI boundary.
+- Focused CitationEvidence component/contract suite — passed, 9 tests.
+- Affected CitationEvidence/CoreCards/evidence-contract slice — passed, 23
+  tests across 3 files.
+- Frontend TypeScript validation with incremental output disabled — passed.
+- `git diff --check` — passed; only configured Windows LF/CRLF notices were
+  emitted.
+- Static Agent OS compliance — active task, blocker linkage, documentation
+  integrity/synchronization, progress, hygiene, security, dependencies, and
+  recorded test execution passed. Only the unchanged repository baseline
+  failures for branch `ask-ai-review` and five frozen-file differences against
+  `origin/master` remain; E7.7 modified no frozen specification.
+
+### Problems encountered
+
+- The sandbox could not write Vite's existing temporary configuration cache.
+  The same bounded Vitest commands were rerun with approved workspace cache
+  access; the initial permission failure is not counted as test evidence.
+- Task review identified hard-coded section-label IDs and the need to reject
+  non-HTTPS source actions. IDs now use React's stable unique ID boundary and
+  unsafe links render an explicit unavailable state without losing identity.
+
+### Next action
+
+Execute E8.3 Obligation/Deadline/Stakeholder cards. E6.7 remains isolated
+behind B-019; B-016/B-017/B-018 remain scoped to their recorded tasks.
+
+---
+
+## 2026-08-01 — Iteration E8.3
+
+### Work completed
+
+- Added strict immutable version-1 Pydantic payloads for Obligation, Deadline,
+  and Stakeholder cards and wired their semantic validation into the existing
+  E8.1 response envelope without altering its public taxonomy.
+- Added matching strict Zod payloads and frontend validation. Compliance cards
+  require grounded official-corpus provenance, explicit confidence, exact
+  envelope claim/source sets, unique citation/source pairs, and policy-owned
+  action sets.
+- Enforced truthful Ready, Partial, and `Not established` behavior. Complete
+  cards require citations and all required fields; Partial cards require both
+  citations and visible missing fields and cannot claim High confidence; a
+  not-established card cannot retain established facts, citations, envelope
+  references, entity identity, coverage, or elevated confidence.
+- Preserved every frozen Obligation field, Deadline field/status, and
+  Stakeholder role/impact/obligation/regulation/coverage field. Applicability
+  and entity targets are exact; deadline tracking remains visibly disabled as
+  a future-phase action.
+- Added isolated accessible responsive renderers with non-color state,
+  structured metadata, exact evidence markers, coverage-meter semantics, and
+  keyboard-native actions. Available actions render only when a real handler
+  is injected; disabled future tracking remains honest and visible.
+- Task review corrected frontend raw-array evidence comparison to match the
+  backend's exact set semantics, so multiple distinct official sources may
+  support one claim without accepting crossed or duplicate evidence.
+- Added no route mounting, API, persistence, migration, provider, rollout flag,
+  business-logic serving integration, or legacy Ask change. Reviewer confirmed
+  scope, correctness, security, compatibility, documentation, reviewability,
+  and minimality. E8.4 is now the highest-priority eligible task.
+
+### Files modified
+
+- `apps/api/backend/ask/compliance_cards.py`
+- `apps/api/backend/ask/response_contracts.py`
+- `apps/api/backend/tests/fixtures/ask_response_contract.json`
+- `apps/api/backend/tests/test_ask_ai_compliance_cards.py`
+- `apps/api/backend/tests/test_ask_ai_core_cards.py`
+- `apps/web/lib/ask-ai-compliance-cards.ts`
+- `apps/web/lib/ask-ai-response.ts`
+- `apps/web/app/features/ask-ai/ComplianceCards.tsx`
+- `apps/web/app/features/ask-ai/ComplianceCards.test.tsx`
+- `apps/web/app/globals.css`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused frontend compliance-card/response-contract suite — passed, 11 tests
+  across 2 files after the multi-source regression was added.
+- Affected frontend compliance/core/citation/response slice — passed, 30 tests
+  across 4 files.
+- Legacy Ask route/view compatibility slice with compliance contracts —
+  passed, 18 tests across 4 files.
+- Frontend TypeScript validation — passed with zero errors.
+- Focused and affected backend compliance/response/core-card slice — passed,
+  63 tests, including 10 focused E8.3 cases.
+- Ruff over the affected backend modules and tests — passed with zero findings.
+
+### Problems encountered
+
+- The restricted Windows sandbox could not write Vitest's existing
+  `node_modules/.vite-temp` configuration cache. The bounded test commands were
+  rerun with approved cache access; the permission error is not test evidence.
+- Task review found the frontend initially compared evidence arrays by raw
+  length while the backend correctly compared unique identity sets. The
+  frontend now uses exact set equality, and backend/frontend regression cases
+  cover one claim supported by two distinct official sources.
+
+### Next action
+
+Execute E8.4 Timeline/Amendment/Comparison/News/Related cards. E6.7 remains
+isolated behind B-019; B-016/B-017/B-018 remain scoped to their recorded tasks.
+
+---
+
+## 2026-08-01 — Iteration E8.4
+
+### Work completed
+
+- Added strict immutable version-1 Pydantic and matching Zod payloads for
+  Timeline Event, Amendment, Comparison, Live News, and Related Regulation
+  cards over the existing E8.1 envelope.
+- Bound each Timeline Event to exactly one provenance model. Official events
+  require official citations and inspect actions; live events require complete
+  publisher/source/publication/retrieval/badge/attribution/HTTPS identity, a
+  live-source action, and the explicit non-legal-force disclosure.
+- Added complete Amendment instrument/version/date/provision/stakeholder/
+  summary identity with exact evidence and stable compare targets. Partial
+  amendments retain evidence and named gaps and cannot claim High confidence.
+- Added dimension-based Comparison payloads with independent A/B values and
+  citations. Missing sides render `Not established`; evidence identity must
+  match the envelope, and one citation cannot be reused across both sides.
+- Added complete Live News source/freshness/relevance metadata with real source
+  navigation and exact official-basis lookup targets. Added cited Related
+  Regulation relationships with provenance, explanation, and canonical entity
+  navigation.
+- Added isolated responsive accessible renderers with non-color state,
+  keyboard-native real actions, safe live links, complete disclosure, and a
+  scroll-safe semantic comparison table. Unhandled available semantic actions
+  remain hidden rather than becoming fake controls.
+- Task review added disjoint comparison-side citation enforcement and a live-
+  origin timeline mutation spanning contract, envelope lane, disclosure, and
+  action behavior.
+- Added no route mounting, API, persistence, migration, provider, rollout flag,
+  or legacy-serving change. Reviewer confirmed scope, correctness, security,
+  compatibility, documentation, reviewability, and minimality. E8.5 is now the
+  highest-priority eligible task.
+
+### Files modified
+
+- `apps/api/backend/ask/change_cards.py`
+- `apps/api/backend/ask/response_contracts.py`
+- `apps/api/backend/tests/fixtures/ask_response_contract.json`
+- `apps/api/backend/tests/test_ask_ai_change_cards.py`
+- `apps/api/backend/tests/test_ask_ai_core_cards.py`
+- `apps/web/lib/ask-ai-change-cards.ts`
+- `apps/web/lib/ask-ai-response.ts`
+- `apps/web/app/features/ask-ai/ChangeCards.tsx`
+- `apps/web/app/features/ask-ai/ChangeCards.test.tsx`
+- `apps/web/app/globals.css`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused frontend ChangeCards/response-contract suite — passed, 14 tests
+  across 2 files.
+- Affected frontend change/compliance/core/response slice — passed, 30 tests
+  across 4 files.
+- Frontend TypeScript validation — passed with zero errors.
+- Focused backend change-card suite — passed, 12 tests.
+- Affected backend change/response/compliance/core/event/live slice — passed,
+  114 tests.
+- Ruff over affected backend modules and tests — passed with zero findings.
+
+### Problems encountered
+
+- Task review found that validating each comparison side independently did not
+  prevent one citation identity from being reused on both sides. Both runtimes
+  now require disjoint side citation IDs, with regression coverage.
+- The shared response fixture originally retained generic payloads and no
+  confidence for later E8.4 ownership. All five cards now carry exact strict
+  fields, evidence, lane, confidence, and action fixtures.
+
+### Next action
+
+Execute E8.5 Deterministic section merge. E6.7 remains isolated behind B-019;
+B-016/B-017/B-018 remain scoped to their recorded tasks.
+
+---
+
+## 2026-08-01 — Iteration E8.5
+
+### Work completed
+
+- Added a strict immutable version-1 merge request/result boundary over
+  already validated terminal E8 section contributions, with explicit atomic-
+  question identity/order and Decision blueprint order.
+- Grouped only within one atomic-question, logical-section, and provenance
+  lane. Output ordering uses question order, blueprint order, fixed official/
+  live/general lane precedence, and stable tie-breaks; shuffled input produces
+  byte-identical serialized results.
+- Added semantic card fingerprints that exclude output identity and normalize
+  local card/section action targets. Exact duplicates collapse while stable
+  SHA-256-derived output identities remain collision-safe and all action
+  targets are rebound to the final section/card identity.
+- Preserved same-ID/different-content card variants as separate cards with a
+  visible conflict gap. Conflicting titles and strategies are also explicit;
+  source/claim references, assumptions, gaps, and confidence reasons remain
+  deterministic instead of being silently averaged.
+- Kept same-key multi-part questions and cross-mode sections independently
+  recoverable with unique section identities/keys and pure provenance.
+- Ensured a cancelled, omitted, or otherwise unusable supporting contribution
+  cannot erase ready same-section content. The merged section becomes Degraded
+  with a visible gap, while ready sibling sections remain independently ready.
+- Preserved weakest confidence semantics, unknown future-card fallback, strict
+  duplicate/question-order refusal, and a compact recorded merge golden.
+- Added no frontend, route, API, persistence, migration, provider, rollout
+  flag, or legacy-serving change. Reviewer confirmed scope, correctness,
+  security, compatibility, documentation, reviewability, and minimality. E8.6
+  is now the highest-priority eligible task.
+
+### Files modified
+
+- `apps/api/backend/ask/response_merge.py`
+- `apps/api/backend/tests/fixtures/ask_response_merge_golden.json`
+- `apps/api/backend/tests/test_ask_ai_response_merge.py`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused deterministic merge/golden suite — passed, 12 tests.
+- Affected E8 merge/response/change/compliance/core-card slice — passed, 87
+  tests.
+- Ruff over the merge module and focused tests — passed with zero findings.
+
+### Problems encountered
+
+- Strict Python model validation initially received JSON-mode enum/list values
+  during intermediate assembly. Merge now builds with already validated domain
+  objects and then performs a full JSON round-trip through the public response
+  contract before returning.
+- Task review found that worst-terminal-state selection could let a cancelled
+  supporting contribution erase ready same-section content. Aggregate state
+  now preserves usable content as Degraded and records the incomplete support.
+- Task review also found identity-only action targets could prevent otherwise
+  exact cards from deduplicating. Fingerprints now normalize self-card and
+  source-section targets before comparison, with regression coverage.
+
+### Next action
+
+Execute E8.6 Follow-up Generator. E6.7 remains isolated behind B-019;
+B-016/B-017/B-018 remain scoped to their recorded tasks.
+
+---
+
+## 2026-08-01 — Iteration E8.6
+
+### Work completed
+
+- Added strict immutable version-1 follow-up request/result contracts over
+  resolved entity/document/jurisdiction/stakeholder/comparison/related scope,
+  completed intents, confidence, enumerated visible gaps and assumptions,
+  normalized prior questions/suggestions, capability eligibility, degraded
+  outcomes, and optional budget state.
+- Implemented the frozen deterministic selection order: resolve one material
+  gap, deepen official evidence, explore compliance impact, explore change over
+  time, follow a plausible related/comparison path, and add current
+  intelligence only when entity and capability eligibility are established.
+- Added explicit preview labels, expected response strategies, fresh-retrieval
+  decisions, stable suggestion IDs, and reasons that explain how each
+  suggestion advances research without exposing model introspection.
+- Excluded answered intents and normalized prior questions/suggestions.
+  Comparison requires a plausible distinct operand; live requires a resolved
+  entity; degraded optional capabilities cannot be presented as usable; scope
+  labels containing control characters fail closed.
+- Enforced below-High evidence deepening through an official-provision path
+  when retrieval is usable or manual official-document search after failure or
+  ineligibility. Retrieval failure never produces a false absence statement.
+- Mirrored every typed suggestion exactly into the existing Orchestrator
+  FollowUpCandidates artifact. Results contain three-to-five distinct question/
+  category directions or zero when the optional budget ends or safe diversity
+  is insufficient; `required_for_completion` is always false.
+- Added no route, provider, persistence, migration, frontend, rollout flag, or
+  current-turn content change. Reviewer confirmed scope, correctness, security,
+  compatibility, documentation, reviewability, and minimality. E8.7 is now the
+  highest-priority eligible task.
+
+### Files modified
+
+- `apps/api/backend/ask/follow_ups.py`
+- `apps/api/backend/tests/test_ask_ai_follow_ups.py`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused deterministic follow-up suite — passed, 15 tests.
+- Affected follow-up/merge/Orchestrator-contract slice — passed, 56 tests.
+- Ruff over the follow-up module and focused tests — passed with zero findings.
+
+### Problems encountered
+
+- Task review found that below-High confidence could lack evidence deepening
+  when official retrieval was ineligible. The generator now uses manual
+  official-document search in that case, preserving the frozen priority
+  without claiming a capability is available.
+- Task review also tightened canonical scope strings so control characters
+  cannot enter deterministic suggested questions.
+
+### Next action
+
+Execute E8.7 Compatibility rendering, then perform the mandatory Epic E8 full
+review. E6.7 remains isolated behind B-019; B-016/B-017/B-018 remain scoped to
+their recorded tasks.
+
+---
+
+## 2026-08-01 — Iteration E8.7
+
+### Work completed
+
+- Added a strict immutable version-1 compatibility-render request/result
+  boundary over the E8.5 structured response and explicit persisted citation
+  snapshots, without route, provider, persistence, or migration integration.
+- Derived the legacy Markdown reply deterministically from the compatibility
+  summary, structured live-source cards, General AI presence, degraded section
+  gaps, unknown future-card fallback, and the established legacy citation text
+  shape.
+- Kept live publisher/publication/retrieval/URL attribution in an explicitly
+  non-official lane and kept General AI visibly educational/non-official.
+- Admitted only supported or legacy-verified official citations whose source
+  and claim belong to a grounded section. Structured response source order
+  controls the flat list; repeat claims deduplicate by stable source identity.
+- Failed closed on duplicate citation identity, cross-lane source reuse,
+  unknown official claim/source references, conflicting source snapshots,
+  verified citations without evidence, and unsafe control characters.
+- Added an exact recorded legacy reply/flat-citation golden plus deterministic
+  ordering, filtering, deduplication, provenance, invalid-input, no-evidence,
+  and immutability tests. Reviewer confirmed scope, correctness, security,
+  compatibility, documentation, reviewability, and minimality.
+- Completed the mandatory Epic E8 full review. The complete backend and
+  frontend suites, Ruff, TypeScript, and production build pass. The compliance
+  framework's task/dependency/blocker/security/document synchronization and
+  test-execution checks pass; only the pre-existing disallowed branch and five
+  frozen-file diffs against `origin/master` remain as recorded baseline
+  failures.
+
+### Files modified
+
+- `apps/api/backend/ask/compatibility_rendering.py`
+- `apps/api/backend/tests/fixtures/ask_compatibility_rendering_golden.json`
+- `apps/api/backend/tests/test_ask_ai_compatibility_rendering.py`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/05_DECISIONS.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused E8.7 compatibility-rendering suite — passed, 12 tests.
+- Affected compatibility/legacy/merge/response/follow-up slice — passed, 83
+  tests with 1 PostgreSQL-environment skip.
+- Full backend suite — passed, 1,147 tests with 128 environment-gated skips.
+- Full frontend suite — passed, 191 tests across 30 files.
+- Full backend Ruff scan — passed with zero findings.
+- Frontend TypeScript typecheck — passed.
+- Frontend Vinext production build — passed.
+- Agent OS compliance framework — task/dependency/blocker/security/test-
+  execution checks pass; the known branch plus five frozen-diff baseline
+  findings remain.
+
+### Problems encountered
+
+- No implementation defect remained after task review. The repository-level
+  compliance report continues to identify only the inherited `ask-ai-review`
+  branch name and five frozen specifications already differing from
+  `origin/master`; E8.7 did not modify those files.
+
+### Next action
+
+Execute E10.9 Legacy synchronous adapter, the highest-priority dependency-
+eligible unblocked task. B-016/B-017/B-018/B-019 remain isolated to their
+recorded tasks.
+
+---
+
+## 2026-08-01 — Iteration E10.9
+
+### Work completed
+
+- Added an isolated async legacy synchronous service over the completed E10.2
+  durable execution coordinator and E8.7 compatibility renderer.
+- Bound coordinator execution and terminal artifact loading to the exact
+  run/session/owner. Crossed snapshot or artifact identity, missing output, and
+  malformed compatibility content fail closed before a legacy result exists.
+- Admitted Completed and policy-permitted Partial durable terminal results;
+  Cancelled, Failed, and nonterminal results produce fixed safe outcomes and
+  never invoke the artifact loader when no servable result exists.
+- Applied one positive outer deadline, capped at the approved B-007 30-second
+  Composite hard cutoff, across execution, artifact loading, validation, and
+  rendering. Worker leases cannot exceed the wait budget and coordinator steps
+  remain bounded.
+- Preserved caller cancellation and distinguished true outer deadline expiry
+  from an internal provider/storage `TimeoutError`, which remains a redacted
+  unavailable outcome.
+- Returned the unchanged legacy `ChatResponse` fields from the exact E8.7
+  projection: Markdown reply, event, model, intent, flat citations, and ordered
+  related questions. No route, persistence, migration, provider, frontend,
+  rollout flag, or serving default changed.
+- Task review removed an unsupported assumption that structured `response_id`
+  must equal the durable run UUID, tightened step-budget validation, and added
+  internal-timeout regression coverage. Reviewer confirmed scope,
+  correctness, security, compatibility, documentation, reviewability, and
+  minimality.
+
+### Files modified
+
+- `apps/api/backend/ask/legacy_synchronous.py`
+- `apps/api/backend/tests/test_ask_ai_legacy_synchronous.py`
+- `docs/ASK_AI/02_ARCHITECTURE.md`
+- `docs/ASK_AI/03_TASKS.md`
+- `docs/ASK_AI/04_CURRENT_STATE.md`
+- `docs/ASK_AI/05_DECISIONS.md`
+- `docs/ASK_AI/06_PROGRESS.md`
+- `docs/ASK_AI/07_TEST_PLAN.md`
+- `docs/ASK_AI/09_CHANGELOG.md`
+
+### Tests executed
+
+- Focused E10.9 timeout/equivalence/safety suite — passed, 16 tests.
+- Affected E10.2 execution/recovery/durability plus E8.7/E2.6 compatibility
+  slice — passed, 43 tests with 30 PostgreSQL-environment skips.
+- Ruff over the adapter and focused tests — passed with zero findings.
+
+### Problems encountered
+
+- Task review found that catching every `TimeoutError` as outer deadline expiry
+  could misclassify an internal provider timeout. The adapter now inspects the
+  deadline context's actual expiry state and safely classifies internal timeout
+  faults as unavailable.
+- Task review found no specification requiring the structured response ID to
+  equal the durable run UUID. Exact ownership remains enforced by the terminal
+  artifact's run/session/user identity, and the unsupported response-ID rule
+  was removed.
+
+### Next action
+
+Execute E9.4 Structured canvas, the earliest highest-priority dependency-
+eligible unblocked task. B-016/B-017/B-018/B-019 remain isolated to their
+recorded tasks.

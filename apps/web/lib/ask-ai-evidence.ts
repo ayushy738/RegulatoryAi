@@ -58,6 +58,64 @@ export const askMessageSourcesSchema = z.object({
   citations: z.array(askCitationSchema),
 });
 
+export const askVerifierIdentitySchema = z.object({
+  provider: z.string().min(1),
+  verifier_version: z.string().min(1),
+  model_version: z.string().min(1),
+  prompt_version: z.string().min(1),
+  policy_version: z.string().min(1),
+});
+
+export const askVerificationSummarySchema = z.object({
+  outcome: z.enum([
+    "supported",
+    "partial_support",
+    "contradiction",
+    "unknown",
+  ]),
+  confidence: z.number().min(0).max(1).nullable(),
+  publication_mode: z.enum(["grounded_prose", "evidence_only"]),
+  final_claim_text: z.string().min(1),
+  terminal_reason: z.string().regex(/^[A-Z][A-Z0-9_]{0,99}$/),
+  latency_ms: z.number().int().nonnegative(),
+  evidence_ids: z.array(z.string().min(1)),
+  correction_applied: z.boolean(),
+  verifier_identity: askVerifierIdentitySchema.nullable(),
+});
+
+export const askCitationDetailSchema = z.object({
+  schema_version: z.literal("1"),
+  message_id: z.uuid(),
+  response_version: z.number().int().positive(),
+  claim_id: z.uuid(),
+  claim_key: z.string().min(1),
+  claim_ordinal: z.number().int().nonnegative(),
+  claim_text: z.string().min(1),
+  support_status: z.string().min(1),
+  support_score: z.number().min(0).max(1).nullable(),
+  citation_id: z.uuid(),
+  evidence_key: z.string().min(1),
+  citation_ordinal: z.number().int().nonnegative(),
+  marker: z.string().nullable(),
+  verification_status: z.string().min(1),
+  verifier_provider: z.string().nullable(),
+  verifier_version: z.string().nullable(),
+  verifier_model: z.string().nullable(),
+  verifier_prompt_version: z.string().nullable(),
+  verifier_policy_version: z.string().nullable(),
+  verification_latency_ms: z.number().int().nonnegative().nullable(),
+  verification: askVerificationSummarySchema.nullable(),
+  provenance: jsonObjectSchema.nullable(),
+  confidence_result: jsonObjectSchema.nullable(),
+  source: askSourceSchema,
+  current_source_status: z.enum([
+    "current",
+    "superseded",
+    "available_unclassified",
+    "not_applicable",
+  ]),
+});
+
 export const askSavedItemTypeSchema = z.enum([
   "source",
   "citation",
@@ -94,6 +152,7 @@ export type AskFeedbackRequest = z.infer<typeof askFeedbackRequestSchema>;
 export type AskFeedback = z.infer<typeof askFeedbackSchema>;
 export type AskMessageEvidence = z.infer<typeof askMessageEvidenceSchema>;
 export type AskMessageSources = z.infer<typeof askMessageSourcesSchema>;
+export type AskCitationDetail = z.infer<typeof askCitationDetailSchema>;
 export type AskSavedItemCreateRequest = z.infer<
   typeof askSavedItemCreateRequestSchema
 >;

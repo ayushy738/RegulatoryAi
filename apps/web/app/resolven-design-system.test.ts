@@ -39,4 +39,13 @@ describe("Resolven presentation design system", () => {
     expect(designCss).toContain("@media (max-width: 640px)");
     expect(designCss).toContain("@media (prefers-reduced-motion: reduce)");
   });
+
+  it("keeps authentication surfaces legible and reachable across breakpoints", () => {
+    expect(designCss).toContain(".auth-premium-brand h1");
+    expect(designCss).toContain("color: #fff");
+    expect(designCss).toContain(".auth-premium-brand .auth-eyebrow");
+    expect(designCss).toContain("color: var(--brand-lime)");
+    expect(designCss).toContain(".auth-visualization {\n    display: none;");
+    expect(designCss).toContain(".auth-premium-panel {\n    padding: 22px 18px;");
+  });
 });

@@ -509,6 +509,18 @@ global client idempotency, owner FKs, linear-version constraints, and RLS make
 duplicate/concurrent requests deterministic without updating prior messages,
 runs, artifacts, feedback, or saved state.
 
+E10.9 adds an isolated synchronous compatibility boundary over E10.2 and
+E8.7. It awaits one exact owned durable run under a positive worker lease and
+the approved maximum 30-second outer budget, admits only Completed or Partial
+terminal snapshots, then loads an exact run/session/user-bound terminal
+artifact and returns the unchanged legacy `ChatResponse`. Cancellation,
+deadline expiry, failed/nonterminal runs, missing or crossed artifacts,
+malformed output, and execution/storage faults become fixed safe outcomes;
+caller cancellation still propagates. The outer deadline covers execution,
+artifact loading, validation, and rendering, and an internal provider timeout
+cannot masquerade as expiry of that deadline. This service is injected and is
+not imported by `/chat`, so v2 serving/cutover remains unchanged.
+
 E4.7 adds an isolated versioned shadow execution boundary over the completed
 E4.3 scheduler and E4.1–E4.6 contracts. A selected fixture supplies an
 immutable initial Orchestration State plus exact expected phase, terminal, and

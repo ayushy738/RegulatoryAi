@@ -143,6 +143,9 @@ export const askTurnListSchema = z.object({
 });
 
 export type AskMessage = z.infer<typeof askMessageSchema>;
+export type AskSource = z.infer<typeof askSourceSchema>;
+export type AskClaim = z.infer<typeof askClaimSchema>;
+export type AskCitation = z.infer<typeof askCitationSchema>;
 export type AskRun = z.infer<typeof askRunSchema>;
 export type AskTurn = z.infer<typeof askTurnSchema>;
 export type AskTurnList = z.infer<typeof askTurnListSchema>;
