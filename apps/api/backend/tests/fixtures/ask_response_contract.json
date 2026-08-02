@@ -1,0 +1,446 @@
+{
+  "schema_version": "1",
+  "policy_version": "ask-ai-response-contract-v1",
+  "response_id": "response-1",
+  "response_strategy": "research_report",
+  "sections": [
+    {
+      "schema_version": "1",
+      "section_id": "section-official",
+      "section_key": "official_findings",
+      "order": 0,
+      "strategy": "research_report",
+      "title": "Official findings",
+      "state": "ready",
+      "knowledge_mode": "grounded_regulatory",
+      "provenance_class": "internal_regulatory_corpus",
+      "confidence": {
+        "score": 92.5,
+        "label": "high",
+        "reasons": ["Current official evidence covers the material claims."]
+      },
+      "claim_ids": ["claim-1", "claim-2"],
+      "source_ids": ["source-1", "source-2"],
+      "assumptions": [],
+      "gaps": ["Implementation guidance was not established."],
+      "cards": [
+        {
+          "schema_version": "1",
+          "card_id": "card-summary",
+          "order": 0,
+          "card_type": "answer_summary",
+          "known_type": "answer_summary",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Answer summary",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 92.5, "label": "high", "reasons": []},
+          "claim_ids": ["claim-1"],
+          "source_ids": ["source-1"],
+          "actions": [],
+          "payload": {
+            "schema_version": "1",
+            "direct_answer": "The filing obligation is in force.",
+            "why_it_matters": {
+              "state": "established",
+              "value": "Regulated entities must account for the operative filing requirement."
+            },
+            "unresolved_assumptions": [],
+            "source_count": 1
+          }
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-definition",
+          "order": 1,
+          "card_type": "definition",
+          "known_type": "definition",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Definition",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {
+            "score": 92.5,
+            "label": "high",
+            "reasons": ["The official definition is directly supported."]
+          },
+          "claim_ids": ["claim-1"],
+          "source_ids": ["source-1"],
+          "actions": [],
+          "payload": {
+            "schema_version": "1",
+            "term": "regulated entity",
+            "official_definition": {
+              "state": "established",
+              "value": "An entity subject to the instrument's filing requirement."
+            },
+            "plain_language_explanation": "An organization that must follow the filing rule.",
+            "acronym_expansion": {
+              "state": "not_established",
+              "value": null
+            },
+            "common_confusion": {
+              "state": "established",
+              "value": "The term does not automatically include every market participant."
+            },
+            "official_source_label": {
+              "state": "established",
+              "value": "Regulatory Filing Instrument, section 4"
+            }
+          }
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-source",
+          "order": 2,
+          "card_type": "official_source",
+          "known_type": "official_source",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Official source",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": null,
+          "claim_ids": ["claim-1"],
+          "source_ids": ["source-1"],
+          "actions": [
+            {"action": "open_source", "state": "available", "target": "source-1", "disabled_reason_code": null},
+            {"action": "save", "state": "available", "target": "source-1", "disabled_reason_code": null},
+            {"action": "compare", "state": "disabled", "target": null, "disabled_reason_code": "ACTION_NOT_IMPLEMENTED"}
+          ],
+          "payload": {
+            "schema_version": "1",
+            "source_id": "source-1",
+            "document_title": "Regulatory Filing Instrument",
+            "issuer": "Central Regulatory Commission",
+            "document_type": "Regulation",
+            "issue_date": {
+              "state": "established",
+              "value": "2026-06-15"
+            },
+            "effective_date": {
+              "state": "established",
+              "value": "2026-07-01"
+            },
+            "current_status": "in_force",
+            "cited_locator": "section 4",
+            "excerpt": "Every regulated entity must submit the prescribed filing.",
+            "relationship": "Directly establishes the filing claim."
+          }
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-obligation",
+          "order": 3,
+          "card_type": "obligation",
+          "known_type": "obligation",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Obligation",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 82, "label": "high", "reasons": ["The obligation is supported by an official provision."]},
+          "claim_ids": ["claim-1"],
+          "source_ids": ["source-1"],
+          "actions": [
+            {"action": "inspect_evidence", "state": "available", "target": "citation-1", "disabled_reason_code": null},
+            {"action": "check_applicability", "state": "available", "target": "claim-1", "disabled_reason_code": null}
+          ],
+          "payload": {
+            "schema_version": "1",
+            "responsible_party": {"state": "established", "value": "Regulated entity"},
+            "required_action": {"state": "established", "value": "Submit the prescribed filing"},
+            "timing_or_frequency": {"state": "established", "value": "Monthly"},
+            "trigger_or_scope": {"state": "established", "value": "When the entity participates in the regulated market"},
+            "jurisdiction": {"state": "established", "value": "Central"},
+            "official_basis": {"state": "established", "value": "Regulatory Filing Instrument, paragraph 4"},
+            "evidence_references": [{"citation_id": "citation-1", "claim_id": "claim-1", "source_id": "source-1", "marker": "[1]", "locator": {"state": "established", "value": "paragraph 4"}}]
+          }
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-deadline",
+          "order": 4,
+          "card_type": "deadline",
+          "known_type": "deadline",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Deadline",
+          "state": "not_established",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 0, "label": "unknown", "reasons": ["No inspectable deadline basis."]},
+          "claim_ids": [],
+          "source_ids": [],
+          "actions": [
+            {"action": "inspect_evidence", "state": "disabled", "target": null, "disabled_reason_code": "CITATION_NOT_ESTABLISHED"},
+            {"action": "add_to_tracker", "state": "disabled", "target": null, "disabled_reason_code": "FUTURE_PHASE"}
+          ],
+          "payload": {"schema_version": "1", "date": {"state": "not_established", "value": null}, "deadline_type": {"state": "not_established", "value": null}, "responsible_stakeholder": {"state": "not_established", "value": null}, "status": "unverified", "source_label": {"state": "not_established", "value": null}, "evidence_references": []}
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-timeline",
+          "order": 5,
+          "card_type": "timeline_event",
+          "known_type": "timeline_event",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Timeline event",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 78, "label": "medium", "reasons": ["The event date and significance are supported by an official instrument."]},
+          "claim_ids": ["claim-2"],
+          "source_ids": ["source-2"],
+          "actions": [{"action": "inspect_evidence", "state": "available", "target": "citation-2", "disabled_reason_code": null}],
+          "payload": {"schema_version": "1", "date": {"state": "established", "value": "2026-07-01"}, "event_type": {"state": "established", "value": "Effective"}, "event_title": {"state": "established", "value": "Revised filing rule became effective"}, "significance": {"state": "established", "value": "The revised monthly filing scope applies from this date."}, "origin": "official", "source_label": {"state": "established", "value": "Amending Filing Instrument"}, "related_prior_event_id": "event-issued", "related_next_event_id": null, "official_evidence_references": [{"citation_id": "citation-2", "claim_id": "claim-2", "source_id": "source-2", "marker": "[2]", "locator": {"state": "established", "value": "commencement clause"}}], "live_source": null}
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-amendment",
+          "order": 6,
+          "card_type": "amendment",
+          "known_type": "amendment",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Amendment",
+          "state": "partial",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 72, "label": "medium", "reasons": ["The amendment relationship is official; the effective date remains unresolved."]},
+          "claim_ids": ["claim-2"],
+          "source_ids": ["source-1", "source-2"],
+          "actions": [
+            {"action": "inspect_evidence", "state": "available", "target": "citation-2", "disabled_reason_code": null},
+            {"action": "compare", "state": "available", "target": "source-1:source-2", "disabled_reason_code": null}
+          ],
+          "payload": {"schema_version": "1", "amending_instrument": {"state": "established", "value": "Amending Filing Instrument"}, "amended_instrument": {"state": "established", "value": "Regulatory Filing Instrument"}, "issue_date": {"state": "established", "value": "2026-06-01"}, "effective_date": {"state": "not_established", "value": null}, "provisions_affected": ["paragraph 4"], "change_summary": {"state": "established", "value": "The filing scope changed."}, "stakeholders_affected": ["Regulated entities"], "amending_source_id": "source-1", "amended_source_id": "source-2", "evidence_references": [{"citation_id": "citation-amending", "claim_id": "claim-2", "source_id": "source-1", "marker": "[2a]", "locator": {"state": "established", "value": "amending clause"}}, {"citation_id": "citation-2", "claim_id": "claim-2", "source_id": "source-2", "marker": "[2]", "locator": {"state": "established", "value": "paragraph 4"}}]}
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-comparison",
+          "order": 7,
+          "card_type": "comparison",
+          "known_type": "comparison",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Comparison",
+          "state": "partial",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 58, "label": "low", "reasons": ["Only side A has official evidence for this dimension."]},
+          "claim_ids": ["claim-1"],
+          "source_ids": ["source-1"],
+          "actions": [{"action": "inspect_evidence", "state": "available", "target": "citation-1", "disabled_reason_code": null}],
+          "payload": {"schema_version": "1", "side_a_label": "Current instrument", "side_b_label": "Prior instrument", "dimensions": [{"dimension": "Filing scope", "side_a": {"state": "established", "value": "Monthly regulated-market participants"}, "side_b": {"state": "not_established", "value": null}, "relationship_or_difference": {"state": "not_established", "value": null}, "side_a_evidence_references": [{"citation_id": "citation-1", "claim_id": "claim-1", "source_id": "source-1", "marker": "[1]", "locator": {"state": "established", "value": "paragraph 4"}}], "side_b_evidence_references": []}]}
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-stakeholder",
+          "order": 8,
+          "card_type": "stakeholder",
+          "known_type": "stakeholder",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Stakeholder",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 75, "label": "medium", "reasons": ["The stakeholder impact is supported by one official source."]},
+          "claim_ids": ["claim-1"],
+          "source_ids": ["source-1"],
+          "actions": [
+            {"action": "inspect_evidence", "state": "available", "target": "citation-1", "disabled_reason_code": null},
+            {"action": "open_entity", "state": "available", "target": "entity-1", "disabled_reason_code": null}
+          ],
+          "payload": {"schema_version": "1", "stakeholder": {"state": "established", "value": "Regulated entity"}, "stakeholder_entity_id": "entity-1", "role": {"state": "established", "value": "Filing party"}, "impact": {"state": "established", "value": "Must maintain monthly compliance records"}, "obligations": ["Submit the prescribed filing"], "relevant_regulations": ["Regulatory Filing Instrument"], "jurisdiction": {"state": "established", "value": "Central"}, "evidence_coverage_percent": 75, "evidence_references": [{"citation_id": "citation-1", "claim_id": "claim-1", "source_id": "source-1", "marker": "[1]", "locator": {"state": "established", "value": "paragraph 4"}}]}
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-related",
+          "order": 9,
+          "card_type": "related_regulation",
+          "known_type": "related_regulation",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Related regulation",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {"score": 84, "label": "high", "reasons": ["The relationship is established by official graph and source evidence."]},
+          "claim_ids": ["claim-2"],
+          "source_ids": ["source-2"],
+          "actions": [{"action": "inspect_evidence", "state": "available", "target": "citation-2", "disabled_reason_code": null}, {"action": "open_entity", "state": "available", "target": "entity-2", "disabled_reason_code": null}],
+          "payload": {"schema_version": "1", "related_entity_or_document": {"state": "established", "value": "Amending Filing Instrument"}, "related_entity_id": "entity-2", "relationship_type": {"state": "established", "value": "Amends"}, "explanation": {"state": "established", "value": "This instrument revises paragraph 4 of the filing instrument."}, "provenance_label": {"state": "established", "value": "Official Regulatory Corpus"}, "evidence_references": [{"citation_id": "citation-2", "claim_id": "claim-2", "source_id": "source-2", "marker": "[2]", "locator": {"state": "established", "value": "paragraph 4"}}]}
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-confidence",
+          "order": 10,
+          "card_type": "confidence_coverage",
+          "known_type": "confidence_coverage",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Confidence and coverage",
+          "state": "ready",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": {
+            "score": 92.5,
+            "label": "high",
+            "reasons": ["Two current official sources support the material claims."]
+          },
+          "claim_ids": ["claim-1", "claim-2"],
+          "source_ids": ["source-1", "source-2"],
+          "actions": [
+            {"action": "inspect_evidence", "state": "available", "target": "section-official", "disabled_reason_code": null}
+          ],
+          "payload": {
+            "schema_version": "1",
+            "modes_used": ["grounded_regulatory"],
+            "coverage_percent": 92.5,
+            "official_documents_found": 2,
+            "live_sources_found": 0,
+            "reasons": [
+              {
+                "kind": "evidence",
+                "text": "Two current official sources support the material claims."
+              }
+            ],
+            "unsupported_or_inferred_areas": [
+              "Implementation guidance was not established."
+            ],
+            "corpus_freshness": {
+              "state": "established",
+              "value": "Official corpus checked through 18 July 2026."
+            },
+            "what_would_improve_confidence": [
+              "Add current implementation guidance from the issuing regulator."
+            ]
+          }
+        },
+        {
+          "schema_version": "1",
+          "card_id": "card-future",
+          "order": 11,
+          "card_type": "regulatory_heatmap",
+          "known_type": null,
+          "rendering": "unknown_fallback",
+          "fallback_title": "Unsupported card",
+          "title": "Regulatory heatmap",
+          "state": "unavailable",
+          "knowledge_mode": "grounded_regulatory",
+          "provenance_class": "internal_regulatory_corpus",
+          "confidence": null,
+          "claim_ids": [],
+          "source_ids": [],
+          "actions": [],
+          "payload": {"regions": ["north", "south"]}
+        }
+      ]
+    },
+    {
+      "schema_version": "1",
+      "section_id": "section-live",
+      "section_key": "live_updates",
+      "order": 1,
+      "strategy": "latest_intelligence",
+      "title": "Live updates",
+      "state": "degraded",
+      "knowledge_mode": "live_intelligence",
+      "provenance_class": "live_web_sources",
+      "confidence": {"score": 68, "label": "medium", "reasons": ["Credible reporting is not operative law."]},
+      "claim_ids": ["claim-live"],
+      "source_ids": ["source-live"],
+      "assumptions": [],
+      "gaps": ["Official confirmation is pending."],
+      "cards": [
+        {
+          "schema_version": "1",
+          "card_id": "card-live",
+          "order": 0,
+          "card_type": "live_news",
+          "known_type": "live_news",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "Live news",
+          "state": "ready",
+          "knowledge_mode": "live_intelligence",
+          "provenance_class": "live_web_sources",
+          "confidence": {"score": 68, "label": "medium", "reasons": []},
+          "claim_ids": ["claim-live"],
+          "source_ids": ["source-live"],
+          "actions": [
+            {"action": "open_source", "state": "available", "target": "https://regulator.example/consultation", "disabled_reason_code": null},
+            {"action": "find_official_basis", "state": "available", "target": "claim-live", "disabled_reason_code": null}
+          ],
+          "payload": {"schema_version": "1", "headline": "Regulator announces consultation.", "relevance_explanation": "The consultation may affect the filing scope but does not establish legal status.", "live_source": {"claim_id": "claim-live", "source_id": "source-live", "publisher": "Regulator Newsroom", "source_type": "Official newsroom", "publication_at": "2026-07-31T10:00:00+05:30", "retrieved_at": "2026-07-31T10:05:00+05:30", "ui_badge": "Official live source", "attribution": "Regulator Newsroom", "url": "https://regulator.example/consultation"}}
+        }
+      ]
+    },
+    {
+      "schema_version": "1",
+      "section_id": "section-general",
+      "section_key": "general_orientation",
+      "order": 2,
+      "strategy": "conversation",
+      "title": "General orientation",
+      "state": "ready",
+      "knowledge_mode": "general_ai",
+      "provenance_class": "general_ai_knowledge",
+      "confidence": {"score": 76, "label": "medium", "reasons": ["General AI is capped at Medium."]},
+      "claim_ids": [],
+      "source_ids": [],
+      "assumptions": ["The question requests general educational context."],
+      "gaps": [],
+      "cards": [
+        {
+          "schema_version": "1",
+          "card_id": "card-general",
+          "order": 0,
+          "card_type": "answer_summary",
+          "known_type": "answer_summary",
+          "rendering": "known",
+          "fallback_title": null,
+          "title": "General orientation",
+          "state": "ready",
+          "knowledge_mode": "general_ai",
+          "provenance_class": "general_ai_knowledge",
+          "confidence": {"score": 76, "label": "medium", "reasons": []},
+          "claim_ids": [],
+          "source_ids": [],
+          "actions": [
+            {"action": "ask_follow_up", "state": "available", "target": "Explain the concept generally", "disabled_reason_code": null}
+          ],
+          "payload": {
+            "schema_version": "1",
+            "direct_answer": "General educational context without source identity.",
+            "why_it_matters": {
+              "state": "established",
+              "value": "This provides orientation while preserving the lack of official evidence."
+            },
+            "unresolved_assumptions": [
+              "The question requests general educational context."
+            ],
+            "source_count": 0
+          }
+        }
+      ]
+    }
+  ],
+  "overall_confidence": {
+    "score": 84,
+    "label": "high",
+    "reasons": ["The critical official section is strongly grounded."]
+  },
+  "compatibility_summary": "The filing obligation is in force. A related consultation is live, but official confirmation is pending.",
+  "assumptions": [],
+  "gaps": ["Implementation guidance was not established."]
+}

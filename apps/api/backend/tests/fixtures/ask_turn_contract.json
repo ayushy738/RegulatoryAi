@@ -1,0 +1,155 @@
+{
+  "message_response": {
+    "schema_version": "1",
+    "id": "33333333-3333-4333-8333-333333333333",
+    "event_id": 41,
+    "role": "user",
+    "content": "What changed?",
+    "created_at": "2026-07-27T09:00:00Z"
+  },
+  "turn_list_response": {
+    "schema_version": "1",
+    "items": [
+      {
+        "schema_version": "1",
+        "id": "33333333-3333-4333-8333-333333333333",
+        "user_message": {
+          "schema_version": "1",
+          "id": "33333333-3333-4333-8333-333333333333",
+          "event_id": 41,
+          "role": "user",
+          "content": "What changed?",
+          "created_at": "2026-07-27T09:00:00Z"
+        },
+        "assistant_message": {
+          "schema_version": "1",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "event_id": 41,
+          "role": "assistant",
+          "content": "The consultation deadline changed.",
+          "created_at": "2026-07-27T09:00:01Z"
+        },
+        "run": {
+          "schema_version": "1",
+          "id": "55555555-5555-4555-8555-555555555555",
+          "status": "completed",
+          "knowledge_mode_summary": {
+            "live": true
+          },
+          "model": "contract-model",
+          "policy_version": "policy-1",
+          "prompt_version": "prompt-1",
+          "general_ai_disclosure": null,
+          "safe_error_code": null,
+          "safe_error_message": null,
+          "started_at": "2026-07-27T09:00:00Z",
+          "completed_at": "2026-07-27T09:00:02Z",
+          "created_at": "2026-07-27T09:00:00Z",
+          "updated_at": "2026-07-27T09:00:02Z",
+          "sections": [
+            {
+              "id": "66666666-6666-4666-8666-666666666666",
+              "response_version": 1,
+              "ordinal": 0,
+              "section_type": "latest_update",
+              "status": "completed",
+              "knowledge_mode": "live",
+              "provenance_label": "Live Web Sources",
+              "title": "Latest update",
+              "plain_text": "The deadline moved to 31 August.",
+              "content": {
+                "deadline": "2026-08-31"
+              },
+              "card_schema_version": "1",
+              "model": "contract-model",
+              "policy_version": "policy-1",
+              "prompt_version": "prompt-1",
+              "required_disclosure": null,
+              "created_at": "2026-07-27T09:00:01Z",
+              "updated_at": "2026-07-27T09:00:02Z"
+            }
+          ],
+          "sources": [
+            {
+              "id": "77777777-7777-4777-8777-777777777777",
+              "ordinal": 0,
+              "source_key": "live:consultation",
+              "source_class": "live",
+              "source_type": "news",
+              "document_id": null,
+              "document_version_id": null,
+              "chunk_id": null,
+              "graph_reference": null,
+              "title_snapshot": "Consultation update",
+              "url_snapshot": "https://example.test/consultation",
+              "issuer_snapshot": null,
+              "publisher_snapshot": "Regulatory Bulletin",
+              "jurisdiction_snapshot": "central",
+              "published_at": "2026-07-27T08:30:00Z",
+              "retrieved_at": "2026-07-27T09:00:00Z",
+              "evidence_snapshot": "Responses are due by 31 August.",
+              "locator_snapshot": "paragraph 4",
+              "content_hash": "sha256:contract",
+              "metadata": {
+                "language": "en"
+              },
+              "created_at": "2026-07-27T09:00:01Z"
+            }
+          ],
+          "claims": [
+            {
+              "id": "88888888-8888-4888-8888-888888888888",
+              "section_id": "66666666-6666-4666-8666-666666666666",
+              "ordinal": 0,
+              "knowledge_mode": "live",
+              "claim_text": "The deadline moved to 31 August.",
+              "is_material": true,
+              "support_status": "supported",
+              "support_score": 0.98,
+              "model": "contract-model",
+              "policy_version": "policy-1",
+              "prompt_version": "prompt-1",
+              "required_disclosure": null,
+              "verifier_model": "verifier-model",
+              "verifier_policy_version": "verify-1",
+              "created_at": "2026-07-27T09:00:01Z"
+            }
+          ],
+          "citations": [
+            {
+              "id": "99999999-9999-4999-8999-999999999999",
+              "claim_id": "88888888-8888-4888-8888-888888888888",
+              "source_id": "77777777-7777-4777-8777-777777777777",
+              "ordinal": 0,
+              "claim_knowledge_mode": "live",
+              "source_class": "live",
+              "citation_kind": "live_source_link",
+              "marker": "[Live 1]",
+              "evidence_snapshot": "Responses are due by 31 August.",
+              "locator_snapshot": "paragraph 4",
+              "support_score": 0.98,
+              "verification_status": "verified",
+              "verifier_model": "verifier-model",
+              "verifier_policy_version": "verify-1",
+              "created_at": "2026-07-27T09:00:01Z"
+            }
+          ],
+          "followups": [
+            {
+              "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "ordinal": 0,
+              "label": "Check applicability",
+              "question": "Who must respond?",
+              "action_type": "ask",
+              "payload": {
+                "entity": "CERC"
+              },
+              "created_at": "2026-07-27T09:00:02Z"
+            }
+          ]
+        }
+      }
+    ],
+    "next_cursor": null
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "section_keys": [
+    "official_findings",
+    "live_updates",
+    "general_orientation"
+  ],
+  "section_modes": [
+    "grounded_regulatory",
+    "live_intelligence",
+    "general_ai"
+  ],
+  "section_states": [
+    "ready",
+    "degraded",
+    "ready"
+  ],
+  "card_types": [
+    [
+      "answer_summary",
+      "definition",
+      "official_source",
+      "obligation",
+      "deadline",
+      "timeline_event",
+      "amendment",
+      "comparison",
+      "stakeholder",
+      "related_regulation",
+      "confidence_coverage",
+      "regulatory_heatmap"
+    ],
+    ["live_news"],
+    ["answer_summary"]
+  ],
+  "card_counts": [12, 1, 1],
+  "exact_duplicate_count": 0,
+  "conflict_count": 0,
+  "conflict_kinds": []
+}

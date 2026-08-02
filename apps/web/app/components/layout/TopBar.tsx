@@ -79,6 +79,7 @@ function classifyEvent(title: string, tags: string[], summary: string): Notifica
 export function TopBar() {
   const {
     route,
+    v2AskEnabled,
     query,
     setQuery,
     pipelineStatus,
@@ -202,6 +203,15 @@ export function TopBar() {
               {item.label}
             </Link>
           ))}
+          {v2AskEnabled ? (
+            <Link
+              className={route === "browse" ? "active" : ""}
+              href="/browse"
+              onClick={() => setNavOpen(false)}
+            >
+              Documents
+            </Link>
+          ) : null}
         </nav>
 
         <div className="product-topnav-right">

@@ -1,0 +1,229 @@
+{
+  "schema_version": "1",
+  "policy_version": "ask-ai-decision-v1",
+  "entities": [
+    {
+      "canonical_id": "in.central.dsm",
+      "canonical_name": "Deviation Settlement Mechanism",
+      "entity_class": "regulatory_concept",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "DSM",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        },
+        {
+          "value": "Unscheduled Interchange",
+          "kind": "former_name",
+          "jurisdiction": "India/Central"
+        },
+        {
+          "value": "Deviation Settlement Mechanism Regulations",
+          "kind": "regulation_family",
+          "jurisdiction": "India/Central"
+        },
+        {
+          "value": "CERC",
+          "kind": "regulator_association",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [
+        {
+          "term": "deviation settlement",
+          "definition": "A regulatory mechanism represented by the canonical DSM entity.",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "workspace_priority": 90,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:dsm"
+    },
+    {
+      "canonical_id": "in.central.abt",
+      "canonical_name": "Availability Based Tariff",
+      "entity_class": "regulatory_concept",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "ABT",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 80,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:abt"
+    },
+    {
+      "canonical_id": "in.central.rec",
+      "canonical_name": "Renewable Energy Certificate",
+      "entity_class": "scheme_or_policy",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "REC",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        },
+        {
+          "value": "Renewable Energy Certificates",
+          "kind": "approved_alias",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 80,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:rec"
+    },
+    {
+      "canonical_id": "in.central.rpo",
+      "canonical_name": "Renewable Purchase Obligation",
+      "entity_class": "obligation",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "RPO",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 80,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:rpo"
+    },
+    {
+      "canonical_id": "in.central.cerc",
+      "canonical_name": "Central Electricity Regulatory Commission",
+      "entity_class": "regulator",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "CERC",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 90,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:cerc"
+    },
+    {
+      "canonical_id": "in.central.mnre",
+      "canonical_name": "Ministry of New and Renewable Energy",
+      "entity_class": "regulator",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "MNRE",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 90,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:mnre"
+    },
+    {
+      "canonical_id": "in.central.green-hydrogen-mission",
+      "canonical_name": "National Green Hydrogen Mission",
+      "entity_class": "scheme_or_policy",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "Green Hydrogen",
+          "kind": "approved_alias",
+          "jurisdiction": "India/Central"
+        },
+        {
+          "value": "NGHM",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 75,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:green-hydrogen"
+    },
+    {
+      "canonical_id": "in.central.tariff-policy-2016",
+      "canonical_name": "Tariff Policy, 2016",
+      "entity_class": "scheme_or_policy",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "Tariff Policy",
+          "kind": "approved_alias",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 75,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:tariff-policy"
+    },
+    {
+      "canonical_id": "in.central.electricity-act-2003",
+      "canonical_name": "Electricity Act, 2003",
+      "entity_class": "legal_instrument",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "Electricity Act",
+          "kind": "approved_alias",
+          "jurisdiction": "India/Central"
+        },
+        {
+          "value": "EA 2003",
+          "kind": "approved_alias",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 90,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:electricity-act"
+    },
+    {
+      "canonical_id": "test.fixture.arc-alpha",
+      "canonical_name": "Fixture Alpha Regulatory Code",
+      "entity_class": "regulatory_concept",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "ARC",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 50,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:synthetic-ambiguity-alpha"
+    },
+    {
+      "canonical_id": "test.fixture.arc-beta",
+      "canonical_name": "Fixture Alternative Regulatory Code",
+      "entity_class": "regulatory_concept",
+      "jurisdiction": "India/Central",
+      "aliases": [
+        {
+          "value": "ARC",
+          "kind": "acronym",
+          "jurisdiction": "India/Central"
+        }
+      ],
+      "glossary_terms": [],
+      "workspace_priority": 50,
+      "provenance_kind": "curated_catalog",
+      "provenance_ref": "agent-os:E3.3:synthetic-ambiguity-beta"
+    }
+  ]
+}

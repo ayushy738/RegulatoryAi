@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     rag_context_token_limit: int = 6500
     rag_top_k: int = 15
 
+    ask_ai_v2_write_enabled: bool = False
+    ask_ai_v2_api_enabled: bool = False
+    ask_ai_decision_engine_enabled: bool = False
+    ask_ai_orchestrator_enabled: bool = False
+    ask_ai_general_mode_enabled: bool = False
+    ask_ai_live_mode_enabled: bool = False
+    ask_ai_verification_enabled: bool = False
+    ask_ai_streaming_enabled: bool = False
+    ask_ai_v2_ui_enabled: bool = False
+
     email_provider: Literal["resend", "postmark", "ses", "offline"] = "offline"
     email_api_key: str | None = None
     email_from: str = "Resolven Regulatory AI <updates@example.com>"

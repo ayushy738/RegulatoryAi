@@ -1,0 +1,540 @@
+{
+  "schema_version": "1",
+  "policy_version": "ask-ai-decision-v1",
+  "cases": [
+    {
+      "query": "DSM",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "entity_lookup",
+          "exact_match": true,
+          "has_resolved_entity": true,
+          "has_term_like_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "fast_exact",
+        "response_strategy": "entity_intelligence_page",
+        "selected": {
+          "glossary": "supporting",
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "supporting",
+          "knowledge_graph": "required",
+          "version_lineage": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": ["live_news", "conversation_context"]
+      }
+    },
+    {
+      "query": "What is DSM?",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "definition",
+          "exact_match": true,
+          "has_resolved_entity": true,
+          "has_term_like_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "fast_exact",
+        "response_strategy": "definition_card",
+        "selected": {
+          "glossary": "required",
+          "entity_index": "supporting",
+          "internal_document_search": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": [
+          "document_metadata",
+          "knowledge_graph",
+          "version_lineage",
+          "live_news",
+          "conversation_context"
+        ]
+      }
+    },
+    {
+      "query": "Latest DSM",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "news",
+          "live_eligible": true,
+          "current_intelligence_requested": true,
+          "has_resolved_entity": true,
+          "has_term_like_entity": true,
+          "version_change": true
+        }
+      ],
+      "expected": {
+        "plan_class": "live_combined",
+        "response_strategy": "latest_intelligence",
+        "selected": {
+          "glossary": "supporting",
+          "entity_index": "required",
+          "internal_document_search": "supporting",
+          "document_metadata": "supporting",
+          "knowledge_graph": "supporting",
+          "version_lineage": "supporting",
+          "live_news": "required",
+          "general_ai": "conditional"
+        },
+        "skipped": ["conversation_context"]
+      }
+    },
+    {
+      "query": "DSM amendment",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "amendment",
+          "has_resolved_entity": true,
+          "has_document_target": true,
+          "version_change": true
+        }
+      ],
+      "expected": {
+        "plan_class": "deep_research",
+        "response_strategy": "amendment_cards",
+        "selected": {
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "required",
+          "knowledge_graph": "supporting",
+          "version_lineage": "required",
+          "general_ai": "conditional"
+        },
+        "skipped": ["glossary", "live_news", "conversation_context"]
+      }
+    },
+    {
+      "query": "DSM consultation",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "consultation",
+          "live_eligible": true,
+          "current_intelligence_requested": true,
+          "has_resolved_entity": true,
+          "has_document_target": true
+        }
+      ],
+      "expected": {
+        "plan_class": "live_combined",
+        "response_strategy": "consultation_deadline_cards",
+        "selected": {
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "required",
+          "knowledge_graph": "supporting",
+          "version_lineage": "supporting",
+          "live_news": "required",
+          "general_ai": "conditional"
+        },
+        "skipped": ["glossary", "conversation_context"]
+      }
+    },
+    {
+      "query": "Compare DSM and ABT",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "comparison",
+          "has_resolved_entity": true,
+          "has_term_like_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "deep_research",
+        "response_strategy": "comparison_table",
+        "selected": {
+          "glossary": "supporting",
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "supporting",
+          "knowledge_graph": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": [
+          "version_lineage",
+          "live_news",
+          "conversation_context"
+        ]
+      }
+    },
+    {
+      "query": "Who regulates DSM?",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "stakeholder",
+          "subtypes": ["regulator_lookup"],
+          "has_resolved_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "focused_grounded",
+        "response_strategy": "stakeholder_cards",
+        "selected": {
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "knowledge_graph": "required",
+          "general_ai": "conditional"
+        },
+        "skipped": [
+          "glossary",
+          "document_metadata",
+          "version_lineage",
+          "live_news",
+          "conversation_context"
+        ]
+      }
+    },
+    {
+      "query": "DSM timeline",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "timeline",
+          "historical_scope": true,
+          "has_resolved_entity": true,
+          "version_change": true
+        }
+      ],
+      "expected": {
+        "plan_class": "deep_research",
+        "response_strategy": "timeline",
+        "selected": {
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "supporting",
+          "knowledge_graph": "required",
+          "version_lineage": "required",
+          "general_ai": "conditional"
+        },
+        "skipped": ["glossary", "live_news", "conversation_context"]
+      }
+    },
+    {
+      "query": "Explain DSM to a beginner",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "definition",
+          "subtypes": ["beginner_explanation"],
+          "exact_match": true,
+          "has_resolved_entity": true,
+          "has_term_like_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "fast_exact",
+        "response_strategy": "definition_card",
+        "selected": {
+          "glossary": "required",
+          "entity_index": "supporting",
+          "internal_document_search": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": [
+          "document_metadata",
+          "knowledge_graph",
+          "version_lineage",
+          "live_news",
+          "conversation_context"
+        ],
+        "modifiers": ["beginner_explanation"]
+      }
+    },
+    {
+      "query": "What DSM deadlines apply to generators?",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "compliance_question",
+          "secondary_intents": ["deadline"],
+          "subtypes": ["obligation_discovery"],
+          "current_intelligence_requested": true,
+          "has_resolved_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "live_combined",
+        "response_strategy": "compliance_checklist",
+        "selected": {
+          "glossary": "supporting",
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "supporting",
+          "knowledge_graph": "required",
+          "version_lineage": "supporting",
+          "live_news": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": ["conversation_context"]
+      }
+    },
+    {
+      "query": "What changed in the 2023 DSM amendment?",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "amendment",
+          "historical_scope": true,
+          "has_resolved_entity": true,
+          "has_document_target": true,
+          "version_change": true
+        }
+      ],
+      "expected": {
+        "plan_class": "deep_research",
+        "response_strategy": "amendment_cards",
+        "selected": {
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "required",
+          "knowledge_graph": "supporting",
+          "version_lineage": "required",
+          "general_ai": "conditional"
+        },
+        "skipped": ["glossary", "live_news", "conversation_context"]
+      }
+    },
+    {
+      "query": "DSM before 2021",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "entity_lookup",
+          "exact_match": true,
+          "historical_scope": true,
+          "has_resolved_entity": true,
+          "has_term_like_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "deep_research",
+        "response_strategy": "entity_intelligence_page",
+        "selected": {
+          "glossary": "supporting",
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "supporting",
+          "knowledge_graph": "required",
+          "version_lineage": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": ["live_news", "conversation_context"]
+      }
+    },
+    {
+      "query": "Is the latest DSM draft binding?",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "compliance_question",
+          "secondary_intents": ["news"],
+          "live_eligible": true,
+          "current_intelligence_requested": true,
+          "has_resolved_entity": true,
+          "has_document_target": true,
+          "version_change": true
+        }
+      ],
+      "expected": {
+        "plan_class": "live_combined",
+        "response_strategy": "compliance_checklist",
+        "selected": {
+          "glossary": "supporting",
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "supporting",
+          "knowledge_graph": "required",
+          "version_lineage": "supporting",
+          "live_news": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": ["conversation_context"]
+      }
+    },
+    {
+      "query": "Summarize this regulation",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "summarization",
+          "has_document_target": true,
+          "has_known_sources": true,
+          "strict_selected_document": true,
+          "selected_document_available": true
+        }
+      ],
+      "expected": {
+        "plan_class": "focused_grounded",
+        "response_strategy": "executive_summary",
+        "selected": {
+          "internal_document_search": "required",
+          "document_metadata": "supporting"
+        },
+        "skipped": [
+          "glossary",
+          "entity_index",
+          "knowledge_graph",
+          "version_lineage",
+          "live_news",
+          "general_ai",
+          "conversation_context"
+        ]
+      }
+    },
+    {
+      "query": "Explain clause 4",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "document_explanation",
+          "has_document_target": false
+        }
+      ],
+      "expected": {
+        "plan_class": "focused_grounded",
+        "response_strategy": "document_explanation",
+        "selected": {},
+        "skipped": [
+          "glossary",
+          "entity_index",
+          "internal_document_search",
+          "document_metadata",
+          "knowledge_graph",
+          "version_lineage",
+          "live_news",
+          "general_ai",
+          "conversation_context"
+        ],
+        "clarification": "Which document or passage should I explain?"
+      }
+    },
+    {
+      "query": "Compare DSM and ABT and show the latest consultation",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "comparison",
+          "has_resolved_entity": true,
+          "has_term_like_entity": true
+        },
+        {
+          "question_id": "q2",
+          "intent": "consultation",
+          "live_eligible": true,
+          "current_intelligence_requested": true,
+          "has_resolved_entity": true,
+          "has_document_target": true
+        }
+      ],
+      "expected": {
+        "plan_class": "composite",
+        "response_strategy": "research_report",
+        "selected": {
+          "glossary": "supporting",
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "required",
+          "knowledge_graph": "supporting",
+          "version_lineage": "supporting",
+          "live_news": "required",
+          "general_ai": "conditional"
+        },
+        "skipped": ["conversation_context"]
+      }
+    },
+    {
+      "query": "What is green hydrogen?",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "definition",
+          "exact_match": true,
+          "has_resolved_entity": true,
+          "has_term_like_entity": true
+        }
+      ],
+      "expected": {
+        "plan_class": "fast_exact",
+        "response_strategy": "definition_card",
+        "selected": {
+          "glossary": "required",
+          "entity_index": "supporting",
+          "internal_document_search": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": [
+          "document_metadata",
+          "knowledge_graph",
+          "version_lineage",
+          "live_news",
+          "conversation_context"
+        ]
+      }
+    },
+    {
+      "query": "Write a poem about electricity",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "general_question"
+        }
+      ],
+      "expected": {
+        "plan_class": "fast_exact",
+        "response_strategy": "conversation",
+        "selected": {
+          "general_ai": "required"
+        },
+        "skipped": [
+          "glossary",
+          "entity_index",
+          "internal_document_search",
+          "document_metadata",
+          "knowledge_graph",
+          "version_lineage",
+          "live_news",
+          "conversation_context"
+        ]
+      }
+    },
+    {
+      "query": "Latest tariff policy changes this month",
+      "questions": [
+        {
+          "question_id": "q1",
+          "intent": "amendment",
+          "secondary_intents": ["news"],
+          "live_eligible": true,
+          "current_intelligence_requested": true,
+          "has_resolved_entity": true,
+          "has_document_target": true,
+          "version_change": true
+        }
+      ],
+      "expected": {
+        "plan_class": "live_combined",
+        "response_strategy": "amendment_cards",
+        "selected": {
+          "entity_index": "required",
+          "internal_document_search": "required",
+          "document_metadata": "required",
+          "knowledge_graph": "supporting",
+          "version_lineage": "required",
+          "live_news": "supporting",
+          "general_ai": "conditional"
+        },
+        "skipped": ["glossary", "conversation_context"]
+      }
+    }
+  ]
+}

@@ -167,6 +167,7 @@ class GraphInput:
     content_length: int
     family_id: int | None = None
     assignment_type: str | None = None
+    jurisdiction: str | None = None
 
 
 @dataclass(frozen=True)
@@ -401,6 +402,7 @@ def persist_regulatory_knowledge_graph(
 ) -> dict[str, Any]:
     document_entity = _upsert_entity(
         session,
+        catalog_item=item,
         entity_type="DOCUMENT",
         name=item.title,
         canonical_name=f"document:{item.document_id}",
@@ -419,6 +421,7 @@ def persist_regulatory_knowledge_graph(
     if issuer:
         issuer_entity = _upsert_entity(
             session,
+            catalog_item=item,
             entity_type="ISSUER",
             name=issuer,
             canonical_name=_canonical(issuer),
@@ -445,6 +448,7 @@ def persist_regulatory_knowledge_graph(
     if family_name:
         family_entity = _upsert_entity(
             session,
+            catalog_item=item,
             entity_type=_entity_type(family.get("document_type") or core.get("document_type")),
             name=family_name,
             canonical_name=_canonical(family_name),
@@ -481,6 +485,7 @@ def persist_regulatory_knowledge_graph(
             continue
         target_entity = _upsert_entity(
             session,
+            catalog_item=item,
             entity_type=_entity_type(rel.get("target_entity_type")),
             name=target,
             canonical_name=_canonical(target),
@@ -509,6 +514,7 @@ def persist_regulatory_knowledge_graph(
         stakeholder_count += _upsert_stakeholder(session, item, stakeholder)
         stakeholder_entity = _upsert_entity(
             session,
+            catalog_item=item,
             entity_type="STAKEHOLDER",
             name=label,
             canonical_name=_canonical(label),
@@ -537,6 +543,7 @@ def persist_regulatory_knowledge_graph(
         obligation_count += _upsert_obligation(session, item, obligation)
         obligation_entity = _upsert_entity(
             session,
+            catalog_item=item,
             entity_type="OBLIGATION",
             name=label,
             canonical_name=_obligation_key(item.document_id, label),
@@ -568,6 +575,7 @@ def persist_regulatory_knowledge_graph(
         deadline_count += _upsert_graph_deadline(session, item, deadline)
         deadline_entity = _upsert_entity(
             session,
+            catalog_item=item,
             entity_type="DEADLINE",
             name=label,
             canonical_name=_deadline_key(item.document_id, deadline),
@@ -846,6 +854,7 @@ def _apply_family_enrichment(
 def _upsert_entity(
     session: Any,
     *,
+    catalog_item: GraphInput | None = None,
     entity_type: str,
     name: str,
     canonical_name: str,
@@ -895,7 +904,17 @@ def _upsert_entity(
                 "metadata": json.dumps(metadata, default=str),
             },
         )
-        return int(row["entity_id"])
+        entity_id = int(row["entity_id"])
+        _sync_entity_catalog_entry(
+            session,
+            catalog_item,
+            entity_id=entity_id,
+            entity_type=entity_type,
+            name=name,
+            canonical_name=canonical_name,
+            metadata=metadata,
+        )
+        return entity_id
 
     inserted = session.execute(
         text(
@@ -934,7 +953,227 @@ def _upsert_entity(
             "metadata": json.dumps(metadata, default=str),
         },
     ).scalar_one()
-    return int(inserted)
+    entity_id = int(inserted)
+    _sync_entity_catalog_entry(
+        session,
+        catalog_item,
+        entity_id=entity_id,
+        entity_type=entity_type,
+        name=name,
+        canonical_name=canonical_name,
+        metadata=metadata,
+    )
+    return entity_id
+
+
+def _sync_entity_catalog_entry(
+    session: Any,
+    item: GraphInput | None,
+    *,
+    entity_id: int,
+    entity_type: str,
+    name: str,
+    canonical_name: str,
+    metadata: dict[str, Any],
+) -> None:
+    """Best-effort mirror from the ingestion graph to the Ask AI entity catalog."""
+
+    if item is None:
+        return
+    display_name = _clean(name) or _clean(canonical_name)
+    if not display_name:
+        return
+    jurisdiction = _catalog_jurisdiction(item)
+    catalog_metadata = {
+        "source": "regulatory_graph_entities",
+        "graph_entity_id": entity_id,
+        "graph_entity_type": entity_type,
+        "document_id": item.document_id,
+        "document_version_id": item.document_version_id,
+        "source_url": item.source_url,
+        **(metadata or {}),
+    }
+    try:
+        with session.begin_nested():
+            params = {
+                "canonical_id": f"legacy_graph:{entity_id}",
+                "canonical_name": display_name,
+                "entity_class": _catalog_entity_class(entity_type),
+                "jurisdiction": jurisdiction,
+                "graph_entity_id": entity_id,
+                "workspace_priority": _catalog_priority(entity_type),
+                "provenance_ref": f"regulatory_graph_entities:{entity_id}",
+                "metadata": json.dumps(catalog_metadata, default=str),
+            }
+            row = session.execute(
+                text(
+                    """
+                    update public.regulatory_entity_catalog
+                    set canonical_name = :canonical_name,
+                        entity_class = :entity_class,
+                        jurisdiction = :jurisdiction,
+                        graph_entity_id = coalesce(graph_entity_id, :graph_entity_id),
+                        metadata = metadata || cast(:metadata as jsonb),
+                        updated_at = now()
+                    where canonical_id = :canonical_id
+                       or graph_entity_id = :graph_entity_id
+                    returning canonical_id
+                    """
+                ),
+                params,
+            ).mappings().first()
+            if not row:
+                row = session.execute(
+                    text(
+                        """
+                        insert into public.regulatory_entity_catalog (
+                          canonical_id,
+                          canonical_name,
+                          entity_class,
+                          jurisdiction,
+                          graph_entity_id,
+                          workspace_priority,
+                          provenance_kind,
+                          provenance_ref,
+                          metadata
+                        )
+                        values (
+                          :canonical_id,
+                          :canonical_name,
+                          :entity_class,
+                          :jurisdiction,
+                          :graph_entity_id,
+                          :workspace_priority,
+                          'legacy_graph',
+                          :provenance_ref,
+                          cast(:metadata as jsonb)
+                        )
+                        on conflict on constraint regulatory_entity_catalog_name_jurisdiction_key
+                        do update set
+                          graph_entity_id = coalesce(
+                            public.regulatory_entity_catalog.graph_entity_id,
+                            excluded.graph_entity_id
+                          ),
+                          metadata = public.regulatory_entity_catalog.metadata
+                            || excluded.metadata,
+                          updated_at = now()
+                        returning canonical_id
+                        """
+                    ),
+                    params,
+                ).mappings().first()
+            canonical_id = row["canonical_id"] if row else f"legacy_graph:{entity_id}"
+            _insert_entity_alias(
+                session,
+                canonical_id=canonical_id,
+                alias=display_name,
+                alias_kind=_catalog_alias_kind(entity_type),
+                jurisdiction=jurisdiction,
+                provenance_ref=f"regulatory_graph_entities:{entity_id}",
+            )
+            normalized_graph_name = _canonical(canonical_name)
+            if normalized_graph_name and normalized_graph_name != _canonical(display_name):
+                _insert_entity_alias(
+                    session,
+                    canonical_id=canonical_id,
+                    alias=canonical_name,
+                    alias_kind="approved_alias",
+                    jurisdiction=jurisdiction,
+                    provenance_ref=f"regulatory_graph_entities:{entity_id}",
+                )
+    except Exception as exc:
+        logger.warning(
+            "entity catalog sync skipped for graph entity %s: %s: %s",
+            entity_id,
+            type(exc).__name__,
+            exc,
+        )
+
+
+def _insert_entity_alias(
+    session: Any,
+    *,
+    canonical_id: str,
+    alias: str,
+    alias_kind: str,
+    jurisdiction: str,
+    provenance_ref: str,
+) -> None:
+    cleaned_alias = _clean(alias)
+    if not cleaned_alias:
+        return
+    session.execute(
+        text(
+            """
+            insert into public.regulatory_entity_aliases (
+              canonical_id,
+              alias,
+              alias_kind,
+              jurisdiction,
+              provenance_kind,
+              provenance_ref
+            )
+            values (
+              :canonical_id,
+              :alias,
+              :alias_kind,
+              :jurisdiction,
+              'legacy_graph',
+              :provenance_ref
+            )
+            on conflict on constraint regulatory_entity_aliases_entity_scope_key
+            do nothing
+            """
+        ),
+        {
+            "canonical_id": canonical_id,
+            "alias": cleaned_alias,
+            "alias_kind": alias_kind,
+            "jurisdiction": jurisdiction,
+            "provenance_ref": provenance_ref,
+        },
+    )
+
+
+def _catalog_jurisdiction(item: GraphInput) -> str:
+    return _clean(item.jurisdiction) or "India/Central"
+
+
+def _catalog_entity_class(entity_type: str) -> str:
+    normalized = _clean(entity_type).upper()
+    if normalized == "DOCUMENT":
+        return "document"
+    if normalized == "ISSUER":
+        return "regulator"
+    if normalized in {"STAKEHOLDER", "OBLIGATION"}:
+        return normalized.lower()
+    if normalized == "DEADLINE":
+        return "status"
+    if normalized in {"POLICY", "TENDER"}:
+        return "scheme_or_policy"
+    if normalized in {"REGULATION", "NOTIFICATION", "ORDER", "CIRCULAR", "ACT", "GUIDELINE"}:
+        return "legal_instrument"
+    return "regulatory_concept"
+
+
+def _catalog_alias_kind(entity_type: str) -> str:
+    normalized = _clean(entity_type).upper()
+    if normalized in {"REGULATION", "NOTIFICATION", "ORDER", "CIRCULAR", "ACT", "GUIDELINE"}:
+        return "regulation_family"
+    if normalized == "ISSUER":
+        return "regulator_association"
+    return "approved_alias"
+
+
+def _catalog_priority(entity_type: str) -> int:
+    normalized = _clean(entity_type).upper()
+    if normalized == "ISSUER":
+        return 20
+    if normalized in {"REGULATION", "NOTIFICATION", "ORDER", "CIRCULAR", "ACT", "GUIDELINE"}:
+        return 30
+    if normalized == "DOCUMENT":
+        return 70
+    return 50
 
 
 def _link_document_entity(
