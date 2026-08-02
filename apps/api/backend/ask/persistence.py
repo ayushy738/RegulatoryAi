@@ -9,6 +9,12 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from backend.ask.citation_persistence import (
+    CitationPersistenceRepository,
+    PersistedCitationDetail,
+    PersistedVerifiedClaim,
+    VerifiedClaimPersistenceRequest,
+)
 from backend.ask.models import (
     AskFeedback,
     AskFeedbackValue,
@@ -429,6 +435,31 @@ class AskPersistenceService:
                 database_session
             ).get_owned_by_assistant_public_id(
                 assistant_message_public_id=assistant_message_public_id,
+                user_id=user_id,
+            )
+
+    def persist_verified_claim(
+        self,
+        request: VerifiedClaimPersistenceRequest,
+    ) -> PersistedVerifiedClaim:
+        with self._session_scope_factory() as database_session:
+            return CitationPersistenceRepository(
+                database_session
+            ).persist_verified_claim(request)
+
+    def get_citation_detail(
+        self,
+        *,
+        assistant_message_public_id: UUID,
+        citation_id: UUID,
+        user_id: UUID,
+    ) -> PersistedCitationDetail | None:
+        with self._session_scope_factory() as database_session:
+            return CitationPersistenceRepository(
+                database_session
+            ).get_owned_citation_detail(
+                assistant_message_public_id=assistant_message_public_id,
+                citation_id=citation_id,
                 user_id=user_id,
             )
 

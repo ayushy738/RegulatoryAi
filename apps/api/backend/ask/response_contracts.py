@@ -7,6 +7,8 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from backend.ask.change_cards import validate_change_card
+from backend.ask.compliance_cards import validate_compliance_card
 from backend.ask.core_cards import validate_core_card
 from backend.ask.decision.models import (
     ConfidenceLabel,
@@ -215,6 +217,41 @@ class ResponseCardEnvelope(ResponseContractModel):
                 if self.confidence is not None
                 else ()
             ),
+            source_ids=self.source_ids,
+            actions=tuple(
+                (action.action.value, action.state.value, action.target)
+                for action in self.actions
+            ),
+            payload=self.payload,
+        )
+        validate_compliance_card(
+            card_type=self.card_type,
+            card_state=self.state.value,
+            knowledge_mode=self.knowledge_mode,
+            provenance_class=self.provenance_class,
+            confidence_score=(
+                self.confidence.score if self.confidence is not None else None
+            ),
+            confidence_label=(
+                self.confidence.label if self.confidence is not None else None
+            ),
+            claim_ids=self.claim_ids,
+            source_ids=self.source_ids,
+            actions=tuple(
+                (action.action.value, action.state.value, action.target)
+                for action in self.actions
+            ),
+            payload=self.payload,
+        )
+        validate_change_card(
+            card_type=self.card_type,
+            card_state=self.state.value,
+            knowledge_mode=self.knowledge_mode,
+            provenance_class=self.provenance_class,
+            confidence_label=(
+                self.confidence.label if self.confidence is not None else None
+            ),
+            claim_ids=self.claim_ids,
             source_ids=self.source_ids,
             actions=tuple(
                 (action.action.value, action.state.value, action.target)

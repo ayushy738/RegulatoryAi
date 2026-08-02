@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from backend.ask.citation_persistence import PersistedCitationDetail
+from backend.ask.claim_verification import ClaimVerificationResult
 from backend.ask.models import (
     AskFeedback,
     AskResponseVersion,
@@ -408,6 +411,138 @@ class AskMessageSourcesResponse(BaseModel):
             citations=[
                 AskCitationResponse.model_validate(item) for item in version.run.citations
             ],
+        )
+
+
+class AskVerifierIdentityResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str
+    verifier_version: str
+    model_version: str
+    prompt_version: str
+    policy_version: str
+
+
+class AskVerificationSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal[
+        "supported",
+        "partial_support",
+        "contradiction",
+        "unknown",
+    ]
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    publication_mode: Literal["grounded_prose", "evidence_only"]
+    final_claim_text: str
+    terminal_reason: str
+    latency_ms: int = Field(ge=0)
+    evidence_ids: list[str]
+    correction_applied: bool
+    verifier_identity: AskVerifierIdentityResponse | None
+
+    @classmethod
+    def from_storage(
+        cls,
+        payload: dict[str, Any] | None,
+    ) -> Self | None:
+        if payload is None or payload.get("schema_version") != "1":
+            return None
+        try:
+            # The verifier contract is deliberately strict. Re-validate through
+            # its JSON boundary so persisted arrays restore immutable tuples
+            # without weakening runtime validation for Python callers.
+            result = ClaimVerificationResult.model_validate_json(json.dumps(payload))
+        except (TypeError, ValueError):
+            return None
+        identity = result.verifier_identity
+        return cls(
+            outcome=result.outcome,
+            confidence=result.confidence,
+            publication_mode=result.publication_mode,
+            final_claim_text=result.final_claim_text,
+            terminal_reason=result.terminal_reason,
+            latency_ms=result.latency_ms,
+            evidence_ids=[item.evidence_id for item in result.evidence_snapshots],
+            correction_applied=result.correction is not None,
+            verifier_identity=(
+                AskVerifierIdentityResponse(
+                    provider=identity.provider,
+                    verifier_version=identity.verifier_version,
+                    model_version=identity.model_version,
+                    prompt_version=identity.prompt_version,
+                    policy_version=result.policy_version,
+                )
+                if identity is not None
+                else None
+            ),
+        )
+
+
+class AskCitationDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"] = "1"
+    message_id: UUID
+    response_version: int = Field(ge=1)
+    claim_id: UUID
+    claim_key: str
+    claim_ordinal: int = Field(ge=0)
+    claim_text: str
+    support_status: str
+    support_score: float | None = Field(default=None, ge=0, le=1)
+    citation_id: UUID
+    evidence_key: str
+    citation_ordinal: int = Field(ge=0)
+    marker: str | None
+    verification_status: str
+    verifier_provider: str | None
+    verifier_version: str | None
+    verifier_model: str | None
+    verifier_prompt_version: str | None
+    verifier_policy_version: str | None
+    verification_latency_ms: int | None = Field(default=None, ge=0)
+    verification: AskVerificationSummaryResponse | None
+    provenance: dict[str, Any] | None
+    confidence_result: dict[str, Any] | None
+    source: AskSourceResponse
+    current_source_status: Literal[
+        "current",
+        "superseded",
+        "available_unclassified",
+        "not_applicable",
+    ]
+
+    @classmethod
+    def from_domain(cls, detail: PersistedCitationDetail) -> Self:
+        return cls(
+            message_id=detail.message_id,
+            response_version=detail.response_version,
+            claim_id=detail.claim_id,
+            claim_key=detail.claim_key,
+            claim_ordinal=detail.claim_ordinal,
+            claim_text=detail.claim_text,
+            support_status=detail.support_status,
+            support_score=detail.support_score,
+            citation_id=detail.citation_id,
+            evidence_key=detail.evidence_key,
+            citation_ordinal=detail.citation_ordinal,
+            marker=detail.marker,
+            verification_status=detail.verification_status,
+            verifier_provider=detail.verifier_provider,
+            verifier_version=detail.verifier_version,
+            verifier_model=detail.verifier_model,
+            verifier_prompt_version=detail.verifier_prompt_version,
+            verifier_policy_version=detail.verifier_policy_version,
+            verification_latency_ms=detail.verification_latency_ms,
+            verification=AskVerificationSummaryResponse.from_storage(
+                detail.verifier_result
+            ),
+            provenance=detail.provenance,
+            confidence_result=detail.confidence_result,
+            source=AskSourceResponse.model_validate(detail.source),
+            current_source_status=detail.current_source_status,
         )
 
 

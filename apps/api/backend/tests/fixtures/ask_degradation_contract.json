@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "policy_version": "ask-ai-capability-degradation-v1",
+  "capability": "regulatory_retriever",
+  "terminal_state": "unavailable",
+  "signal": "unavailable",
+  "visible": true,
+  "severity": "unavailable",
+  "title": "Official search temporarily unavailable",
+  "body": "Official document search is temporarily unavailable. You can still view previously retrieved sources or search documents manually. Any explanation generated now will be labeled as general AI knowledge.",
+  "confidence_effect": "unknown",
+  "safe_notice_code": "ASK_AI_OFFICIAL_COVERAGE_UNKNOWN",
+  "affected_section_ids": [
+    "section-a"
+  ],
+  "unaffected_section_ids": [
+    "section-b"
+  ],
+  "preserved_artifact_ids": [
+    "artifact-1"
+  ],
+  "actions": [
+    {
+      "action": "retry_official_search",
+      "kind": "capability_retry",
+      "label": "Retry official search",
+      "target": "official-node",
+      "capability": "regulatory_retriever"
+    },
+    {
+      "action": "search_official_documents_manually",
+      "kind": "navigate",
+      "label": "Search official documents manually",
+      "target": "/browse",
+      "capability": null
+    }
+  ]
+}
