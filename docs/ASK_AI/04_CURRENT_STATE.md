@@ -1,12 +1,12 @@
 # Ask AI Agent OS — Current State
 
-**Snapshot date:** 2026-07-29  
-**Repository revision:** `c7e28aee3c091bf52076fb91122a5098fad637f5` (`master`)  
+**Snapshot date:** 2026-08-01
+**Repository revision:** `87b8eec00afaa44d82f9d3abc2fd368586b4540b` (`ask-ai-review`)
 **Working-tree note:** `apps/api/backend/tests/integration/` is approved canonical repository work under B-011; stage or modify it only in the engineering task whose acceptance criteria it verifies.
 
 ## Current feature
 
-**Epic E0 guardrails, the locally verifiable E1 foundation, complete owned v2 session/turn/evidence/lifecycle/search APIs, deterministic Decision Engine planning and shadow comparison, isolated legacy compatibility mapping, Orchestrator lifecycle/execution policies, selective typed retrieval, the feature-scoped frontend read/reconciliation boundary, the Research shell/session rail/entity pages/federated and manual document search with isolated boot, and durable run-event execution/recovery/stream contracts are complete; all governance approvals are explicit, the current `/ask` worktree mounts the Research Workspace, and E9.10 is active pending visual acceptance.**
+**Epic E0 guardrails, the locally verifiable E1 foundation, complete owned v2 session/turn/evidence/lifecycle/search APIs, deterministic Decision Engine planning and shadow comparison, isolated legacy compatibility mapping, Orchestrator lifecycle/execution policies, selective typed retrieval, the feature-scoped frontend read/reconciliation boundary, the Research shell/session rail/entity pages/federated and manual document search with isolated boot, durable run-event execution/recovery/stream/legacy-await contracts, fail-closed claim verification with exact citation persistence, accessible inline citation/evidence primitives, complete Epic E8 structured cards/merge/follow-ups/compatibility rendering, the isolated B-005 Live Intelligence capability, capability-specific degradation projections, and deterministic internal/live event reconciliation are complete; all governance approvals are explicit, E9.10 and E9.2.1 are isolated behind B-016, E1.7 is isolated behind B-017, E3.7/E5.8/E7.9 are isolated behind B-018, E6.7 is isolated behind B-019, and E9.4 is active.**
 
 Current behavior:
 
@@ -116,25 +116,56 @@ Current behavior:
   metadata and excerpts, safe failures, and unchanged flag-off legacy Browse.
 - additive migration `0034` with three production-predicate-matched registry
   status/date and within-document chunk indexes over existing source rows.
+- additive migration `0035` with deterministic legacy claim/evidence identity
+  backfill, complete verifier identity and latency fields, structured verifier
+  integrity checks, provenance/confidence payloads, and restoration indexes.
+- atomic owner/run/response-version citation persistence with stable-id
+  replay, conflict refusal, exact admitted source snapshots, full verifier
+  artifacts, and owner-only v2 citation detail restoration.
+- isolated B-005 Live Intelligence execution with versioned exact-host source
+  and entitlement registries, disabled-by-default approved connectors, strict
+  source-retaining provider output, fixed-clock freshness, licensing/rank/
+  attribution admission, live-only evidence artifacts, bounded fan-out/retry/
+  rate rules, exact deduplication, cache/stale ceilings, and safe typed failure.
+- strict backend/frontend capability-degradation projection over the canonical
+  failure matrix, with exact no-match/failure copy, visibility, confidence
+  effect, preserved/unaffected context, safe manual navigation, retry-policy-
+  aligned commands, and an isolated accessible renderer.
+- isolated deterministic reconciliation of internal and live Timeline Events
+  into stable visual identities with separate official-basis and live-coverage
+  subsections, complete source/ancestry/time retention, official-only legal-
+  status authority, exact consolidation, inspectable near-duplicate clusters,
+  visible material conflicts, and mandatory contradiction confidence effects.
+- isolated exact-citation selection, verified-only inline citation controls,
+  and a responsive accessible evidence-detail panel that immediately preserves
+  saved identity/excerpt/actions while asynchronously restoring current or
+  superseded source status through the existing E7.6 transport boundary.
+- deterministic E8.7 structured-response compatibility rendering with exact
+  legacy Markdown and flat-citation goldens, structured source ordering,
+  stable source deduplication, verified-official-only citation admission,
+  explicit live and General AI separation, and visible degraded/unknown-card
+  limitations without route or persistence integration.
+- isolated E10.9 synchronous compatibility service that awaits the exact owned
+  E10.2 terminal run within the approved 30-second maximum, admits Completed
+  or Partial results, loads an identity-bound artifact, projects through E8.7,
+  and returns the unchanged legacy response while redacting timeout,
+  cancellation, execution, storage, and malformed-output failures.
 
-Migrations end at `0034`. No production-volume rehearsal, approved regulatory Decision calibration, natural-language Decision Engine routing authority, production capability adapters, v2 serving cutover, live provider, or calibrated claim-support verifier exists in the repository.
+Migrations end at `0035`. No production-volume rehearsal, approved regulatory Decision calibration, natural-language Decision Engine routing authority, production capability adapters, v2 serving cutover, live provider, or calibrated production claim-verifier release exists in the repository.
 
 ## Current task
 
-**E9.10 Application-wide UI/UX refinement** (`Active`)
+**E9.4 Structured canvas** (`Active`)
 
-The attached `Design Guidelines.pptx` is the presentation source of truth for
-the existing application UI. This enhancement applies its Resolven palette,
-display/body typography hierarchy, diagonal brand geometry, spacing, surfaces,
-controls, navigation, states, and responsive behavior through reusable visual
-tokens and primitives. It MUST preserve interactions, business logic, API and
-data contracts, schema, and frozen specifications. After visual verification,
-the Planner resumes E9.2.1 and then the normal eligible task graph.
+Compose the completed E8.2–E8.5 response sections, cards, mode labels,
+confidence, gaps, degraded states, and unknown-card fallback into the flagged
+Research Workspace canvas. Rendering MUST remain accessible and deterministic,
+and flag-off legacy behavior MUST remain unchanged.
 
-Implementation and automated local validation are complete. B-015 blocks the
-required manual major-route review because the mandated Codex in-app Browser
-runtime cannot initialize its `node_repl` kernel assets. E9.10 MUST remain
-Active and MUST NOT be approved until that browser evidence is collected.
+E1.7 remains Blocked under B-017. E3.7, E5.8, and E7.9 remain Blocked under B-018.
+E6.7 remains Blocked under B-019. E9.10 and E9.2.1 remain Blocked under B-016. Their verified implementation
+work is preserved, and independent graph execution proceeds without claiming
+the missing acceptance evidence.
 
 ## Completed work
 
@@ -326,6 +357,60 @@ Active and MUST NOT be approved until that browser evidence is collected.
 - Request/policy/provider identity are revalidated at the boundary, Parallel credentials/model must be explicit and nonblank, and the canonical Orchestrator General Knowledge payload now supports the disclosure-less explicit-general case.
 - Provider citations, links, official-absence or binding-applicability wording, duplicate policy copy, source identity, malformed/version/section drift, oversized output, timeout, exceptions, and unsafe provider identity fail closed with fixed safe codes and no leaked detail.
 - Forty-nine focused E6.2 cases plus the 176-test affected mode/Orchestrator/legacy slice cover eligibility, provider configuration, one-call execution, exact copy/ceilings, multi-part order, contamination, failure/timeout, strictness, nested revalidation, and deterministic serialization.
+- E6.3 adds strict immutable B-005 policy, source registry, entitlement,
+  connector-security, time-window, provider payload, admission, evidence,
+  provider outcome, cache, and terminal result contracts. The eight approved
+  official hosts are exact, and all connectors remain disabled by default.
+- Only approved official-direct, source-retaining Parallel, Reuters, and Dow
+  Jones/Factiva families can be configured. Enabled connectors require active
+  entitlement, bounded declared network controls, exact registered hosts,
+  HTTPS credential-free URLs, source identity, publisher/license/type match,
+  known publication/retrieval time, content hash, and requested-window fit.
+- Admitted items produce canonical live-only Orchestrator Evidence Units with
+  B-005 L1–L5 trust rank, attribution badge, non-legal-force disclosure,
+  confidence ceiling, policy/registry/entitlement/provider ancestry, and
+  untrusted-content marking. Exact duplicates render once while retaining all
+  underlying source identities.
+- Per-user/fan-out/provider limits, two bounded retries, nonretryable auth/
+  entitlement/robots/permanent/rate failures, healthy no-match separation,
+  partial provider preservation, deterministic TTL/key policy, and stale-cache
+  Low/badge behavior are explicit without network, persistence, route, flag,
+  UI, or legacy serving integration.
+- Thirty focused E6.3 cases plus the 191-test affected live/mode/General-AI/
+  Orchestrator/provenance slice, Ruff, and compile validation pass.
+- E6.6 projects the existing canonical failure transition into strict safe
+  product copy, visibility, severity, confidence effect, affected/unaffected
+  sections, preserved artifacts, and executable action descriptors without
+  duplicating orchestration or retry policy.
+- Official and live healthy no-match remain distinct from unavailable, timed
+  out, invalid, and partial coverage. Optional no-live/timeline/follow-up
+  outcomes can omit chrome while completed research remains unchanged.
+- Retry actions appear only for transient official, live, General AI, and
+  citation-verifier failures already accepted by E10.6. Manual document search
+  appears only on relevant evidence paths with a safe local target; intent and
+  entity failures request exact user input instead of offering a generic retry.
+- A matching strict Zod contract and isolated accessible status renderer require
+  a real handler before showing command actions, keep navigation keyboard-safe,
+  and never display internal safe codes or raw detail.
+- Eighteen backend projection cases, four focused component cases, the
+  119-test affected backend failure/retry/mode slice, 18-test affected frontend
+  component slice, Ruff, and TypeScript validation pass.
+- E6.4 adds a strict immutable event-reconciliation boundary over canonical
+  E5.6 Timeline Events. Caller-supplied fingerprints are revalidated against
+  event identity, material description, date, type, entity, and lane state
+  before any consolidation.
+- Exact duplicates become one deterministic visual event while retaining every
+  official/live source ID, ancestry path, publication time, retrieval time,
+  label, event type, date, and reported status in separate provenance
+  subsections. A live observation can never establish legal status.
+- Near duplicates retain separate visual identities joined only by a stable
+  inspectable cluster. Material identity, description, date, type, or legal-
+  status disagreement remains a typed conflict; official evidence controls
+  only established legal status, unresolved official conflicts select none,
+  and every conflict requires the contradiction penalty and prohibits High.
+- Ten focused E6.4 cases plus the 138-test affected timeline/live/provenance/
+  knowledge-mode slice, Ruff, and compile validation pass without a migration,
+  route, provider, persistence, frontend, flag, or legacy-serving change.
 - E7.1 adds strict immutable official-evidence candidates, admission requests, admitted units, exclusions, and fixed safe rejection codes over the canonical E5.3, E5.5, and Orchestrator contracts.
 - Admission requires exact artifact/evidence identity, positive chunk plus locator, inspectable official source identity, exact resolved-scope echo, admitted relevance metadata, direct pending official provenance, usable ancestry, and satisfied/partial retrieval state.
 - Current, historical-as-of, and draft evidence must carry the exact E5.5 request/decision pair, which is recomputed at admission; nonselected older/later versions, stale evaluation scope, unverified status text, no-match, unknown, contradiction, and invalid lineage cannot reach composition.
@@ -335,6 +420,36 @@ Active and MUST NOT be approved until that browser evidence is collected.
 - Every accepted claim is material, pending verification, assigned to exactly one approved atomic question and section, grounded in the internal-regulatory lane, and linked in exact order to one or more admitted official Evidence Units in that same narrowed scope.
 - The final Response Composer transformation must name the exact support references; duplicate, missing, excluded, unknown, crossed-scope, crossed-lane, malformed, conflicting, nonterminal, preverified, duplicate-ID, or evidence-ID-colliding claims are isolated without semantic support judgment.
 - Twenty-seven focused E7.2 cases plus the 117-test affected Candidate Claim/evidence/Orchestrator slice cover single/multi-part and multi-source claims, scope/lane/reference/lineage integrity, invalid-neighbor isolation, admission tampering, strictness, and deterministic serialization.
+- E7.3 adds an isolated strict claim-support verifier that revalidates E7.1/E7.2 identity before semantics, requires exact atomic claim/evidence spans, normalizes Supported/Partial Support/Contradiction/Unknown against the B-009 confidence thresholds, aggregates by the weakest proposition, and permits only one subset-preserving correction pass.
+- Grounded prose fails closed unless a checksum-bound PASS approval matches the exact provider/verifier/model/prompt/policy versions and the 2,200 ms budget; all other success, failure, timeout, malformed, drift, or unapproved states retain immutable evidence snapshots in evidence-only mode without exposing provider detail.
+- Fourteen focused E7.3 cases plus the 128-test affected verifier/Candidate Claim/evidence/Orchestrator/calibration slice pass; no provider, serving route, persistence, migration, frontend, or legacy behavior was added.
+- E7.6 adds migration `0035` and one canonical transaction for exact material
+  claim, citation order, admitted source snapshots, provenance, confidence,
+  correction lineage, and complete provider/verifier/model/prompt/policy/
+  latency identity, with stable replay and conflicting-identity refusal.
+- The off-by-default authenticated citation detail API restores one owned
+  response-version snapshot, validates stored verifier JSON before exposing a
+  safe summary, reports current/superseded source status, and preserves a
+  single non-disclosing not-found contract. Matching Zod transport contracts
+  are present without mounting citation UI or changing legacy serving.
+- Four PostgreSQL persistence/migration cases, 23 affected API/verifier cases,
+  nine focused evidence API cases, four frontend contract cases, Ruff, and
+  TypeScript validation pass for E7.6.
+- E7.7 adds a strict builder that joins one persisted citation to its exact
+  grounded material claim and official source snapshot. Crossed identities,
+  provenance/mode drift, or evidence/locator mismatch fail before rendering.
+- Verified inline citations are native keyboard-operable controls with visible
+  Supported/Partial/Contradictory/Unverifiable state. Pending or unknown states
+  remain named, noninteractive text; no handler means no fake action.
+- The isolated evidence panel focuses its close control, supports Escape,
+  renders known title/claim/locator/excerpt and safe HTTPS action immediately,
+  then validates current E7.6 detail identity before showing current,
+  superseded, unclassified, or not-applicable status and metadata.
+- Loading failure, malformed/crossed detail, unsafe URL, or stale asynchronous
+  completion cannot remove or replace the saved snapshot and never exposes raw
+  error detail. Nine focused component/contract cases, the 23-test affected
+  evidence/core-card slice, and TypeScript validation pass without route,
+  workspace-state, API, persistence, migration, or legacy-drawer change.
 - E7.4 adds strict immutable versioned confidence dimension, claim, section, overall, penalty, hard-Unknown, High-gate, strict-intent, request, and result contracts.
 - Claim scores use the exact 25/15/20/15/15/10 weighted sum, all six frozen additive penalties, and 0–100 bounds; raw numeric labels remain distinct from final labels after High gates, E6 mode/scope ceilings, weakest-critical-input caps, and hard Unknown overrides.
 - Section scores use the exact 70% coverage-weighted mean plus 30% lowest material claim; overall scores use the exact 70% importance-weighted mean plus 30% lowest critical section, with weakest-critical-section and strict-intent lowest-claim caps.
@@ -377,6 +492,93 @@ Active and MUST NOT be approved until that browser evidence is collected.
   ten focused component cases, 96-test frontend suite, 1024-test backend suite,
   Ruff, compileall, typecheck, production build, and compliance cover strict
   parity, compatibility, accessibility, and default-route isolation.
+- E8.3 adds matching strict version-1 Pydantic/Zod payload contracts for
+  Obligation, Deadline, and Stakeholder cards over the E8.1 envelope.
+- Every established compliance card is grounded only in the official corpus,
+  carries exact claim/source/citation identity, explicit confidence, and
+  policy-specific actions. Partial cards name missing fields and cannot claim
+  High confidence; `Not established` cards cannot retain factual content,
+  evidence, or elevated confidence.
+- Obligation cards preserve responsible party, required action, timing,
+  trigger/scope, jurisdiction, and official basis with a real applicability
+  target. Deadline cards preserve date/type/responsible stakeholder/status/
+  source while tracker integration remains explicitly disabled. Stakeholder
+  cards preserve role, impact, obligations, relevant regulations,
+  jurisdiction, entity identity, and exact evidence coverage.
+- Isolated renderers expose non-color state, responsive metadata, exact
+  evidence markers, coverage meter semantics, keyboard-native actions, and no
+  fake available action when a real handler is absent. Multiple distinct
+  official sources can support one claim without frontend/backend contract
+  drift.
+- Ten focused backend E8.3 cases plus the 63-test affected backend slice,
+  six focused component cases, 30-test affected frontend slice, 18-test legacy
+  route compatibility slice, Ruff, and TypeScript validation pass without a
+  route, API, persistence, migration, provider, flag, or legacy-serving change.
+- E8.4 adds strict matching Pydantic/Zod payload contracts for Timeline Event,
+  Amendment, Comparison, Live News, and Related Regulation cards.
+- Timeline cards bind their entire envelope, source model, and action set to
+  either official or live provenance. Official events expose exact citations;
+  live events expose publisher/type/publication/retrieval/badge/attribution/
+  HTTPS identity and the mandatory non-legal-force disclosure.
+- Amendment cards preserve both instruments, issue/effective dates, affected
+  provisions/stakeholders, summary, exact evidence, and a stable compare
+  target. Comparison dimensions preserve independent side values/citations,
+  visibly retain `Not established`, and forbid reuse of one citation identity
+  across both sides.
+- Live News cards preserve all frozen source/freshness/relevance fields and a
+  real source link plus exact official-basis target. Related Regulation cards
+  preserve entity/document, relationship, explanation, confidence,
+  provenance, evidence, and canonical intelligence-page target.
+- Isolated responsive renderers provide non-color state, keyboard-native real
+  actions, live disclosure, scroll-safe comparison semantics, and hidden
+  unhandled semantic actions. Partial cards retain evidence and named gaps but
+  cannot claim High confidence.
+- Twelve focused backend E8.4 cases, the 114-test affected backend slice, nine
+  focused component cases, the 30-test affected frontend slice, Ruff, and
+  TypeScript validation pass without route, API, persistence, migration,
+  provider, flag, or legacy-serving change.
+- E8.5 adds a strict pure merge request/result boundary over already validated
+  terminal E8 sections, keyed by atomic question, logical section, and
+  provenance lane.
+- Assembly uses atomic-question order, blueprint order, official/live/general
+  lane precedence, stable content fingerprints, contiguous output order, and
+  SHA-256-derived collision-safe section/card identities. Reordered input
+  serializes identically.
+- Exact duplicate card content collapses even when local section/card action
+  targets differ. Same supplied card identity with different content retains
+  both variants and an explicit conflict gap; title and strategy conflicts are
+  also visible and never silently averaged.
+- Same-key multi-part and cross-mode sections remain independently recoverable
+  with unique keys and pure provenance. A cancelled/omitted supporting
+  contribution cannot erase ready content; the output becomes Degraded with a
+  visible gap while ready sibling sections remain unaffected.
+- Weakest confidence/state semantics, unioned exact claim/source references,
+  unknown future-card fallback, stable section-target rebinding, and a recorded
+  golden projection pass 12 focused and 87 affected backend tests plus Ruff.
+  No frontend, route, API, persistence, migration, provider, flag, or legacy-
+  serving change was added.
+- E8.6 adds a strict pure follow-up request/result boundary over resolved scope,
+  completed intents, confidence, enumerated visible gaps/assumptions, prior
+  questions/suggestions, capability eligibility, and degraded outcomes.
+- Selection follows the frozen order: resolve one material gap, deepen official
+  evidence, explore compliance impact, explore change over time, follow a
+  plausible related/comparison path, and add live intelligence only when the
+  entity and capability are eligible. Expected response type and fresh-
+  retrieval behavior are explicit.
+- Already answered intents and normalized prior questions/suggestions are
+  excluded. Comparison requires a plausible second operand; live requires a
+  resolved entity; degraded optional capabilities are never presented as
+  currently usable; control characters cannot enter generated questions.
+- Below-High confidence always gets an evidence-deepening direction when a
+  valid set can be produced: an official provision when retrieval is usable or
+  manual official-document search after failure/ineligibility. Retrieval
+  failure never becomes a false no-evidence claim.
+- Suggestions are stable-ID typed, unique by question and research direction,
+  exactly mirrored into the canonical Orchestrator FollowUpCandidates artifact,
+  limited to three-to-five, and explicitly nonblocking. Budget exhaustion or
+  insufficient safe diversity returns zero. Fifteen focused and 55 affected
+  tests plus Ruff pass without route, provider, persistence, migration,
+  frontend, flag, or current-turn content change.
 - E9.1 adds one `ask-ai-v2` TanStack Query hierarchy scoped by authenticated owner and stable session/message/run/version identity, with cursor values retained as page parameters rather than cache fragments.
 - The feature-scoped provider carries only auth, explicit feature enablement, and a read client; session/turn/evidence/source/saved-item data remains canonical in the query cache, and message evidence plus its selected run share one cache record.
 - Typed read hooks parse the existing E2 contracts and an injected exact E8.1 structured-response projection, use the provider's exact access token, encode resource path segments, and remain unavailable while flag/auth/resource identity is incomplete.
@@ -390,12 +592,12 @@ Active and MUST NOT be approved until that browser evidence is collected.
 ## Remaining work
 
 E0, E1.1–E1.6, E2, E3.1–E3.6, E4,
-E5.1–E5.7/E5.9, E6.1–E6.2/E6.5, E7.1–E7.2/E7.4–E7.5/E7.8, E8.1–E8.2,
-E9.1–E9.3/E9.6/E9.8, E10.1–E10.3/E10.6–E10.7, and
-E11.1–E11.2/E11.5–E11.6 are complete. E1.7 is active. E3.7, E5.8, E6.3,
-E7.3, and every dependent implementation task remain planned but are no
-longer governance blocked. The task graph MUST continue in priority and
-dependency order.
+E5.1–E5.7/E5.9, E6.1–E6.6, E7.1–E7.8, E8,
+E9.1–E9.3/E9.6/E9.8, E10.1–E10.3/E10.6–E10.7/E10.9, and
+E11.1–E11.2/E11.5–E11.6 are complete. E9.4 is active. E1.7 is blocked
+by B-017; E3.7, E5.8, and E7.9 are blocked by B-018. Every other independent
+implementation task remains planned and unblocked. The task graph MUST
+continue in priority and dependency order.
 
 `E0 guardrails → E1/E2 persistence and APIs + E3 decisions → E4 orchestration → E5 evidence → E6/E7 modes and trust → E8 composition → E9/E10 workspace and streaming → E11 journeys → E12 rollout`
 
@@ -403,16 +605,21 @@ Detailed task status: [03_TASKS.md](./03_TASKS.md).
 
 ## Known issues
 
-- The persisted-v2 legacy adapter exists, but legacy routes do not consume it and no dual-read/cutover is active.
+- The persisted-v2 projection and durable synchronous compatibility service
+  exist, but legacy routes do not consume them and no dual-read/cutover is active.
 - Decision plans, immutable capability artifacts, deterministic lifecycle transitions, bounded scheduler execution, latency/failure decisions, and durable event/cancellation primitives exist, but no production adapter/serving integration exists.
 - Legacy new searches can still disappear because local state and query cache diverge; isolated v2 E9.6 reconciliation is not route-mounted yet.
-- Citations and AI metadata do not restore from history.
+- Citation detail and verifier metadata restore through the off-by-default v2
+  API; full workspace reopen remains pending E9.5/E9.7.
 - Populated legacy history rows contain database datetimes that currently fail the route's declared `str | int | None` response validation and produce HTTP 500.
 - Typed v2 retrieval outcomes distinguish failure from healthy no-match, but the unchanged legacy route still collapses both to its existing empty-result behavior.
 - Missing citations prevent AI synthesis.
-- Citations are not claim-verified.
+- Claim verification and persistence are isolated and not yet wired into the
+  response execution/composition serving path.
 - Parallel.ai web provenance is discarded.
-- No application-controlled live-news retrieval.
+- The B-005 live capability is isolated and all approved connectors default
+  disabled; no production connector, credential, route, or serving activation
+  exists yet.
 - The isolated v2 selector skips ineligible retrieval work, but the unchanged legacy route still runs all five branches for every query.
 - The legacy route still selects global/event history; the correct v2 active-session context selector is isolated and not yet wired to serving.
 - Blocking database/provider work occurs in an async route.
@@ -426,21 +633,21 @@ Detailed task status: [03_TASKS.md](./03_TASKS.md).
   live-intelligence journey remains unfinished.
 - Production dependency audit reports three pre-existing high-severity advisory groups in Next.js/PostCSS/sharp; remediation is authorized and remains an engineering release gate under the approved B-012 policy.
 
-The blocker register contains zero unresolved blockers:
+The blocker register contains four unresolved execution blockers, B-016,
+B-017, B-018, and B-019:
 [08_BLOCKERS.md](./08_BLOCKERS.md).
 
 ## Next recommended task
 
-Complete E9.10 through task-level local validation and manual major-route
-visual review. Then resume E9.2.1, followed by the highest-priority eligible
-task under the continuous Agent OS loop.
+Complete E9.4, then immediately continue the highest-priority eligible task.
+E1.7 remains isolated behind B-017; E3.7, E5.8, and E7.9 remain isolated
+behind B-018; E6.7 remains isolated behind B-019; E9.10 and E9.2.1 remain
+isolated behind B-016.
 
 ## Last successful iteration
 
-GOV-B005-B014 governance approval package. Eight enterprise approval artifacts
-now fix Live Intelligence, production SLO, claim verification, production
-migration, integration-test ownership, dependency security, Decision
-calibration, and retrieval calibration policy. Every blocker is Resolved,
-frozen specification hashes remain unchanged, E1.7 is the highest-priority
-eligible task, and the full Agent OS compliance gate passes with zero failures
-and zero warnings.
+E10.9 Legacy synchronous adapter. Exact Completed/Partial terminal awaiting,
+owned run/session/user artifact binding, E8.7-to-legacy equivalence, approved
+deadline and lease bounds, fixed safe cancellation/timeout/unavailable
+outcomes, internal-timeout distinction, caller-cancellation propagation, and
+no route cutover pass local review. E9.4 is the next eligible task.

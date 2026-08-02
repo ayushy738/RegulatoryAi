@@ -44,6 +44,8 @@
 - E5.9 provider-configuration coverage proves the exact Supabase retrieval/vector plus offline/OpenAI-compatible/Parallel embedding matrix at dimension 1536; rejects memory/unknown providers, wrong offline model, unsupported dimensions, and missing/blank remote credentials; catches constructor, class-identity, health-identity, partial/mismatched/invalid startup states; injects validated instances into retrieval execution and health; emits deterministic safe detail-free decisions; and retains legacy factories without provider, reindex, route, migration, or frontend change.
 - E6.1 knowledge-mode coverage proves sufficient/partial/no-match/unavailable/not-required/pending official outcomes crossed with official/reporting/unverified/no-match/unavailable/pending live outcomes; exact healthy-no-match and outage copy; Mode 1/2/3 provenance, citation/source, legal-force, prohibited-claim, and confidence ceilings; scope hard caps; selected-document refusal; live failure isolation; repeated same-mode multi-part sections; pending/degraded/empty invariants; strict validation; and deterministic serialization without capability execution, route, persistence, migration, provider, flag, or frontend change.
 - E6.2 General AI coverage proves explicit-general, healthy official no-match, qualified outage, scope-Unknown, noneligible/pending, and ordered multi-part execution; exact policy-owned disclosure/ceiling/provenance; one Parallel call; canonical General Knowledge payloads; explicit nonblank credentials/model; strict section/version identity; citation/link/source/absence/applicability/disclosure contamination refusal; oversized/malformed/reordered/duplicate output; timeout/factory/identity/execution failures; safe detail exclusion; nested request/policy revalidation; deterministic serialization; and unchanged legacy chat without live, route, persistence, migration, flag, or frontend change.
+- E6.3 Live Intelligence coverage freezes every B-005 approved official host and provider family, disabled-by-default connectors, versioned registry/entitlement snapshots, active-license and retention gates, exact-host HTTPS/credential/SSRF refusal, declared TLS/DNS/robots/text-extraction limits, publisher/type/license/content-hash identity, all fixed-clock freshness and consultation windows, L1–L5 confidence ceilings/badges, live-only Orchestrator provenance, non-legal-force disclosure, exact duplicate provenance retention, user/fan-out/provider limits, bounded/nonretryable failure behavior, healthy no-match distinction, partial provider preservation, deterministic cache keys/TTLs, stale-cache Low ceiling, strict malformed/tampered refusal, deterministic serialization, and no production connector/network/persistence/route/flag/UI/legacy change.
+- E6.4 event-reconciliation coverage proves exact internal/live consolidation into one stable visual identity with separate provenance subsections; complete source, ancestry, publication, retrieval, and reported-status retention; official-only established legal status; input-order independence; readable material identity/date/type/description/status conflicts; unresolved official-status behavior; mandatory contradiction penalty and High prohibition; distinct inspectable near-duplicate clusters; chronological standalone events; cutoff and lane enforcement; strict duplicate-ID refusal; truthful no-events output; deterministic serialization; and no route, provider, persistence, migration, frontend, flag, or legacy change.
 - E6.5 mode-UI coverage freezes exact E6.1 no-document, official-outage,
   no-live-update, and live-refresh copy; proves distinct official, General AI,
   live, and mixed-mode landmarks; disclosure-before-prose order; manual search
@@ -53,8 +55,12 @@
   status copy; keyboard focus; non-color mode/state identity; unsafe URL,
   blank/naive timestamp, missing action, and dishonest count refusal; and
   unchanged default-route isolation.
+- E6.6 capability-degradation coverage projects every canonical failure class into strict visibility, severity, confidence effect, exact safe copy, affected/unaffected sections, preserved artifacts, and unique executable actions. It proves official/live healthy no-match never shares outage wording; optional live/timeline/follow-up chrome can be omitted; only E10.6 transient official/live/General-AI/verifier states expose scoped retry; only relevant evidence paths expose safe local manual search; ambiguity requests input; unsupported synthesis is withheld while evidence survives; backend/frontend JSON is exact; command rendering requires a real handler; keyboard interaction works; raw errors/safe codes are not displayed; and no route/API/persistence/legacy behavior changes.
 - E7.1 evidence-admission coverage proves exact canonical/artifact identity, positive chunk plus locator, inspectable official source identity, excerpt/source metadata, approved-scope echo, atomic-question membership, E5.3 match/relevance identity, direct pending official provenance, ancestry, terminal state, conflict refusal, and partial valid-neighbor retention. Current, historical-as-of, and draft fixtures recompute the E5.5 decision and reject stale/nonselected versions, evaluation/mode/family/status drift, no-match, unknown, contradiction, invalid lineage, forged decisions, malformed nested/model-copy output, and unsafe detail while preserving deterministic immutable serialization and adding no claim-support, confidence, route, persistence, migration, provider, or frontend behavior.
 - E7.2 Candidate Claim coverage proves one material pending Mode 1 claim per approved atomic-question/section scope; exact ordered references and final composer transformation over E7.1-admitted official evidence; multiple evidence references; separated multi-part claims; and explicit nonjudgment of semantic support. It rejects nonmaterial/supportless, duplicate/unknown/excluded, crossed-scope/lane, preverified, nonterminal, conflicting, wrong-lineage, duplicate/colliding identity, tampered admission, malformed neighbor, extra-field, and model-copy cases while preserving valid neighboring claims, deterministic serialization, and no verifier, confidence, route, persistence, migration, provider, composer execution, or frontend behavior.
+- E7.3 claim-verifier coverage proves E7.1/E7.2 identity revalidation before semantics; exact atomic claim/evidence spans and qualifier coverage; executable B-009 publication and evaluation thresholds; weakest-proposition Supported/Partial Support/Contradiction/Unknown aggregation; high-risk confidence demotion; one subset-only correction and re-verification; checksum/version/provider/prompt-bound grounded-prose release; 2,200 ms budget; evidence-only timeout/unavailable/malformed/drift behavior; immutable evidence identity hashes; deterministic serialization; and safe provider-detail exclusion without a production provider, serving route, persistence, migration, or frontend change.
+- E7.6 citation-persistence coverage executes additive migration `0035` from a populated `0034`, preserves and deterministically backfills existing claim/evidence identities, and proves one atomic owner/run/version write of exact claim text, admitted source snapshots, citation order, provenance, confidence output, correction/verifier artifact, and complete provider/verifier/model/prompt/policy/latency identity. Repository/API/frontend contract cases prove idempotent replay, stable-identity conflict refusal, full rollback on a missing owned source, owner isolation, current/superseded source status, feature-flag concealment, authentication, non-disclosing 404s, strict safe restoration, and unchanged legacy routes.
+- E7.7 citation-UI coverage proves exact message/version/citation/claim/source joining, grounded-official lane enforcement, snapshot/locator identity, verified-only native controls, explicit pending/unavailable/support states, immediate saved metadata/excerpt/action presentation, progressive current-detail restoration, current and superseded status, safe failure retention, malformed/crossed-detail refusal, stale-load fencing, HTTPS-only source actions, optional real save handling, close-button focus, Escape, unique ARIA relationships, mobile layout, and no route, workspace-state, API, persistence, migration, or legacy-drawer change.
 - E7.4 confidence coverage proves the exact 25/15/20/15/15/10 dimension weights, all six additive penalties, 0–100 bounding, continuous 35/60/80 label boundaries, every mandatory High gate, every hard-Unknown override, E6 mode/scope ceilings, weakest-critical-input caps, and stale/freshness consistency. It proves exact 70/30 coverage-weighted section and importance-weighted overall aggregation, zero-coverage handling, weakest material/critical label propagation, all four strict-intent reasons, multi-mode section visibility, graph/condition/nonfinite/extra-field/model-copy refusal, deterministic serialization, and no verifier calibration, provenance propagation, persistence, migration, route, provider, composer execution, or frontend behavior.
 - E7.5 provenance-lineage coverage proves exact E7.1 admission, E5.4 graph
   backing, E5.6 timeline ancestry, claim support, section claim/input lineage,
@@ -85,6 +91,69 @@
   evidence excerpts, exact coverage meter semantics, non-color missing state,
   separate mixed-mode cards, keyboard action execution, hidden unhandled
   available actions, accessible disabled actions, and default-route isolation.
+- E8.3 compliance-card coverage proves matching strict version-1 Obligation,
+  Deadline, and Stakeholder payloads over the shared E8.1 fixture; official-
+  corpus-only grounding; exact claim/source/citation sets including multiple
+  sources for one claim; complete versus Partial versus `Not established`
+  invariants; confidence requirements and High prohibition for partial cards;
+  responsible party/action/timing/trigger/jurisdiction/official basis;
+  deadline date/type/stakeholder/status/source with disabled future tracking;
+  stakeholder role/impact/obligations/regulations/entity/coverage; exact
+  inspect/applicability/entity targets; unknown-field and crossed-provenance
+  refusal; responsive metadata; non-color missing state; coverage meter
+  semantics; keyboard-native real actions; hidden unhandled available actions;
+  accessible disabled actions; legacy-route compatibility; and no route, API,
+  persistence, migration, provider, flag, or legacy-serving change.
+- E8.4 change/intelligence-card coverage proves matching strict version-1
+  Timeline Event, Amendment, Comparison, Live News, and Related Regulation
+  payloads; whole-card official/live lane switching; exact envelope claim/
+  source identity; official timeline citations and live timeline publisher/
+  type/publication/retrieval/badge/attribution/HTTPS identity; mandatory live
+  non-legal-force disclosure; prior/next timeline relationships; amendment
+  instrument/version/date/provision/stakeholder/summary/compare identity;
+  independent comparison-side values and citations with visible
+  `Not established` and cross-side citation-reuse refusal; live news relevance,
+  safe source link, and official-basis target; related regulation provenance,
+  explanation, evidence, and canonical entity target; Ready/Partial and High-
+  ceiling invariants; crossed lane/envelope, unsafe URL, unknown-field, and
+  unsafe-action refusal; responsive metadata and scroll-safe comparison table;
+  keyboard-native real actions; hidden unhandled actions; and no route, API,
+  persistence, migration, provider, flag, or legacy-serving change.
+- E8.5 merge coverage proves strict terminal contribution identity; contiguous
+  atomic-question ordering; deterministic question/blueprint/lane assembly;
+  input-order-independent serialization; exact content deduplication with
+  local section/card action-target normalization; collision-safe stable output
+  identities; retention of same-ID/different-content card variants; explicit
+  title/strategy/card conflict gaps; weakest confidence; provenance-pure same-
+  key cross-mode sections; independently recoverable same-key multi-part
+  sections; ready-content preservation as Degraded when a supporting
+  contribution is cancelled; unaffected ready sibling sections; exact claim/
+  source unions; section-action target rebinding; unknown future-card fallback;
+  duplicate contribution and unstable question-order refusal; and a recorded
+  golden projection, with no frontend, route, API, persistence, migration,
+  provider, flag, or legacy-serving change.
+- E8.6 follow-up coverage proves strict resolved entity/document/jurisdiction/
+  stakeholder/comparison/related scope; frozen gap/evidence/compliance/change/
+  explore/live ordering; fixed gap priority independent of input order;
+  below-High official-provision or manual-search evidence deepening; retrieval-
+  failure manual search without false absence; completed-intent and normalized
+  prior-question/suggestion exclusion; plausible comparison operand and
+  resolved-entity live gates; capability eligibility and degraded-capability
+  refusal; safe control-character-free question construction; typed response-
+  strategy previews; fresh-retrieval flags; stable suggestion identity;
+  category/question diversity; exact Orchestrator FollowUpCandidates parity;
+  deterministic serialization; three-to-five output; zero on budget exhaustion
+  or insufficient safe diversity; required-for-completion false; strict invalid
+  scope/prior/degradation refusal; and no route, provider, persistence,
+  migration, frontend, flag, or current-turn content change.
+- E8.7 compatibility-rendering coverage proves exact legacy Markdown and flat
+  citation golden equivalence; structured section/source order; stable
+  source-identity deduplication; verified official citation admission only;
+  live and General AI separation; degraded and unknown-card disclosure;
+  no-evidence behavior; provenance-crossing, unknown-reference, duplicate-ID,
+  conflicting-source, missing-evidence, and control-character refusal; input
+  order independence; and structured-response immutability without route,
+  persistence, or legacy-adapter integration.
 - E9.1 data-layer coverage proves stable owner-scoped session/message/run/structured-response keys, distinct page-size identities, session and complete-turn opaque cursor continuation, flag/auth/token/resource enablement, exact request-token use, E2 session/turn/evidence/source/saved-item parsing, E8.1 structured-result parsing through an injected projection, shared canonical message/run caching, invalid-contract rejection, and cross-owner cache isolation. The legacy provider and route smoke tests remain unchanged and pass.
 - E9.2 shell coverage proves flag-off legacy equivalence and flag-on default
   registration over E9.1; semantic navigation/canvas/evidence regions;
@@ -145,6 +214,14 @@
   Migration `0032` is exercised from empty and populated `0031`; source
   message, run, orchestration state, evidence snapshot, metadata, and
   version-specific feedback remain unchanged.
+- E10.9 legacy-synchronous coverage proves Completed and Partial durable run
+  admission; exact run/session/owner handoff to E10.2 and the terminal artifact
+  loader; E8.7 Markdown/flat-citation equivalence; unchanged model/intent/event/
+  follow-up fields; positive bounded lease/step inputs; the approved 30-second
+  outer maximum; deadline cancellation; internal-timeout distinction; caller-
+  cancellation propagation; and fixed safe cancellation, failed/nonterminal,
+  missing/crossed artifact, executor, and loader outcomes. It adds no route,
+  persistence, migration, provider, frontend, flag, or serving cutover.
 - E11.1 entity lookup/disambiguation coverage proves exact canonical,
   approved-alias, jurisdiction-scoped, dominant, ambiguous, and no-match
   outcomes over the existing E3.3 policy; deterministic alias ordering;
@@ -276,6 +353,7 @@ From apps/api: python -m pytest -q backend/tests/test_ask_ai_selective_retrieval
 From apps/api: python -m pytest -q backend/tests/test_ask_ai_retrieval_quality.py
 From apps/api: python -m pytest -q backend/tests/test_ask_ai_retrieval_evaluation.py
 From apps/api: python -m pytest -q backend/tests/test_ask_ai_provenance_lineage.py
+From apps/api: python -m pytest -q backend/tests/test_ask_ai_claim_verification.py backend/tests/test_ask_ai_candidate_claims.py backend/tests/test_ask_ai_evidence_admission.py backend/tests/test_ask_ai_orchestration_contracts.py
 From apps/api: python -m pytest -q backend/tests/test_ask_ai_version_status.py
 From apps/api with disposable PostgreSQL variables: python -m pytest -q backend/tests/test_ask_ai_embedding_health.py
 From apps/api: python -m pytest -q backend/tests/test_ask_ai_orchestration_contracts.py backend/tests/test_ask_ai_orchestration_state_machine.py backend/tests/test_ask_ai_orchestration_scheduler.py

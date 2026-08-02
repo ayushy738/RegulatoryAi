@@ -6,6 +6,94 @@ All notable completed Ask AI changes are recorded here. Format follows [Keep a C
 
 ### Added
 
+- Ask AI bounded legacy synchronous run adapter:
+  - exact owned run/session/user execution through the durable E10.2
+    coordinator and exact identity-bound terminal artifact loading;
+  - Completed and Partial result admission followed by E8.7 projection to the
+    unchanged legacy response, including model, intent, event, citations, and
+    related questions;
+  - one approved maximum 30-second outer deadline covering execution, load,
+    validation, and rendering, with positive in-budget leases and bounded
+    coordinator steps;
+  - fixed safe deadline, cancellation, unavailable, missing/crossed artifact,
+    malformed output, executor, and loader outcomes;
+  - caller-cancellation propagation and correct distinction between outer
+    deadline expiry and an internal provider timeout;
+  - isolated service and timeout/equivalence coverage with no `/chat` cutover.
+
+- Ask AI deterministic legacy compatibility rendering:
+  - strict version-1 projection from structured response and explicit citation
+    snapshots to the unchanged Markdown `reply` and flat citation shape;
+  - structured-response source ordering and exact stable-source deduplication,
+    independent of input order;
+  - supported/legacy-verified official citation admission only, with exact
+    claim/source membership and evidence requirements;
+  - visibly separate live publisher/publication/retrieval attribution and
+    General AI disclosure, never flattened into official citations;
+  - explicit degraded-section and unknown-card limitations plus safe no-
+    evidence behavior;
+  - fail-closed cross-lane, unknown-reference, conflicting-source, duplicate-
+    identity, missing-evidence, and control-character validation;
+  - exact golden equivalence and full Epic E8 regression/build/compliance
+    review without route, persistence, or legacy-serving changes.
+
+- Ask AI deterministic follow-up generation:
+  - strict resolved-scope, completed-intent, confidence, enumerated-gap, prior-
+    question/suggestion, capability, and degradation inputs;
+  - frozen gap → official evidence → compliance → change → related → live
+    selection with typed response previews and stable identities;
+  - below-High official evidence deepening with safe manual document-search
+    fallback when retrieval fails or is ineligible;
+  - answered/prior exclusion, plausible comparison operands, resolved-entity
+    live gating, and degraded-capability refusal;
+  - control-character-safe templates, three-to-five distinct directions, exact
+    Orchestrator artifact parity, and valid zero-suggestion optional outcome;
+  - explicit nonblocking behavior that cannot alter current-turn content.
+- Ask AI deterministic response merge:
+  - strict terminal section contributions scoped by atomic question, blueprint
+    order, logical section, and provenance lane;
+  - input-order-independent section/card assembly with stable collision-safe
+    identities and recorded golden projection;
+  - exact semantic card deduplication that normalizes local identity targets,
+    plus explicit retention of same-ID conflicting variants;
+  - visible title, strategy, and card conflicts with weakest confidence/state
+    propagation instead of silent averaging;
+  - independently recoverable same-key multi-part and cross-mode sections with
+    pure provenance;
+  - preservation of ready content as Degraded when a same-section supporting
+    contribution fails, without blocking ready siblings;
+  - exact claim/source unions, section-action rebinding, and unknown future-
+    card fallback preservation.
+- Ask AI change and intelligence response cards:
+  - strict matching backend/frontend Timeline Event, Amendment, Comparison,
+    Live News, and Related Regulation payload contracts over E8.1;
+  - lane-bound official and live timeline variants with exact provenance,
+    source identity, relationships, safe actions, and live legal-status
+    disclosure;
+  - complete amendment instrument/version/date/provision/stakeholder evidence
+    and compare identity with truthful Partial gaps;
+  - independently evidenced comparison sides that retain `Not established`
+    and reject cross-side citation identity reuse;
+  - complete B-005 live publisher/source/freshness/badge/attribution/HTTPS
+    metadata plus exact official-basis lookup identity;
+  - cited related-regulation relationships and canonical intelligence-page
+    targets;
+  - isolated responsive accessible renderers with scroll-safe comparison,
+    non-color state, keyboard-native real actions, and no fake handlers.
+- Ask AI compliance response cards:
+  - strict matching backend/frontend Obligation, Deadline, and Stakeholder
+    payload contracts over the E8.1 response envelope;
+  - official-corpus-only grounding, exact independent claim/source/citation
+    identity, explicit confidence, and fail-closed malformed/provenance rules;
+  - truthful complete, Partial, and `Not established` behavior with no factual
+    content or evidence retained in a not-established card;
+  - exact obligation applicability and stakeholder entity actions, with future
+    deadline tracking visibly disabled until its owning phase;
+  - isolated responsive renderers for all frozen fields, non-color state,
+    evidence markers, coverage meters, keyboard actions, and hidden unhandled
+    available actions;
+  - parity coverage for multiple distinct official sources supporting one
+    claim, affected response contracts, and unchanged legacy Ask routes.
 - Ask AI governance approval package:
   - approved Live Intelligence providers, domains, licensing, provenance,
     freshness, attribution, separation, caching, rate limits, failure
@@ -312,6 +400,11 @@ All notable completed Ask AI changes are recorded here. Format follows [Keep a C
   - one material pending Mode 1 claim per approved atomic-question/section scope with exact ordered admitted-evidence references;
   - matching final Response Composer transformation plus scope, provenance-lane, terminal-state, conflict, duplicate, and identity-collision gates;
   - independent invalid-claim exclusion without semantic support judgment, confidence calculation, serving, persistence, migration, provider/composer execution, or frontend changes.
+- Ask AI claim-support verifier:
+  - strict immutable B-009 request, proposition/span, correction, release-approval, attempt, evidence-snapshot, result, and canonical Verification Result artifact contracts;
+  - E7.1/E7.2 identity revalidation before semantics, exact evidence spans, material-qualifier coverage, weakest-proposition aggregation, and Supported/Partial Support/Contradiction/Unknown confidence thresholds;
+  - one subset-preserving correction pass with append-only lineage and re-verification, plus evidence-only fallback for every non-supported or failed state;
+  - grounded prose only under an exact checksum-bound PASS approval matching provider/verifier/model/prompt/policy and the 2,200 ms budget, with no production provider, route, persistence, migration, frontend, or legacy switch.
 - Ask AI evidence-derived confidence calculation:
   - strict versioned dimension, penalty, hard-Unknown, High-gate, claim, section, overall, request, and result contracts;
   - exact frozen weighted claim arithmetic, additive penalties, score bounds, label boundaries, E6 mode/scope and weakest-input ceilings;
@@ -482,6 +575,62 @@ All notable completed Ask AI changes are recorded here. Format follows [Keep a C
   - accessible flag-gated `/browse` controls, stale-response fencing, exact
     transport, canonical route restoration/cleanup, explicit empty/degraded
     states, and unchanged flag-off legacy Browse.
+- Ask AI citation persistence and restoration:
+  - additive migration `0035` with deterministic populated claim/evidence-key
+    backfill, complete verifier identity/latency fields, structured-result
+    integrity checks, provenance/confidence payloads, and lookup indexes;
+  - one owner/run/response-version transaction for exact material claims,
+    immutable admitted source snapshots, ordered citations, correction lineage,
+    confidence output, and full provider/verifier/model/prompt/policy identity;
+  - idempotent stable replay, conflicting-identity refusal, and full rollback
+    when any owned official source is absent;
+  - off-by-default authenticated citation detail restoration with current
+    source status, safe verifier summaries, non-disclosing not-found behavior,
+    and matching strict frontend transport contracts without legacy cutover.
+- Ask AI Live Intelligence capability:
+  - exact versioned B-005 official-domain, provider-family, entitlement,
+    retention, registry, and connector-security contracts, with every
+    connector disabled by default and no credentials or network activation;
+  - fixed-clock today/breaking/news/recent/bounded/open/recently-closed
+    admission, exact HTTPS/source/publisher/license/hash checks, L1–L5 trust,
+    attribution badges, confidence ceilings, and live-only provenance;
+  - canonical live Evidence Units with required non-legal-force disclosure,
+    policy/registry/entitlement/provider ancestry, untrusted-content marking,
+    and exact duplicate consolidation retaining every source identity;
+  - deterministic fan-out/user/provider limits, bounded retries,
+    nonretryable permanent failures, healthy no-match distinction, independent
+    partial results, cache keys/TTLs, and stale-cache Low/badge behavior.
+- Ask AI capability-specific degradation:
+  - strict product projection over canonical Orchestrator failure transitions,
+    retaining exact affected/unaffected sections and preserved artifacts;
+  - distinct healthy no-match, partial, unavailable, timed-out, invalid,
+    ambiguity, and verification copy with explicit confidence effects and
+    optional live/timeline/follow-up omission;
+  - capability-scoped retry actions only where E10.6 can execute them, safe
+    local manual document search only on relevant evidence paths, and focused
+    intent/entity input actions instead of generic retry;
+  - matching strict Zod contract and isolated accessible renderer that requires
+    real command handlers, supports keyboard operation, and excludes internal
+    safe codes and raw error detail.
+- Ask AI internal/live event reconciliation:
+  - deterministic visual event identities consolidate exact duplicates while
+    retaining separate official-basis and live-coverage subsections;
+  - every original source ID, ancestry path, publication/retrieval timestamp,
+    event label/date/type, and reported legal status remains inspectable;
+  - near duplicates remain separate within a stable cluster, while material
+    identity, date, type, description, and status conflicts remain explicit;
+  - only established official evidence controls legal status; live reporting
+    remains contextual, and every unresolved conflict requires the
+    contradiction penalty and prohibits High confidence.
+- Ask AI inline citation and evidence primitives:
+  - exact persisted claim, citation, and official-source snapshots are joined
+    before rendering; crossed identity or provenance fails closed;
+  - verified citations expose compact keyboard-operable support-state controls,
+    while pending/unavailable citations remain visible and noninteractive;
+  - evidence detail opens with saved metadata and excerpt immediately, then
+    restores current or superseded source status without losing canvas context;
+  - source-detail failure, stale completion, or unsafe link retains the stored
+    citation identity and excerpt with safe copy and HTTPS-only actions.
 - Agent OS terminal graph compliance:
   - tested support for no active task only when no dependency-eligible item
     remains, while omission still fails whenever eligible work exists.
@@ -492,8 +641,10 @@ All notable completed Ask AI changes are recorded here. Format follows [Keep a C
   guideline palette, Verbatim-first typography hierarchy, diagonal brand
   geometry, shared spacing/radius/elevation tokens, unified navigation,
   cards, controls, tables, forms, dialogs, states, Ask AI workspace surfaces,
-  and responsive rules across the application. Automated validation passes;
-  final manual visual acceptance remains open under B-015.
+  and responsive rules across the application. Browser review corrected hero
+  contrast, wordmark treatment, and mobile sign-in reachability on public
+  entry surfaces. Automated validation and browser infrastructure pass; final
+  authenticated major-route visual acceptance remains open under B-016.
 - Documentation now distinguishes the completed legacy baseline from the unimplemented redesign.
 - E0.1 Ask contract characterization is complete.
 - E0.2 Frontend test foundation is complete.

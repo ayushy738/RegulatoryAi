@@ -2,6 +2,7 @@ import type { z } from "zod";
 
 import { supabase } from "./supabase";
 import {
+  askCitationDetailSchema,
   askMessageEvidenceSchema,
   askMessageSourcesSchema,
   askSavedItemListSchema,
@@ -487,6 +488,18 @@ export function getAskMessageSources(messageId: string, token: string) {
   return validatedFetch(
     `/chat/messages/${encodedMessageId}/sources`,
     askMessageSourcesSchema,
+    token,
+  );
+}
+
+export function getAskCitationDetail(
+  messageId: string,
+  citationId: string,
+  token: string,
+) {
+  return validatedFetch(
+    `/chat/messages/${encodeURIComponent(messageId)}/citations/${encodeURIComponent(citationId)}`,
+    askCitationDetailSchema,
     token,
   );
 }

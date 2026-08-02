@@ -1,7 +1,7 @@
 # Ask AI Agent OS — Tasks
 
 **Delivery source:** [ASK_AI_IMPLEMENTATION_PLAN.md](./ASK_AI_IMPLEMENTATION_PLAN.md)  
-**Snapshot:** 2026-07-29 at repository revision `c7e28ae`  
+**Snapshot:** 2026-07-30 at repository revision `87b8eec`
 **Rule:** Status reflects repository evidence, not documentation completion.
 
 ## Status and priority
@@ -47,7 +47,7 @@ any frozen product interaction or engineering dependency.
 
 | Feature | Task | Status | Pri | Dependencies | Definition of Done |
 |---|---|---|---:|---|---|
-| Visual system | E9.10 Application-wide UI/UX refinement | [-] Active | P0 | E0.2,E9.2 | Existing routes use the approved Resolven deck palette, typography, spacing, navigation, surfaces, controls, states, and responsive primitives without business-logic change; major routes pass manual visual review. |
+| Visual system | E9.10 Application-wide UI/UX refinement | [!] Blocked | P0 | E0.2,E9.2 | Existing routes use the approved Resolven deck palette, typography, spacing, navigation, surfaces, controls, states, and responsive primitives without business-logic change; major routes pass manual visual review. Blocked by B-016. |
 
 # E0 — Delivery guardrails and compatibility foundation
 
@@ -73,7 +73,7 @@ any frozen product interaction or engineering dependency.
 | Versions | E1.4 Feedback and version lineage | [x] Complete | P1 | E1.2,E1.3 | Version-specific feedback and regeneration lineage restore correctly. |
 | Backfill | E1.5 Legacy backfill tool | [x] Complete | P0 | E1.2,E1.3 | Dry-run/resumable backfill is idempotent and preserves order/ownership. |
 | Constraints | E1.6 Constraint validation migration | [x] Complete | P0 | E1.5 | Preflight proves all rows valid before safe constraints/indexes are added. |
-| Rehearsal | E1.7 Production-volume migration rehearsal | [ ] Planned | P0 | E1.6 | Timing, lock, count, and hash reconciliation report and rollback runbook are approved. |
+| Rehearsal | E1.7 Production-volume migration rehearsal | [!] Blocked | P0 | E1.6 | Timing, lock, count, and hash reconciliation report and rollback runbook are approved. Blocked by B-017. |
 
 # E2 — Session, turn, and evidence APIs
 
@@ -100,7 +100,7 @@ any frozen product interaction or engineering dependency.
 | Context | E3.4 Multi-part and context policy | [x] Complete | P0 | E3.2,E3.3 | Atomic decomposition and current-turn precedence pass conversation fixtures. |
 | Plans | E3.5 Retrieval/response plan selection | [x] Complete | P0 | E3.4 | Golden matrix selects only eligible capabilities and response blueprints. |
 | Shadow | E3.6 Shadow decision recording | [x] Complete | P1 | E1.3,E3.5 | Disagreements are recorded without user-visible routing changes. |
-| Calibration | E3.7 Regulatory review calibration | [ ] Planned | P0 | E3.6 | Approved labels/thresholds become immutable regression fixtures. |
+| Calibration | E3.7 Regulatory review calibration | [!] Blocked | P0 | E3.6 | Approved labels/thresholds become immutable regression fixtures. Blocked by B-018. |
 
 # E4 — AI Orchestrator and capability lifecycle
 
@@ -130,7 +130,7 @@ any frozen product interaction or engineering dependency.
 | Versions | E5.5 Version/current-status evidence | [x] Complete | P0 | E5.3 | Current/historical fixtures resolve supersession and status correctly. |
 | Timeline | E5.6 Timeline Builder | [x] Complete | P1 | E5.4,E5.5 | Date type, certainty, conflicts, and provenance survive construction. |
 | Embeddings | E5.7 Embedding compatibility health | [x] Complete | P0 | E5.1 | Provider/model/dimension mismatch is explicit, never a false no-match. |
-| Evaluation | E5.8 Retrieval evaluation and tuning | [ ] Planned | P0 | E5.3-E5.7 | Reproducible per-intent quality/latency report locks approved thresholds. |
+| Evaluation | E5.8 Retrieval evaluation and tuning | [!] Blocked | P0 | E5.3-E5.7 | Reproducible per-intent quality/latency report locks approved thresholds. Blocked by B-018. |
 | Configuration | E5.9 Provider-configuration enforcement | [x] Complete | P0 | E5.1,E5.7 | Declared v2 provider is used or health validation fails explicitly. |
 
 # E6 — Knowledge modes, General AI, and Live Intelligence
@@ -141,11 +141,11 @@ any frozen product interaction or engineering dependency.
 |---|---|---|---:|---|---|
 | Modes | E6.1 Knowledge-mode domain contract | [x] Complete | P0 | E3.5,E4.1 | Mode matrix, disclosures, and ceilings pass without serving change. |
 | General AI | E6.2 General AI fallback | [x] Complete | P0 | E5.1,E6.1 | Healthy no-match and outage produce distinct tested outcomes; no citations. |
-| Live | E6.3 Live-source capability | [ ] Planned | P1 | E6.1 | Approved source policy, time filters, attribution, and failure mocks pass. |
-| Reconciliation | E6.4 Internal/live event reconciliation | [ ] Planned | P1 | E5.6,E6.3 | Duplicate events consolidate visually while retaining both origins. |
+| Live | E6.3 Live-source capability | [x] Complete | P1 | E6.1 | Approved source policy, time filters, attribution, and failure mocks pass. |
+| Reconciliation | E6.4 Internal/live event reconciliation | [x] Complete | P1 | E5.6,E6.3 | Duplicate events consolidate visually while retaining both origins. |
 | UI modes | E6.5 Mode UI primitives | [x] Complete | P1 | E0.2,E6.1 | Banners/cards/disclosures/empty states pass a11y and visual fixtures. |
-| Degradation | E6.6 Capability-specific degradation | [ ] Planned | P0 | E6.2,E6.3 | Retry/manual-search actions and safe copy match each terminal state. |
-| Evaluation | E6.7 Shadow live/general evaluation | [ ] Planned | P0 | E6.2,E6.3 | Coverage, safety, provenance, and latency meet approved review set. |
+| Degradation | E6.6 Capability-specific degradation | [x] Complete | P0 | E6.2,E6.3 | Retry/manual-search actions and safe copy match each terminal state. |
+| Evaluation | E6.7 Shadow live/general evaluation | [!] Blocked | P0 | E6.2,E6.3 | Coverage, safety, provenance, and latency meet approved review set. Blocked by B-019. |
 
 # E7 — Citation verification, confidence, and provenance
 
@@ -155,27 +155,27 @@ any frozen product interaction or engineering dependency.
 |---|---|---|---:|---|---|
 | Admission | E7.1 Evidence identity and admission | [x] Complete | P0 | E5.3,E5.5 | Source/chunk/scope/status integrity and stale-source cases pass. |
 | Claims | E7.2 Candidate claim contract | [x] Complete | P0 | E7.1 | Material claims reference admitted evidence in strict fixtures. |
-| Verification | E7.3 Claim-support verifier | [ ] Planned | P0 | E7.2 | Supported/partial/negative/conflict calibration meets approved threshold. |
+| Verification | E7.3 Claim-support verifier | [x] Complete | P0 | E7.2 | Supported/partial/negative/conflict calibration meets approved threshold. |
 | Confidence | E7.4 Confidence calculation | [x] Complete | P0 | E3.1,E7.2 | Exact weights, penalties, gates, ceilings, and aggregation pass boundaries. |
 | Provenance | E7.5 Provenance lineage | [x] Complete | P0 | E5.6,E7.1 | Property tests prevent source-authority upgrade or lane contamination. |
-| Persistence | E7.6 Citation persistence and API | [ ] Planned | P0 | E1.3,E2.5,E7.3 | Exact claim/source snapshots and verifier versions restore. |
-| Citation UI | E7.7 Inline citation and evidence UI | [ ] Planned | P1 | E7.6,E0.2 | Claim links, drawer, failure states, and keyboard access pass. |
+| Persistence | E7.6 Citation persistence and API | [x] Complete | P0 | E1.3,E2.5,E7.3 | Exact claim/source snapshots and verifier versions restore. |
+| Citation UI | E7.7 Inline citation and evidence UI | [x] Complete | P1 | E7.6,E0.2 | Claim links, drawer, failure states, and keyboard access pass. |
 | Confidence UI | E7.8 Confidence/coverage UI | [x] Complete | P1 | E7.4,E7.5 | Mixed-mode section reasons and gaps render correctly. |
-| Evaluation | E7.9 Shadow verification evaluation | [ ] Planned | P0 | E7.3 | Regulatory labels establish approved precision/recall and latency. |
+| Evaluation | E7.9 Shadow verification evaluation | [!] Blocked | P0 | E7.3 | Regulatory labels establish approved precision/recall and latency. Blocked by B-018. |
 
 # E8 — Response composition, cards, and follow-ups
 
-**Epic status:** `[-] Active` · **Priority:** P1 · **Dependencies:** E6,E7
+**Epic status:** `[x] Complete` · **Priority:** P1 · **Dependencies:** E6,E7
 
 | Feature | Task | Status | Pri | Dependencies | Definition of Done |
 |---|---|---|---:|---|---|
 | Contracts | E8.1 Section and card contracts | [x] Complete | P0 | E6.1,E7.2 | Versioned backend/frontend fixtures and compatibility summary agree. |
 | Core cards | E8.2 Summary/Definition/Source/Confidence | [x] Complete | P1 | E8.1 | Strict schema, component, provenance, and a11y tests pass. |
-| Compliance | E8.3 Obligation/Deadline/Stakeholder cards | [ ] Planned | P1 | E7.6,E8.1 | `Not established`, applicability, and citation behavior pass. |
-| Change | E8.4 Timeline/Amendment/Comparison/News/Related cards | [ ] Planned | P1 | E5.6,E6.4,E8.1 | Responsive and provenance fixtures pass. |
-| Merge | E8.5 Deterministic section merge | [ ] Planned | P0 | E8.2-E8.4 | Order/dedup/conflict/multi-part golden tests pass. |
-| Follow-ups | E8.6 Follow-up Generator | [ ] Planned | P1 | E8.5 | Suggestions are contextual, distinct, safe, and nonblocking. |
-| Compatibility | E8.7 Compatibility rendering | [ ] Planned | P0 | E8.5 | Legacy reply and flat citations match compatibility fixtures. |
+| Compliance | E8.3 Obligation/Deadline/Stakeholder cards | [x] Complete | P1 | E7.6,E8.1 | `Not established`, applicability, and citation behavior pass. |
+| Change | E8.4 Timeline/Amendment/Comparison/News/Related cards | [x] Complete | P1 | E5.6,E6.4,E8.1 | Responsive and provenance fixtures pass. |
+| Merge | E8.5 Deterministic section merge | [x] Complete | P0 | E8.2-E8.4 | Order/dedup/conflict/multi-part golden tests pass. |
+| Follow-ups | E8.6 Follow-up Generator | [x] Complete | P1 | E8.5 | Suggestions are contextual, distinct, safe, and nonblocking. |
+| Compatibility | E8.7 Compatibility rendering | [x] Complete | P0 | E8.5 | Legacy reply and flat citations match compatibility fixtures. |
 
 # E9 — Frontend Research Workspace and exact continuity
 
@@ -185,9 +185,9 @@ any frozen product interaction or engineering dependency.
 |---|---|---|---:|---|---|
 | Data | E9.1 Feature-scoped data layer | [x] Complete | P0 | E2.2,E2.5 | Stable session/message/run hooks pass cache and contract tests. |
 | Shell | E9.2 Research shell | [x] Complete | P1 | E9.1 | Flagged three-pane shell and immediate composer pass responsive tests. |
-| Integration | E9.2.1 `/ask` workspace route integration | [ ] Planned | P0 | E9.2,E9.8 | `/ask` mounts the implemented Research Workspace without a legacy Ask render or legacy boot traffic, and local browser verification passes. |
+| Integration | E9.2.1 `/ask` workspace route integration | [!] Blocked | P0 | E9.2,E9.8 | `/ask` mounts the implemented Research Workspace without a legacy Ask render or legacy boot traffic, and local browser verification passes. Blocked by B-016. |
 | Sessions | E9.3 Session rail | [x] Complete | P1 | E2.3,E2.4,E9.2 | Real search/lifecycle actions pass component tests. |
-| Canvas | E9.4 Structured canvas | [ ] Planned | P1 | E8.2-E8.5,E9.2 | Sections/cards/modes/confidence render accessibly. |
+| Canvas | E9.4 Structured canvas | [-] Active | P1 | E8.2-E8.5,E9.2 | Sections/cards/modes/confidence render accessibly. |
 | Evidence | E9.5 Evidence panel | [ ] Planned | P1 | E7.7,E9.4 | Stored/current evidence and source failure preserve canvas context. |
 | Reconciliation | E9.6 Optimistic turn reconciliation | [x] Complete | P0 | E2.6,E9.1 | Race/remount/idempotency tests prove messages do not disappear. |
 | Restore | E9.7 Exact restoration | [ ] Planned | P0 | E9.3-E9.6 | Reopen restores all persisted artifacts and view state in E2E tests. |
@@ -208,7 +208,7 @@ any frozen product interaction or engineering dependency.
 | Retry | E10.6 Capability retry | [x] Complete | P1 | E4.5,E10.2 | Only selected degraded capability reruns idempotently. |
 | Versions | E10.7 Regeneration and refresh | [x] Complete | P1 | E1.4,E10.2 | Prior answer remains; correct turn/source/refresh lineage is tested. |
 | Feedback | E10.8 Feedback UI and save state | [ ] Planned | P1 | E2.5,E9.7 | Feedback/save state attach to exact version and survive reopen. |
-| Legacy | E10.9 Legacy synchronous adapter | [ ] Planned | P0 | E8.7,E10.2 | Old client can await v2 result and receive legacy shape. |
+| Legacy | E10.9 Legacy synchronous adapter | [x] Complete | P0 | E8.7,E10.2 | Old client can await v2 result and receive legacy shape. |
 
 # E11 — Entity Intelligence, federated search, structured journeys
 
@@ -244,13 +244,14 @@ any frozen product interaction or engineering dependency.
 
 ## Next task
 
-E1.7 Production-volume migration rehearsal is the active task. It is the
-highest-priority dependency-eligible item after the B-010 production migration
-approval. The B-005, B-007, B-009, B-011, B-012, B-013, and B-014 approvals
-also remove every governance-only dependency from their respective chains.
+E9.4 Structured canvas is the active task. E1.7 remains blocked by B-017;
+E3.7, E5.8, and E7.9 remain blocked by B-018; E9.10 and E9.2.1 remain blocked
+by B-016; E6.7 remains blocked by B-019. These blocked tasks do not prevent
+independent graph work.
 
-Resume E1.7 under the approved expand/backfill/validate/contract, lock-budget,
-reconciliation, maintenance-window, and rollback rules. See
+Execute E9.4 by composing the completed E8.2–E8.5 section/card/mode/confidence
+primitives into the flagged Research Workspace canvas with deterministic
+unknown/degraded/partial rendering and no change to legacy flag-off behavior. See
 [04_CURRENT_STATE.md](./04_CURRENT_STATE.md),
 [08_BLOCKERS.md](./08_BLOCKERS.md), and
 [07_TEST_PLAN.md](./07_TEST_PLAN.md).

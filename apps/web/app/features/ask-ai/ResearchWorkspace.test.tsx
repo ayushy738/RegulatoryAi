@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { entityCorePageFixture } from "../../../test/entity-core-page-fixture";
 import { federatedSearchFixture } from "../../../test/federated-search-fixture";
+import responseContract from "../../../../api/backend/tests/fixtures/ask_response_contract.json";
 
 import { ResearchWorkspace } from "./ResearchWorkspace";
 
@@ -89,6 +90,24 @@ afterEach(() => {
 });
 
 describe("Research Workspace entity lookup route", () => {
+  it("mounts an injected structured response in the center canvas", () => {
+    render(
+      <ResearchWorkspace
+        onSubmit={vi.fn()}
+        structuredResponse={responseContract}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        level: 2,
+        name: /The filing obligation is in force/,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Official findings" }))
+      .toBeInTheDocument();
+  });
+
   it("opens bare DSM as an Entity Intelligence Page with visible expansion", async () => {
     const user = userEvent.setup();
     lookupFixture.state.mutateAsync.mockResolvedValue(resolvedDsm);

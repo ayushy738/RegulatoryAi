@@ -743,3 +743,59 @@ This is the architectural decision index extracted from the frozen specification
 - **Source:** Product Specification sections 7.4 and 10.4–10.5;
   Implementation Plan E11.6 and Epic E11 acceptance/testing; Decisions D-005,
   D-009, D-038, D-053, and D-057.
+
+## D-059 — Legacy rendering is a strict projection, not a fourth provenance lane
+
+- **Decision:** E8.7 derives one immutable version-1 compatibility result from
+  the E8.5 structured response plus explicit citation snapshots. The reply
+  begins with the stored compatibility summary, then deterministically labels
+  live intelligence and General AI as non-official, records degraded sections
+  and unknown-card fallback limitations, and appends the established legacy
+  citation text format. The flat citation list admits only `supported` or
+  legacy `verified` official citations referenced by an official section,
+  orders sources by structured-response position, and deduplicates only exact
+  stable source identity. Cross-lane source reuse, unknown claim/source
+  references, conflicting source snapshots, duplicate citation identity, and
+  verified citations without inspectable evidence fail closed.
+- **Rationale:** Legacy clients cannot represent typed provenance sections or
+  claim-scoped support. A deterministic projection preserves compatibility
+  without relabeling live/general material as official, silently elevating
+  unsupported evidence, or making the compatibility surface a separate truth
+  store.
+- **Alternatives rejected:** flatten every source as an official citation;
+  return only the compatibility summary and hide provenance limitations;
+  deduplicate by title or URL; admit partial/unknown verifier states; let
+  citation input order determine output; alter the current route in E8.7.
+- **Affected:** E8.1, E8.5, E8.7, E9.4, E10.9, legacy rollback, exact response
+  restoration, citation persistence, and future response-schema migrations.
+- **Source:** Product Specification sections 9 and 12; Implementation Plan
+  Epic E8 API, rollback, testing, acceptance, and E8.7; Decisions D-027,
+  D-032, and the B-005/B-009 approval policies.
+
+## D-060 — Synchronous legacy waiting is bounded around the durable run
+
+- **Decision:** E10.9 uses an injected asynchronous service that calls the
+  E10.2 durable execution coordinator for one exact run/session/owner and then
+  loads one identity-bound terminal artifact for E8.7 projection. Only
+  Completed and Partial durable statuses are servable. One positive outer
+  deadline, capped at the B-007 30-second Composite hard cutoff, covers durable
+  execution, artifact loading, validation, and compatibility rendering; the
+  worker lease cannot exceed that deadline and execution steps remain bounded.
+  Outer expiry, cancellation, failed/nonterminal state, crossed/missing output,
+  malformed artifacts, and internal faults expose fixed safe outcomes. Caller
+  cancellation propagates, and an internal provider `TimeoutError` is not
+  mislabeled as outer-deadline expiry.
+- **Rationale:** The old client needs one synchronous response, while v2 owns
+  durable execution and exact structured artifacts. Waiting around the durable
+  boundary preserves restart/recovery semantics and legacy equivalence without
+  adding a second execution path or silently extending an SLO deadline.
+- **Alternatives rejected:** run capabilities directly inside `/chat`; poll
+  indefinitely; reset the deadline for artifact loading; serve Failed or
+  Cancelled runs; return partially validated artifacts; trust a loader's owner
+  identity; convert caller cancellation into a product error; cut over the
+  legacy route before rollout authority.
+- **Affected:** E8.7, E10.1, E10.2, E10.9, B-007 latency enforcement, legacy
+  rollback, and later v2 route cutover.
+- **Source:** Implementation Plan Epic E10 API/risk/rollback/testing and E10.9;
+  Orchestrator durability/terminal-state rules; B-007 Production SLO Approval;
+  Decisions D-014, D-035, and D-059.
