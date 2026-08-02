@@ -18,6 +18,7 @@ from backend.ask.regeneration import (
     ResponseRegenerationService,
 )
 from backend.ask.schemas import (
+    AskCitationDetailResponse,
     AskFeedbackRequest,
     AskFeedbackResponse,
     AskMessageEvidenceResponse,
@@ -107,6 +108,29 @@ def get_message_sources(
             detail="Message not found",
         )
     return AskMessageSourcesResponse.from_domain(version)
+
+
+@router.get(
+    "/{message_id}/citations/{citation_id}",
+    response_model=AskCitationDetailResponse,
+)
+def get_message_citation_detail(
+    message_id: UUID,
+    citation_id: UUID,
+    user: UserDep,
+    service: AskEvidenceServiceDep,
+) -> AskCitationDetailResponse:
+    detail = service.get_citation_detail(
+        assistant_message_public_id=message_id,
+        citation_id=citation_id,
+        user_id=UUID(user.id),
+    )
+    if detail is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Citation not found",
+        )
+    return AskCitationDetailResponse.from_domain(detail)
 
 
 @router.post("/{message_id}/feedback", response_model=AskFeedbackResponse)

@@ -318,10 +318,10 @@ def test_general_ai_confidence_has_no_source_or_corpus_claim() -> None:
         _validate(card)
 
 
-def test_non_core_known_payload_remains_owned_by_later_e8_tasks() -> None:
-    obligation = _card("obligation")
-    obligation["payload"] = {"future_e8_3_field": "retained"}
+def test_unknown_future_payload_remains_outside_core_card_semantics() -> None:
+    future = _card("regulatory_heatmap")
+    future["payload"] = {"future_card_field": "retained"}
 
-    assert _validate(obligation).payload == {
-        "future_e8_3_field": "retained"
+    assert _validate(future).payload == {
+        "future_card_field": "retained"
     }

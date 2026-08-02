@@ -12,11 +12,13 @@ from fastapi.testclient import TestClient
 
 from backend.api.auth import CurrentUser, current_user
 from backend.api.routes import chat_evidence, chat_sessions
+from backend.ask.citation_persistence import CurrentSourceStatus, PersistedCitationDetail
 from backend.ask.models import (
     AskFeedback,
     AskResponseVersion,
     AskRun,
     AskSavedItem,
+    AskSource,
     ChatMessage,
 )
 
@@ -27,6 +29,8 @@ RUN_ID = UUID("44444444-4444-4444-8444-444444444444")
 FEEDBACK_ID = UUID("55555555-5555-4555-8555-555555555555")
 SOURCE_ID = UUID("66666666-6666-4666-8666-666666666666")
 SAVED_ITEM_ID = UUID("77777777-7777-4777-8777-777777777777")
+CITATION_ID = UUID("88888888-8888-4888-8888-888888888888")
+CLAIM_ID = UUID("99999999-9999-4999-8999-999999999999")
 CONTRACT_PATH = Path(__file__).parent / "fixtures" / "ask_evidence_contract.json"
 
 
@@ -109,6 +113,59 @@ def _saved_item() -> AskSavedItem:
     )
 
 
+def _citation_detail() -> PersistedCitationDetail:
+    created = datetime(2026, 7, 27, 9, 4, tzinfo=UTC)
+    source = AskSource(
+        id=SOURCE_ID,
+        ordinal=0,
+        source_key="official:consultation",
+        source_class="official",
+        source_type="regulation",
+        document_id=91,
+        document_version_id=92,
+        chunk_id=93,
+        graph_reference=None,
+        title_snapshot="Consultation regulation",
+        url_snapshot="https://official.example.test/consultation",
+        issuer_snapshot="Regulator",
+        publisher_snapshot=None,
+        jurisdiction_snapshot="central",
+        published_at=datetime(2026, 7, 27, 8, 30, tzinfo=UTC),
+        retrieved_at=created,
+        evidence_snapshot="Responses are due by 31 August.",
+        locator_snapshot="paragraph 4",
+        content_hash="sha256:contract",
+        metadata={"language": "en"},
+        created_at=created,
+    )
+    return PersistedCitationDetail(
+        message_id=MESSAGE_ID,
+        response_version=2,
+        claim_id=CLAIM_ID,
+        claim_key="claim-1",
+        claim_ordinal=0,
+        claim_text="Responses are due by 31 August.",
+        support_status="supported",
+        support_score=0.98,
+        citation_id=CITATION_ID,
+        evidence_key="evidence-1",
+        citation_ordinal=0,
+        marker="[1]",
+        verification_status="supported",
+        verifier_provider="contract-verifier",
+        verifier_version="verifier-1",
+        verifier_model="model-1",
+        verifier_prompt_version="prompt-1",
+        verifier_policy_version="ask-ai-claim-verifier-v1",
+        verification_latency_ms=125,
+        verifier_result=None,
+        provenance={"knowledge_mode": "grounded_regulatory"},
+        confidence_result={"score": 0.98},
+        source=source,
+        current_source_status=CurrentSourceStatus.CURRENT,
+    )
+
+
 class FakeEvidenceService:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
@@ -116,6 +173,7 @@ class FakeEvidenceService:
         self.feedback: AskFeedback | None = _version().feedback
         self.saved_items: tuple[AskSavedItem, ...] | None = (_saved_item(),)
         self.saved_item: AskSavedItem | None = _saved_item()
+        self.citation_detail: PersistedCitationDetail | None = _citation_detail()
         self.deleted = True
 
     def get_response_version(self, **kwargs: Any) -> AskResponseVersion | None:
@@ -137,6 +195,10 @@ class FakeEvidenceService:
     def delete_saved_item(self, **kwargs: Any) -> bool:
         self.calls.append(("delete", kwargs))
         return self.deleted
+
+    def get_citation_detail(self, **kwargs: Any) -> PersistedCitationDetail | None:
+        self.calls.append(("get_citation", kwargs))
+        return self.citation_detail
 
 
 @pytest.fixture(scope="module")
@@ -171,10 +233,13 @@ def test_flag_off_is_non_disclosing_for_evidence_and_saved_items(
 
     with TestClient(app) as client:
         evidence = client.get(f"/chat/messages/{MESSAGE_ID}")
+        citation = client.get(
+            f"/chat/messages/{MESSAGE_ID}/citations/{CITATION_ID}"
+        )
         saved = client.get(f"/chat/sessions/{SESSION_ID}/saved-items")
 
-    assert evidence.status_code == saved.status_code == 404
-    assert evidence.json() == saved.json() == {"detail": "Not found"}
+    assert evidence.status_code == citation.status_code == saved.status_code == 404
+    assert evidence.json() == citation.json() == saved.json() == {"detail": "Not found"}
     assert service.calls == []
 
 
@@ -186,9 +251,12 @@ def test_flag_on_still_requires_authentication(monkeypatch: pytest.MonkeyPatch) 
 
     with TestClient(api, raise_server_exceptions=False) as client:
         evidence = client.get(f"/chat/messages/{MESSAGE_ID}")
+        citation = client.get(
+            f"/chat/messages/{MESSAGE_ID}/citations/{CITATION_ID}"
+        )
         saved = client.get(f"/chat/sessions/{SESSION_ID}/saved-items")
 
-    assert evidence.status_code == saved.status_code == 401
+    assert evidence.status_code == citation.status_code == saved.status_code == 401
 
 
 def test_message_and_sources_match_versioned_contract(
@@ -223,6 +291,34 @@ def test_inaccessible_message_uses_one_not_found_contract(
 
     assert message.status_code == sources.status_code == 404
     assert message.json() == sources.json() == {"detail": "Message not found"}
+
+
+def test_citation_detail_is_owner_scoped_and_non_disclosing(
+    app: FastAPI,
+    service: FakeEvidenceService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_sessions.settings, "ask_ai_v2_api_enabled", True)
+
+    with TestClient(app) as client:
+        found = client.get(f"/chat/messages/{MESSAGE_ID}/citations/{CITATION_ID}")
+        service.citation_detail = None
+        missing = client.get(f"/chat/messages/{MESSAGE_ID}/citations/{uuid4()}")
+
+    assert found.status_code == 200
+    assert found.json()["claim_key"] == "claim-1"
+    assert found.json()["evidence_key"] == "evidence-1"
+    assert found.json()["source"]["evidence_snapshot"] == (
+        "Responses are due by 31 August."
+    )
+    assert "verifier_provider" in found.json()
+    assert missing.status_code == 404
+    assert missing.json() == {"detail": "Citation not found"}
+    assert service.calls[-2][1] == {
+        "assistant_message_public_id": MESSAGE_ID,
+        "citation_id": CITATION_ID,
+        "user_id": USER_ID,
+    }
 
 
 def test_feedback_matches_contract_and_forwards_exact_message_owner(

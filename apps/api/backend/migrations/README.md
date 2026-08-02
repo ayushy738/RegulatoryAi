@@ -127,7 +127,9 @@ checkpoint and the same command safely resumes remaining nullable rows:
 
 ```powershell
 python -m backend.tools.ask_ai_legacy_backfill run `
-  --batch-size 500 `
+  --batch-size 1000 `
+  --batch-pause-seconds 0.25 `
+  --after-message-id 0 `
   --max-batches 10
 ```
 
@@ -143,6 +145,16 @@ Before applying migration `0025`, require the explicit preflight:
 python -m backend.tools.ask_ai_legacy_backfill preflight
 python -m backend.tools.apply_migration apply --through 0025
 ```
+
+The B-010 production-volume rehearsal is implemented by
+`backend.tools.ask_ai_migration_rehearsal`. It prepares a fenced disposable
+loopback database at `0022`, measures the real `0023`/`0024` expand, processes
+at least 10,000,000 representative legacy messages under the approved
+application-scoped advisory lock and batch envelope, validates with `0025`,
+checks flag-off rollback compatibility, and emits count/hash/timing/operational
+reports. Follow
+`docs/ASK_AI/runbooks/E1_7_PRODUCTION_MIGRATION_RUNBOOK.md`; never point the
+rehearsal reset command at a shared or production database.
 
 Migration `0025_ask_ai_backfill_validation.sql` refuses pending identities,
 ownership/event drift, duplicate legacy scopes, or invalid legacy marker
@@ -298,6 +310,17 @@ is flag-off plus retained additive data, not destructive un-backfill.
 `backend.ask.backfill.LEGACY_BACKFILL_NAMESPACE` is a permanent persisted-identity
 contract. Never change that UUID after any backfill execution; a new mapping
 version requires a separately reviewed migration and reconciliation plan.
+
+Migration `0035_ask_ai_citation_verification.sql` finalizes durable claim and
+citation restoration without rewriting source content. It adds stable external
+claim/evidence keys, exact verifier provider/version/model/prompt/policy and
+latency identity, and provenance/confidence snapshots. Existing claim keys are
+backfilled from their immutable UUIDs and citation evidence keys from the
+already linked immutable source key. New structured verifier JSON is checked
+against the duplicated indexed identity columns; pre-E7.6 opaque historical
+verifier JSON remains readable. Rollback disables the v2 API/writer and retains
+all additive columns and audit records. Destructive removal requires a later
+approved contract migration after the compatibility window.
 
 ## Repair manually applied 0021/0022 history
 

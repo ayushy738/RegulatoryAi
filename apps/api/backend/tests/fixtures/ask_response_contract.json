@@ -145,13 +145,23 @@
           "state": "ready",
           "knowledge_mode": "grounded_regulatory",
           "provenance_class": "internal_regulatory_corpus",
-          "confidence": null,
+          "confidence": {"score": 82, "label": "high", "reasons": ["The obligation is supported by an official provision."]},
           "claim_ids": ["claim-1"],
           "source_ids": ["source-1"],
           "actions": [
-            {"action": "check_applicability", "state": "disabled", "target": null, "disabled_reason_code": "ACTION_NOT_IMPLEMENTED"}
+            {"action": "inspect_evidence", "state": "available", "target": "citation-1", "disabled_reason_code": null},
+            {"action": "check_applicability", "state": "available", "target": "claim-1", "disabled_reason_code": null}
           ],
-          "payload": {"who": "regulated entity"}
+          "payload": {
+            "schema_version": "1",
+            "responsible_party": {"state": "established", "value": "Regulated entity"},
+            "required_action": {"state": "established", "value": "Submit the prescribed filing"},
+            "timing_or_frequency": {"state": "established", "value": "Monthly"},
+            "trigger_or_scope": {"state": "established", "value": "When the entity participates in the regulated market"},
+            "jurisdiction": {"state": "established", "value": "Central"},
+            "official_basis": {"state": "established", "value": "Regulatory Filing Instrument, paragraph 4"},
+            "evidence_references": [{"citation_id": "citation-1", "claim_id": "claim-1", "source_id": "source-1", "marker": "[1]", "locator": {"state": "established", "value": "paragraph 4"}}]
+          }
         },
         {
           "schema_version": "1",
@@ -169,9 +179,10 @@
           "claim_ids": [],
           "source_ids": [],
           "actions": [
+            {"action": "inspect_evidence", "state": "disabled", "target": null, "disabled_reason_code": "CITATION_NOT_ESTABLISHED"},
             {"action": "add_to_tracker", "state": "disabled", "target": null, "disabled_reason_code": "FUTURE_PHASE"}
           ],
-          "payload": {"date": null, "status": "unverified"}
+          "payload": {"schema_version": "1", "date": {"state": "not_established", "value": null}, "deadline_type": {"state": "not_established", "value": null}, "responsible_stakeholder": {"state": "not_established", "value": null}, "status": "unverified", "source_label": {"state": "not_established", "value": null}, "evidence_references": []}
         },
         {
           "schema_version": "1",
@@ -185,11 +196,11 @@
           "state": "ready",
           "knowledge_mode": "grounded_regulatory",
           "provenance_class": "internal_regulatory_corpus",
-          "confidence": null,
+          "confidence": {"score": 78, "label": "medium", "reasons": ["The event date and significance are supported by an official instrument."]},
           "claim_ids": ["claim-2"],
           "source_ids": ["source-2"],
-          "actions": [],
-          "payload": {"event_type": "effective"}
+          "actions": [{"action": "inspect_evidence", "state": "available", "target": "citation-2", "disabled_reason_code": null}],
+          "payload": {"schema_version": "1", "date": {"state": "established", "value": "2026-07-01"}, "event_type": {"state": "established", "value": "Effective"}, "event_title": {"state": "established", "value": "Revised filing rule became effective"}, "significance": {"state": "established", "value": "The revised monthly filing scope applies from this date."}, "origin": "official", "source_label": {"state": "established", "value": "Amending Filing Instrument"}, "related_prior_event_id": "event-issued", "related_next_event_id": null, "official_evidence_references": [{"citation_id": "citation-2", "claim_id": "claim-2", "source_id": "source-2", "marker": "[2]", "locator": {"state": "established", "value": "commencement clause"}}], "live_source": null}
         },
         {
           "schema_version": "1",
@@ -203,13 +214,14 @@
           "state": "partial",
           "knowledge_mode": "grounded_regulatory",
           "provenance_class": "internal_regulatory_corpus",
-          "confidence": null,
+          "confidence": {"score": 72, "label": "medium", "reasons": ["The amendment relationship is official; the effective date remains unresolved."]},
           "claim_ids": ["claim-2"],
           "source_ids": ["source-1", "source-2"],
           "actions": [
+            {"action": "inspect_evidence", "state": "available", "target": "citation-2", "disabled_reason_code": null},
             {"action": "compare", "state": "available", "target": "source-1:source-2", "disabled_reason_code": null}
           ],
-          "payload": {"change_summary": "The filing scope changed."}
+          "payload": {"schema_version": "1", "amending_instrument": {"state": "established", "value": "Amending Filing Instrument"}, "amended_instrument": {"state": "established", "value": "Regulatory Filing Instrument"}, "issue_date": {"state": "established", "value": "2026-06-01"}, "effective_date": {"state": "not_established", "value": null}, "provisions_affected": ["paragraph 4"], "change_summary": {"state": "established", "value": "The filing scope changed."}, "stakeholders_affected": ["Regulated entities"], "amending_source_id": "source-1", "amended_source_id": "source-2", "evidence_references": [{"citation_id": "citation-amending", "claim_id": "claim-2", "source_id": "source-1", "marker": "[2a]", "locator": {"state": "established", "value": "amending clause"}}, {"citation_id": "citation-2", "claim_id": "claim-2", "source_id": "source-2", "marker": "[2]", "locator": {"state": "established", "value": "paragraph 4"}}]}
         },
         {
           "schema_version": "1",
@@ -223,11 +235,11 @@
           "state": "partial",
           "knowledge_mode": "grounded_regulatory",
           "provenance_class": "internal_regulatory_corpus",
-          "confidence": null,
-          "claim_ids": ["claim-1", "claim-2"],
-          "source_ids": ["source-1", "source-2"],
-          "actions": [],
-          "payload": {"missing_side": "Not established"}
+          "confidence": {"score": 58, "label": "low", "reasons": ["Only side A has official evidence for this dimension."]},
+          "claim_ids": ["claim-1"],
+          "source_ids": ["source-1"],
+          "actions": [{"action": "inspect_evidence", "state": "available", "target": "citation-1", "disabled_reason_code": null}],
+          "payload": {"schema_version": "1", "side_a_label": "Current instrument", "side_b_label": "Prior instrument", "dimensions": [{"dimension": "Filing scope", "side_a": {"state": "established", "value": "Monthly regulated-market participants"}, "side_b": {"state": "not_established", "value": null}, "relationship_or_difference": {"state": "not_established", "value": null}, "side_a_evidence_references": [{"citation_id": "citation-1", "claim_id": "claim-1", "source_id": "source-1", "marker": "[1]", "locator": {"state": "established", "value": "paragraph 4"}}], "side_b_evidence_references": []}]}
         },
         {
           "schema_version": "1",
@@ -241,13 +253,14 @@
           "state": "ready",
           "knowledge_mode": "grounded_regulatory",
           "provenance_class": "internal_regulatory_corpus",
-          "confidence": null,
+          "confidence": {"score": 75, "label": "medium", "reasons": ["The stakeholder impact is supported by one official source."]},
           "claim_ids": ["claim-1"],
           "source_ids": ["source-1"],
           "actions": [
+            {"action": "inspect_evidence", "state": "available", "target": "citation-1", "disabled_reason_code": null},
             {"action": "open_entity", "state": "available", "target": "entity-1", "disabled_reason_code": null}
           ],
-          "payload": {"stakeholder": "regulated entity"}
+          "payload": {"schema_version": "1", "stakeholder": {"state": "established", "value": "Regulated entity"}, "stakeholder_entity_id": "entity-1", "role": {"state": "established", "value": "Filing party"}, "impact": {"state": "established", "value": "Must maintain monthly compliance records"}, "obligations": ["Submit the prescribed filing"], "relevant_regulations": ["Regulatory Filing Instrument"], "jurisdiction": {"state": "established", "value": "Central"}, "evidence_coverage_percent": 75, "evidence_references": [{"citation_id": "citation-1", "claim_id": "claim-1", "source_id": "source-1", "marker": "[1]", "locator": {"state": "established", "value": "paragraph 4"}}]}
         },
         {
           "schema_version": "1",
@@ -261,11 +274,11 @@
           "state": "ready",
           "knowledge_mode": "grounded_regulatory",
           "provenance_class": "internal_regulatory_corpus",
-          "confidence": null,
-          "claim_ids": [],
+          "confidence": {"score": 84, "label": "high", "reasons": ["The relationship is established by official graph and source evidence."]},
+          "claim_ids": ["claim-2"],
           "source_ids": ["source-2"],
-          "actions": [],
-          "payload": {"relationship": "amends"}
+          "actions": [{"action": "inspect_evidence", "state": "available", "target": "citation-2", "disabled_reason_code": null}, {"action": "open_entity", "state": "available", "target": "entity-2", "disabled_reason_code": null}],
+          "payload": {"schema_version": "1", "related_entity_or_document": {"state": "established", "value": "Amending Filing Instrument"}, "related_entity_id": "entity-2", "relationship_type": {"state": "established", "value": "Amends"}, "explanation": {"state": "established", "value": "This instrument revises paragraph 4 of the filing instrument."}, "provenance_label": {"state": "established", "value": "Official Regulatory Corpus"}, "evidence_references": [{"citation_id": "citation-2", "claim_id": "claim-2", "source_id": "source-2", "marker": "[2]", "locator": {"state": "established", "value": "paragraph 4"}}]}
         },
         {
           "schema_version": "1",
@@ -365,9 +378,10 @@
           "claim_ids": ["claim-live"],
           "source_ids": ["source-live"],
           "actions": [
-            {"action": "find_official_basis", "state": "disabled", "target": null, "disabled_reason_code": "ACTION_NOT_IMPLEMENTED"}
+            {"action": "open_source", "state": "available", "target": "https://regulator.example/consultation", "disabled_reason_code": null},
+            {"action": "find_official_basis", "state": "available", "target": "claim-live", "disabled_reason_code": null}
           ],
-          "payload": {"headline": "Regulator announces consultation."}
+          "payload": {"schema_version": "1", "headline": "Regulator announces consultation.", "relevance_explanation": "The consultation may affect the filing scope but does not establish legal status.", "live_source": {"claim_id": "claim-live", "source_id": "source-live", "publisher": "Regulator Newsroom", "source_type": "Official newsroom", "publication_at": "2026-07-31T10:00:00+05:30", "retrieved_at": "2026-07-31T10:05:00+05:30", "ui_badge": "Official live source", "attribution": "Regulator Newsroom", "url": "https://regulator.example/consultation"}}
         }
       ]
     },

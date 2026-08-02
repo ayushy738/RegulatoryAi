@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from backend.ask.backfill import (
+    APPROVED_BATCH_PAUSE_SECONDS,
     DEFAULT_BATCH_SIZE,
     LegacyBackfillDriftError,
     preflight_backfill_validation,
@@ -28,9 +29,21 @@ def _parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     run.add_argument(
+        "--batch-pause-seconds",
+        type=float,
+        default=APPROVED_BATCH_PAUSE_SECONDS,
+        help="Pause between committed batches; defaults to the B-010 envelope.",
+    )
+    run.add_argument(
         "--max-batches",
         type=int,
         help="Stop after this many committed batches; rerun to resume.",
+    )
+    run.add_argument(
+        "--after-message-id",
+        type=int,
+        default=0,
+        help="Resume after the last committed message ID from a prior run.",
     )
 
     verify = commands.add_parser(
@@ -65,6 +78,8 @@ def main() -> None:
                 engine,
                 batch_size=args.batch_size,
                 max_batches=args.max_batches,
+                batch_pause_seconds=args.batch_pause_seconds,
+                after_message_id=args.after_message_id,
             )
             _print_report(result.to_dict())
             if result.status == "failed":

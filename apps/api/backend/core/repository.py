@@ -1625,6 +1625,7 @@ def _run_graph_extraction_for_document(
         content_length=len(extracted.text),
         family_id=family_id,
         assignment_type=assignment_type,
+        jurisdiction=discovered.jurisdiction,
     )
     try:
         with session.begin_nested():

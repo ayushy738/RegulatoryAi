@@ -10,7 +10,9 @@ from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.ask.backfill import (
+    LEGACY_BACKFILL_ADVISORY_LOCK_KEY,
     LEGACY_BACKFILL_VERSION,
+    LegacyBackfillConcurrentRunError,
     legacy_message_public_id,
     legacy_session_id,
     legacy_session_title,
@@ -37,6 +39,26 @@ def test_legacy_identity_is_deterministic_and_scope_specific() -> None:
     assert legacy_message_public_id(1) != legacy_message_public_id(2)
     assert legacy_session_title(None) == "Legacy Ask history"
     assert legacy_session_title(41).endswith("Event 41")
+
+
+@POSTGRES_MARK
+def test_backfill_refuses_concurrent_runner(migrated_engine: Engine) -> None:
+    with migrated_engine.connect() as lock_connection:
+        assert lock_connection.execute(
+            text("select pg_try_advisory_lock(:lock_key)"),
+            {"lock_key": LEGACY_BACKFILL_ADVISORY_LOCK_KEY},
+        ).scalar_one()
+        try:
+            with pytest.raises(
+                LegacyBackfillConcurrentRunError,
+                match="another Ask AI legacy backfill runner",
+            ):
+                run_backfill(migrated_engine)
+        finally:
+            lock_connection.execute(
+                text("select pg_advisory_unlock(:lock_key)"),
+                {"lock_key": LEGACY_BACKFILL_ADVISORY_LOCK_KEY},
+            )
 
 
 @pytest.fixture

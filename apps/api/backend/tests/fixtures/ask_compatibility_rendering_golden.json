@@ -1,0 +1,27 @@
+{
+  "reply": "The filing obligation is in force. A related consultation is live, but official confirmation is pending.\n\nLive Intelligence - not official regulatory evidence:\n- Regulator announces consultation. | Regulator Newsroom | published=2026-07-31T10:00:00+05:30 | retrieved=2026-07-31T10:05:00+05:30 | https://regulator.example/consultation\n\nGeneral AI Knowledge - educational context only; not official regulatory evidence.\n\nCoverage limitations:\n- Official findings: Unsupported card is unavailable in the legacy view.\n- Live updates: Degraded. Official confirmation is pending.\n\nCitations:\n1. Regulatory Filing Instrument | Central Regulatory Commission | 2026-06-15 | https://regulator.example/filing | chunk=101, page=4\n2. Amending Filing Instrument | Central Regulatory Commission | 2026-06-01 | https://regulator.example/amendment | chunk=202, page=2",
+  "citations": [
+    {
+      "document_id": 17,
+      "title": "Regulatory Filing Instrument",
+      "issuer": "Central Regulatory Commission",
+      "issue_date": "2026-06-15",
+      "source_url": "https://regulator.example/filing",
+      "chunk_id": 101,
+      "page_number": 4,
+      "section_title": "Filing obligation",
+      "evidence": "Every regulated entity must submit the prescribed filing."
+    },
+    {
+      "document_id": 18,
+      "title": "Amending Filing Instrument",
+      "issuer": "Central Regulatory Commission",
+      "issue_date": "2026-06-01",
+      "source_url": "https://regulator.example/amendment",
+      "chunk_id": 202,
+      "page_number": 2,
+      "section_title": "Amending clause",
+      "evidence": "Paragraph 4 is amended."
+    }
+  ]
+}
