@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from backend.core.config import settings
 from backend.core.db import session_scope
+from backend.core.logging import log_event
 from backend.rag.embedding_health import (
     inspect_runtime_embedding_compatibility,
     vector_preflight_outcome,
@@ -402,6 +403,12 @@ class SupabaseHybridRetrieval(RetrievalProvider):
         event_id: int | None = None,
     ) -> HybridRetrievalResult:
         started = time.perf_counter()
+        log_event(
+            "retrieval_started",
+            retrieval_provider=self.provider_name,
+            limit=limit,
+            event_id=event_id,
+        )
         intent = detect_intent(query)
         search_limit = max(limit, settings.rag_top_k)
         tasks = {
@@ -425,7 +432,7 @@ class SupabaseHybridRetrieval(RetrievalProvider):
                 branch_executions.append(execution)
         ranked = rank_hits(hits, intent, limit=limit)
         citations = _dedupe_citations([hit.citation() for hit in ranked])
-        return HybridRetrievalResult(
+        result = HybridRetrievalResult(
             query=query,
             intent=intent,
             hits=ranked,
@@ -444,6 +451,26 @@ class SupabaseHybridRetrieval(RetrievalProvider):
                 )
             ],
         )
+        log_event(
+            "retrieval_finished",
+            retrieval_provider=self.provider_name,
+            intent=result.intent.name,
+            hits=len(result.hits),
+            citations=len(result.citations),
+            graph_facts=len(result.graph_facts),
+            retrieval_latency_ms=result.retrieval_latency_ms,
+            branch_outcomes=[
+                {
+                    "branch": outcome.branch.value,
+                    "status": outcome.status.value,
+                    "health": outcome.health.value,
+                    "hits": outcome.match_count,
+                    "safe_failure_code": outcome.safe_failure_code,
+                }
+                for outcome in result.branch_outcomes
+            ],
+        )
+        return result
 
     def health(self) -> dict[str, Any]:
         vector_store = self._vector_store or VectorStoreFactory.get_provider()

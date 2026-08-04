@@ -14,6 +14,7 @@ from backend.ask.decision.shadow import (
 )
 from backend.core.config import settings
 from backend.core.llm import get_llm_client
+from backend.core.logging import log_event
 from backend.core.models import ChatRequest, ChatResponse
 from backend.core.repository import chat_history as get_chat_history
 from backend.core.repository import save_chat_message
@@ -44,6 +45,12 @@ async def chat(
 ) -> ChatResponse | JSONResponse:
     started = time.perf_counter()
     metrics = AskMetrics(http_request)
+    log_event(
+        "ask_request_started",
+        correlation_id=metrics.correlation_id,
+        event_id=request.event_id,
+        message_length=len(request.message),
+    )
     metrics.record("auth", "success", metrics.request_started)
     model = settings.llm_model_chat or "offline-demo"
     history = [
@@ -61,6 +68,12 @@ async def chat(
     retrieval_provider = RetrievalProviderFactory.get_provider()
     retrieval_started = metrics.start()
     try:
+        log_event(
+            "ask_retrieval_started",
+            correlation_id=metrics.correlation_id,
+            event_id=request.event_id,
+            retrieval_provider=retrieval_provider.provider_name,
+        )
         retrieval = retrieval_provider.hybrid_search(
             request.message,
             limit=settings.rag_top_k,
@@ -81,13 +94,35 @@ async def chat(
         "success" if retrieval.hits else "no_match",
         retrieval_started,
     )
+    log_event(
+        "ask_retrieval_finished",
+        correlation_id=metrics.correlation_id,
+        event_id=request.event_id,
+        hits=len(retrieval.hits),
+        citations=len(retrieval.citations),
+        graph_facts=len(retrieval.graph_facts),
+        intent=retrieval.intent.name,
+    )
     _schedule_decision_shadow(
         background_tasks=background_tasks,
         metrics=metrics,
         query=request.message,
         legacy_intent=retrieval.intent.name,
     )
+    log_event(
+        "ask_context_build_started",
+        correlation_id=metrics.correlation_id,
+        event_id=request.event_id,
+    )
     context = build_context(retrieval)
+    log_event(
+        "ask_context_build_finished",
+        correlation_id=metrics.correlation_id,
+        event_id=request.event_id,
+        citations=len(context.citations),
+        graph_facts=len(context.graph_facts),
+        estimated_tokens=context.estimated_tokens,
+    )
     if not context.citations:
         metrics.record("model", "skipped", metrics.start())
         reply = (
@@ -128,6 +163,13 @@ async def chat(
 
     model_started = metrics.start()
     try:
+        log_event(
+            "llm_execution_started",
+            correlation_id=metrics.correlation_id,
+            event_id=request.event_id,
+            model=model,
+            citations=len(context.citations),
+        )
         reply = get_llm_client().complete_text(
             system=SYSTEM_PROMPT,
             user=(
@@ -149,6 +191,14 @@ async def chat(
             internal_detail=f"{type(exc).__name__}: {exc}",
         )
     metrics.record("model", "success", model_started)
+    log_event(
+        "llm_execution_finished",
+        correlation_id=metrics.correlation_id,
+        event_id=request.event_id,
+        model=model,
+        reply_length=len(reply),
+        citations=len(context.citations),
+    )
 
     reply = _ensure_citation_text(reply, context)
     persistence_started = metrics.start()
@@ -174,6 +224,15 @@ async def chat(
         started=started,
     )
     metrics.finish("success")
+    log_event(
+        "ask_grounded_answer_finished",
+        correlation_id=metrics.correlation_id,
+        event_id=request.event_id,
+        model=model,
+        intent=retrieval.intent.name,
+        citations=len(context.citations),
+        persisted=assistant_persisted is not False,
+    )
     return ChatResponse(
         reply=reply,
         event_id=request.event_id,

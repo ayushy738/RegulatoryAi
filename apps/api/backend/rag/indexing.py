@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import text
 
 from backend.core.db import session_scope
+from backend.core.logging import log_event
 from backend.rag.chunker import chunk_document_text
 from backend.rag.embeddings import EmbeddingProviderFactory
 from backend.rag.models import DocumentChunk
@@ -71,6 +72,11 @@ def process_pending_rag_jobs(
     limit: int = 25,
     include_processing: bool = False,
 ) -> dict[str, Any]:
+    log_event(
+        "rag_index_batch_started",
+        limit=limit,
+        include_processing=include_processing,
+    )
     if include_processing:
         requeue_processing_jobs(limit=limit)
     results = []
@@ -85,12 +91,19 @@ def process_pending_rag_jobs(
             job_id=int(job["job_id"]),
         )
         results.append(result)
-    return {
+    payload = {
         "processed": len(results),
         "ready": sum(1 for result in results if result.status == "RAG_READY"),
         "failed": sum(1 for result in results if result.status == "FAILED"),
         "results": [result.__dict__ for result in results],
     }
+    log_event(
+        "rag_index_batch_finished",
+        processed=payload["processed"],
+        ready=payload["ready"],
+        failed=payload["failed"],
+    )
+    return payload
 
 
 def requeue_processing_jobs(*, limit: int | None = None) -> dict[str, int]:
@@ -168,6 +181,12 @@ def index_document(
     job_id: int | None = None,
 ) -> RagIndexResult:
     started = time.perf_counter()
+    log_event(
+        "rag_index_document_started",
+        document_id=document_id,
+        document_version_id=version_id,
+        rag_job_id=job_id,
+    )
     try:
         row = _load_document_text(document_id=document_id, version_id=version_id)
         if not row or not str(row.get("text_content") or "").strip():
@@ -181,6 +200,15 @@ def index_document(
                 error="No extracted text available.",
             )
             _record_result(result, job_id=job_id)
+            log_event(
+                "rag_index_document_finished",
+                document_id=document_id,
+                document_version_id=version_id,
+                rag_job_id=job_id,
+                status=result.status,
+                error=result.error,
+                latency_ms=result.latency_ms,
+            )
             return result
 
         chunks = chunk_document_text(
@@ -229,6 +257,18 @@ def index_document(
             provider=provider.provider_name,
             model=provider.model,
         )
+        log_event(
+            "rag_index_document_finished",
+            document_id=document_id,
+            document_version_id=row.get("version_id"),
+            rag_job_id=job_id,
+            status=result.status,
+            chunks=result.chunk_count,
+            embedded_chunks=result.embedded_chunk_count,
+            embedding_provider=provider.provider_name,
+            embedding_model=provider.model,
+            latency_ms=result.latency_ms,
+        )
         return result
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
@@ -243,6 +283,15 @@ def index_document(
             error=error,
         )
         _record_result(result, job_id=job_id)
+        log_event(
+            "rag_index_document_finished",
+            document_id=document_id,
+            document_version_id=version_id,
+            rag_job_id=job_id,
+            status=result.status,
+            error=error,
+            latency_ms=result.latency_ms,
+        )
         return result
 
 

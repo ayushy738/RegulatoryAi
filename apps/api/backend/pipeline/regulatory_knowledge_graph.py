@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from backend.core.config import settings
 from backend.core.llm import get_llm_client
+from backend.core.logging import log_event
 from backend.pipeline.intelligence_gate import extract_deadline_intelligence
 
 logger = logging.getLogger(__name__)
@@ -195,7 +196,21 @@ def analyze_and_persist_regulatory_graph(
     skip_completed: bool = False,
 ) -> GraphPersistenceResult:
     started = time.perf_counter()
+    log_event(
+        "knowledge_graph_extraction_started",
+        document_id=item.document_id,
+        document_version_id=item.document_version_id,
+        use_ai=use_ai,
+    )
     if skip_completed and _has_terminal_graph_extraction(session, item):
+        log_event(
+            "knowledge_graph_extraction_finished",
+            document_id=item.document_id,
+            document_version_id=item.document_version_id,
+            status=GRAPH_STATUS_SKIPPED,
+            reason="already_terminal",
+            latency_ms=_elapsed_ms(started),
+        )
         return _empty_graph_result(
             item,
             status=GRAPH_STATUS_SKIPPED,
@@ -212,6 +227,14 @@ def analyze_and_persist_regulatory_graph(
             used_ai=False,
             error=error,
             status=GRAPH_STATUS_SKIPPED,
+        )
+        log_event(
+            "knowledge_graph_extraction_finished",
+            document_id=item.document_id,
+            document_version_id=item.document_version_id,
+            status=GRAPH_STATUS_SKIPPED,
+            reason="insufficient_text",
+            latency_ms=latency_ms,
         )
         return _empty_graph_result(
             item,
@@ -253,6 +276,19 @@ def analyze_and_persist_regulatory_graph(
             error=ai_error,
             status=GRAPH_STATUS_COMPLETED,
         )
+        log_event(
+            "knowledge_graph_extraction_finished",
+            document_id=item.document_id,
+            document_version_id=item.document_version_id,
+            status=GRAPH_STATUS_COMPLETED,
+            used_ai=used_ai,
+            entities=result["entity_count"],
+            relationships=result["relationship_count"],
+            stakeholders=result["stakeholder_count"],
+            obligations=result["obligation_count"],
+            deadlines=result["deadline_count"],
+            latency_ms=latency_ms,
+        )
         return GraphPersistenceResult(
             document_id=item.document_id,
             used_ai=used_ai,
@@ -277,6 +313,14 @@ def analyze_and_persist_regulatory_graph(
             used_ai=used_ai,
             error=error,
             status=GRAPH_STATUS_FAILED,
+        )
+        log_event(
+            "knowledge_graph_extraction_finished",
+            document_id=item.document_id,
+            document_version_id=item.document_version_id,
+            status=GRAPH_STATUS_FAILED,
+            error=error,
+            latency_ms=latency_ms,
         )
         return _empty_graph_result(
             item,
@@ -983,6 +1027,13 @@ def _sync_entity_catalog_entry(
     display_name = _clean(name) or _clean(canonical_name)
     if not display_name:
         return
+    log_event(
+        "entity_catalog_sync_started",
+        document_id=item.document_id,
+        document_version_id=item.document_version_id,
+        graph_entity_id=entity_id,
+        entity_type=entity_type,
+    )
     jurisdiction = _catalog_jurisdiction(item)
     catalog_metadata = {
         "source": "regulatory_graph_entities",
@@ -1081,12 +1132,28 @@ def _sync_entity_catalog_entry(
                     jurisdiction=jurisdiction,
                     provenance_ref=f"regulatory_graph_entities:{entity_id}",
                 )
+            log_event(
+                "entity_catalog_sync_finished",
+                document_id=item.document_id,
+                document_version_id=item.document_version_id,
+                graph_entity_id=entity_id,
+                canonical_id=canonical_id,
+                status="success",
+            )
     except Exception as exc:
         logger.warning(
             "entity catalog sync skipped for graph entity %s: %s: %s",
             entity_id,
             type(exc).__name__,
             exc,
+        )
+        log_event(
+            "entity_catalog_sync_finished",
+            document_id=item.document_id,
+            document_version_id=item.document_version_id,
+            graph_entity_id=entity_id,
+            status="failed",
+            error=f"{type(exc).__name__}: {exc}",
         )
 
 
@@ -1753,10 +1820,10 @@ def _refresh_family_latest_version(session: Any, family_id: int) -> None:
         text(
             """
             update document_families f
-            set latest_version_id = latest.registry_version_id,
+            set latest_version_id = latest.document_version_id,
                 updated_at = now()
             from (
-              select registry_version_id
+              select document_version_id
               from document_version_registry
               where family_id = :family_id
               order by

@@ -263,6 +263,11 @@ class DecisionShadowService:
     ) -> ShadowDecisionExecution:
         started = self._monotonic()
         canonical_legacy = LEGACY_CANONICAL_INTENTS[legacy_intent]
+        log_event(
+            "decision_shadow_started",
+            legacy_intent=legacy_intent,
+            legacy_canonical_intent=canonical_legacy.value,
+        )
         try:
             record = DecisionRecord.model_validate(
                 self._evaluator.evaluate(
@@ -304,6 +309,24 @@ class DecisionShadowService:
                 self._recorder.record(comparison)
             except Exception:
                 pass
+        log_event(
+            "decision_shadow_finished",
+            outcome=comparison.outcome.value,
+            legacy_intent=legacy_intent,
+            legacy_canonical_intent=canonical_legacy.value,
+            shadow_intent=(
+                comparison.shadow_intent.value
+                if comparison.shadow_intent is not None
+                else None
+            ),
+            shadow_response_strategy=(
+                comparison.shadow_response_strategy.value
+                if comparison.shadow_response_strategy is not None
+                else None
+            ),
+            duration_ms=comparison.duration_ms,
+            safe_error_code=comparison.safe_error_code,
+        )
         return execution
 
 
