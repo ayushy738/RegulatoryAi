@@ -5,12 +5,23 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse
 
 from backend.api.ask_errors import safe_ask_error
-from backend.api.ask_metrics import AskMetrics
+from backend.api.ask_metrics import AskMetricOutcome, AskMetrics
 from backend.api.deps import UserDep
 from backend.api.ratelimit import limit_chat
 from backend.ask.decision.shadow import (
     DecisionShadowService,
     LoggingShadowComparisonRecorder,
+)
+from backend.ask.general_ai import (
+    GeneralAIExecutionRequest,
+    GeneralAIExecutionResult,
+    GeneralAIExecutionState,
+    execute_general_ai,
+)
+from backend.ask.knowledge_modes import (
+    KnowledgeModeRequest,
+    OfficialEvidenceOutcome,
+    select_knowledge_modes,
 )
 from backend.core.config import settings
 from backend.core.llm import get_llm_client
@@ -24,6 +35,13 @@ from backend.rag.models import BuiltContext, IntentName, citation_to_dict
 from backend.rag.retrieval import RetrievalProviderFactory
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+NO_EVIDENCE_REPLY = (
+    "I do not have enough retrieved evidence to answer this from the regulatory "
+    "corpus. No citation-backed chunks or graph facts were found for this question."
+)
+GENERAL_AI_SCOPE = "India energy sector regulation"
+GENERAL_AI_TIMEOUT_MS = 25_000
 
 SYSTEM_PROMPT = (
     "You are a regulatory analyst assistant for India's energy sector. "
@@ -81,13 +99,43 @@ async def chat(
         )
     except Exception as exc:
         metrics.record("retrieval", "unavailable", retrieval_started)
-        metrics.finish("unavailable")
-        return safe_ask_error(
-            http_request,
-            status_code=500,
-            code="RETRIEVAL_UNAVAILABLE",
-            detail="Regulatory evidence retrieval is temporarily unavailable.",
-            internal_detail=f"{type(exc).__name__}: {exc}",
+        outage_reply = _general_ai_reply_or_none(
+            await _general_ai_knowledge(
+                request.message,
+                official_outcome=OfficialEvidenceOutcome.UNAVAILABLE,
+                correlation_id=metrics.correlation_id,
+                event_id=request.event_id,
+            )
+        )
+        if outage_reply is None:
+            metrics.finish("unavailable")
+            return safe_ask_error(
+                http_request,
+                status_code=500,
+                code="RETRIEVAL_UNAVAILABLE",
+                detail="Regulatory evidence retrieval is temporarily unavailable.",
+                internal_detail=f"{type(exc).__name__}: {exc}",
+            )
+        persistence_started = metrics.start()
+        assistant_persisted = save_chat_message(
+            user.id,
+            "assistant",
+            outage_reply,
+            request.event_id,
+        )
+        metrics.record(
+            "assistant_persistence",
+            "suppressed_failure" if assistant_persisted is False else "success",
+            persistence_started,
+        )
+        metrics.finish("success")
+        return ChatResponse(
+            reply=outage_reply,
+            event_id=request.event_id,
+            model=model,
+            intent="general",
+            citations=[],
+            related_questions=[],
         )
     metrics.record(
         "retrieval",
@@ -124,11 +172,28 @@ async def chat(
         estimated_tokens=context.estimated_tokens,
     )
     if not context.citations:
-        metrics.record("model", "skipped", metrics.start())
-        reply = (
-            "I do not have enough retrieved evidence to answer this from the regulatory "
-            "corpus. No citation-backed chunks or graph facts were found for this question."
+        general_started = metrics.start()
+        general_result = await _general_ai_knowledge(
+            request.message,
+            correlation_id=metrics.correlation_id,
+            event_id=request.event_id,
         )
+        general_reply = _general_ai_reply_or_none(general_result)
+        if general_reply is None:
+            metrics.record("model", "skipped", general_started)
+            reply = NO_EVIDENCE_REPLY
+            request_outcome: AskMetricOutcome = "no_match"
+            model_used = model
+        else:
+            metrics.record("model", "success", general_started)
+            reply = general_reply
+            request_outcome = "success"
+            model_used = (
+                general_result.provider_identity.model
+                if general_result is not None
+                and general_result.provider_identity is not None
+                else model
+            )
         persistence_started = metrics.start()
         assistant_persisted = save_chat_message(
             user.id,
@@ -145,17 +210,17 @@ async def chat(
             user_id=user.id,
             event_id=request.event_id,
             question=request.message,
-            model=model,
+            model=model_used,
             retrieval_provider=retrieval_provider.provider_name,
             context=context,
             retrieval=retrieval,
             started=started,
         )
-        metrics.finish("no_match")
+        metrics.finish(request_outcome)
         return ChatResponse(
             reply=reply,
             event_id=request.event_id,
-            model=model,
+            model=model_used,
             intent=retrieval.intent.name,
             citations=[],
             related_questions=context.related_questions,
@@ -277,6 +342,98 @@ def _record_audit(
         retrieval_latency_ms=retrieval.retrieval_latency_ms,
         context_tokens=context.estimated_tokens,
     )
+
+
+async def _general_ai_knowledge(
+    question: str,
+    *,
+    official_outcome: OfficialEvidenceOutcome = (
+        OfficialEvidenceOutcome.HEALTHY_NO_MATCH
+    ),
+    correlation_id: str,
+    event_id: int | None,
+) -> GeneralAIExecutionResult | None:
+    if not settings.ask_ai_general_mode_enabled:
+        return None
+    log_event(
+        "ask_general_ai_started",
+        correlation_id=correlation_id,
+        event_id=event_id,
+        official_outcome=official_outcome.value,
+    )
+    try:
+        result = await execute_general_ai(
+            GeneralAIExecutionRequest(
+                query=question,
+                resolved_scope=(GENERAL_AI_SCOPE,),
+                mode_decision=select_knowledge_modes(
+                    KnowledgeModeRequest(
+                        official_outcome=official_outcome,
+                        qualified_general_fallback_allowed=(
+                            official_outcome
+                            is OfficialEvidenceOutcome.UNAVAILABLE
+                        ),
+                    )
+                ),
+                timeout_ms=GENERAL_AI_TIMEOUT_MS,
+            )
+        )
+    except Exception as exc:
+        log_event(
+            "ask_general_ai_finished",
+            correlation_id=correlation_id,
+            event_id=event_id,
+            state="unavailable",
+            safe_code="GENERAL_AI_CAPABILITY_UNAVAILABLE",
+            internal_detail=f"{type(exc).__name__}: {exc}",
+        )
+        return None
+    log_event(
+        "ask_general_ai_finished",
+        correlation_id=correlation_id,
+        event_id=event_id,
+        state=result.state.value,
+        health=result.health.value,
+        safe_code=result.safe_code,
+        provider=(
+            result.provider_identity.provider
+            if result.provider_identity is not None
+            else None
+        ),
+        units=len(result.units),
+    )
+    return result
+
+
+def _general_ai_reply_or_none(
+    result: GeneralAIExecutionResult | None,
+) -> str | None:
+    if result is None or result.state is not GeneralAIExecutionState.SATISFIED:
+        return None
+    return _general_ai_reply(result)
+
+
+def _general_ai_reply(result: GeneralAIExecutionResult) -> str | None:
+    blocks: list[str] = []
+    for unit in result.units:
+        payload = unit.payload
+        blocks.append(payload.content.strip())
+        if payload.assumptions:
+            blocks.append(
+                "Assumptions:\n"
+                + "\n".join(f"- {item}" for item in payload.assumptions)
+            )
+        if payload.uncertainty_statements:
+            blocks.append(
+                "Uncertainty:\n"
+                + "\n".join(
+                    f"- {item}" for item in payload.uncertainty_statements
+                )
+            )
+        if payload.required_disclosure is not None:
+            blocks.append(payload.required_disclosure)
+    reply = "\n\n".join(block for block in blocks if block)
+    return reply or None
 
 
 def _ensure_citation_text(reply: str, context: BuiltContext) -> str:

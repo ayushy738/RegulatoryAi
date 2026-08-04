@@ -31,6 +31,7 @@ import {
   resolveAskEntity,
   searchAskDocuments,
   searchAskResearch,
+  sendChat,
 } from "./api";
 import {
   askEntityLookupRequestSchema,
@@ -54,6 +55,7 @@ import {
   askSavedItemListSchema,
 } from "./ask-ai-evidence";
 import { askStructuredResponseSchema } from "./ask-ai-response";
+import { chatResponseSchema } from "./schemas";
 import {
   askFederatedSearchRequestSchema,
   askFederatedSearchResponseSchema,
@@ -80,6 +82,12 @@ import { askTurnListSchema } from "./ask-ai-turns";
 
 const DEFAULT_SESSION_PAGE_SIZE = 20;
 const DEFAULT_TURN_PAGE_SIZE = 20;
+
+export type AskGeneralAiAnswer = Readonly<{
+  question: string;
+  reply: string;
+  citations: number;
+}>;
 
 export type ResearchRunIdentity = Readonly<{
   sessionId: string;
@@ -159,6 +167,9 @@ export type ResearchWorkspaceClient = Readonly<{
   getStructuredResponse?: (
     request: AuthenticatedRequest & ResearchRunIdentity,
   ) => Promise<unknown>;
+  askQuestion?: (
+    request: AuthenticatedRequest & Readonly<{ question: string }>,
+  ) => Promise<unknown>;
 }>;
 
 const defaultResearchWorkspaceClient: ResearchWorkspaceClient = {
@@ -192,6 +203,8 @@ const defaultResearchWorkspaceClient: ResearchWorkspaceClient = {
     searchAskResearch(request, accessToken),
   searchDocuments: ({ accessToken, ...request }) =>
     searchAskDocuments(request, accessToken),
+  askQuestion: ({ accessToken, question }) =>
+    sendChat(question, null, accessToken),
 };
 
 export const researchWorkspaceKeys = {
@@ -700,6 +713,39 @@ export function useResolveResearchEntity() {
           ...request,
         }),
       );
+    },
+  });
+  return {
+    ...mutation,
+    available,
+  };
+}
+
+export function useGeneralAiAnswer() {
+  const context = useResearchWorkspaceData();
+  const { accessToken } = requiredIdentity(context);
+  const available =
+    context.enabled && context.client.askQuestion !== undefined;
+  const mutation = useMutation<AskGeneralAiAnswer, Error, string>({
+    mutationFn: async (question) => {
+      if (!available || context.client.askQuestion === undefined) {
+        throw new Error("General AI answers are unavailable");
+      }
+      const trimmed = question.trim();
+      if (!trimmed) {
+        throw new Error("A general AI question cannot be blank");
+      }
+      const answer = chatResponseSchema.parse(
+        await context.client.askQuestion({ accessToken, question: trimmed }),
+      );
+      if (!answer.reply.trim()) {
+        throw new Error("General AI answers require content");
+      }
+      return {
+        question: trimmed,
+        reply: answer.reply,
+        citations: answer.citations.length,
+      };
     },
   });
   return {

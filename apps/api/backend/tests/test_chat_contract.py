@@ -18,6 +18,20 @@ from backend.api.ask_errors import AskCorrelationMiddleware
 from backend.api.auth import CurrentUser, current_user
 from backend.api.ratelimit import limit_chat
 from backend.api.routes import chat
+from backend.ask.general_ai import (
+    GeneralAIExecutionHealth,
+    GeneralAIExecutionRequest,
+    GeneralAIExecutionResult,
+    GeneralAIExecutionState,
+    GeneralAIProviderIdentity,
+    GeneralKnowledgeUnit,
+)
+from backend.ask.knowledge_modes import (
+    NO_OFFICIAL_DOCUMENTS_DISCLOSURE,
+    OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE,
+    ModeTrigger,
+)
+from backend.ask.orchestration.contracts import GeneralKnowledgeUnitPayload
 from backend.core import repository
 from backend.rag.models import HybridRetrievalResult, Intent, RetrievalHit
 
@@ -42,6 +56,15 @@ def authenticated_client() -> Iterator[TestClient]:
     app.dependency_overrides[limit_chat] = lambda: None
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
+
+
+@pytest.fixture(autouse=True)
+def general_ai_capability_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        chat.settings,
+        "ask_ai_general_mode_enabled",
+        False,
+    )
 
 
 @pytest.fixture
@@ -106,6 +129,31 @@ def _provider(result: HybridRetrievalResult) -> SimpleNamespace:
         provider_name="contract-provider",
         hybrid_search=hybrid_search,
         calls=calls,
+    )
+
+
+def _satisfied_general_ai(
+    request: GeneralAIExecutionRequest,
+) -> GeneralAIExecutionResult:
+    policy = request.mode_decision.sections[0]
+    return GeneralAIExecutionResult(
+        state=GeneralAIExecutionState.SATISFIED,
+        health=GeneralAIExecutionHealth.HEALTHY,
+        units=(
+            GeneralKnowledgeUnit(
+                section_policy=policy,
+                payload=GeneralKnowledgeUnitPayload(
+                    content="General background explanation.",
+                    assumptions=("The question is general.",),
+                    uncertainty_statements=("Scope is uncertain.",),
+                    required_disclosure=policy.required_disclosure,
+                ),
+            ),
+        ),
+        provider_identity=GeneralAIProviderIdentity(
+            provider="parallel",
+            model="general-ai-model",
+        ),
     )
 
 
@@ -240,6 +288,163 @@ def test_chat_no_citations_freezes_fallback_without_model_call(
         (USER_ID, "assistant", contracts["no_citations"]["reply"], None),
     ]
     assert len(audit_calls) == 1
+
+
+def test_chat_healthy_no_match_answers_from_general_ai_without_citations(
+    authenticated_client: TestClient,
+    contracts: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved: list[tuple[str, str, str, int | None]] = []
+    requests: list[GeneralAIExecutionRequest] = []
+    provider = _provider(_retrieval_result(with_evidence=False))
+
+    async def execute(
+        request: GeneralAIExecutionRequest,
+    ) -> GeneralAIExecutionResult:
+        requests.append(request)
+        return _satisfied_general_ai(request)
+
+    monkeypatch.setattr(chat.settings, "ask_ai_general_mode_enabled", True)
+    monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
+    monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
+    monkeypatch.setattr(
+        chat,
+        "save_chat_message",
+        lambda *args: saved.append(args),
+    )
+    monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
+    monkeypatch.setattr(chat, "execute_general_ai", execute)
+    monkeypatch.setattr(
+        chat,
+        "get_llm_client",
+        lambda: pytest.fail("grounded generation must not run without citations"),
+    )
+    monkeypatch.setattr(chat, "record_chat_retrieval_audit", lambda **_: None)
+
+    response = authenticated_client.post("/chat", json={"message": "Unknown topic"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["citations"] == []
+    assert NO_OFFICIAL_DOCUMENTS_DISCLOSURE in body["reply"]
+    assert body["reply"] != contracts["no_citations"]["reply"]
+    assert body["model"] == "general-ai-model"
+    assert body["intent"] == contracts["no_citations"]["intent"]
+    assert saved == [
+        (USER_ID, "user", "Unknown topic", None),
+        (USER_ID, "assistant", body["reply"], None),
+    ]
+    assert len(requests) == 1
+    assert requests[0].query == "Unknown topic"
+    assert [section.trigger for section in requests[0].mode_decision.sections] == [
+        ModeTrigger.HEALTHY_OFFICIAL_NO_MATCH
+    ]
+
+
+def test_chat_keeps_frozen_fallback_when_general_ai_cannot_answer(
+    authenticated_client: TestClient,
+    contracts: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _provider(_retrieval_result(with_evidence=False))
+
+    async def execute(
+        _request: GeneralAIExecutionRequest,
+    ) -> GeneralAIExecutionResult:
+        return GeneralAIExecutionResult(
+            state=GeneralAIExecutionState.UNAVAILABLE,
+            health=GeneralAIExecutionHealth.FAILED,
+            safe_code="GENERAL_AI_PROVIDER_UNAVAILABLE",
+        )
+
+    monkeypatch.setattr(chat.settings, "ask_ai_general_mode_enabled", True)
+    monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
+    monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_: None)
+    monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
+    monkeypatch.setattr(chat, "execute_general_ai", execute)
+    monkeypatch.setattr(chat, "record_chat_retrieval_audit", lambda **_: None)
+
+    response = authenticated_client.post("/chat", json={"message": "Unknown topic"})
+
+    assert response.status_code == 200
+    assert response.json() == contracts["no_citations"]
+
+
+def test_chat_retrieval_outage_answers_with_qualified_general_ai_fallback(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[GeneralAIExecutionRequest] = []
+
+    def failing_provider() -> Any:
+        def hybrid_search(*_args: Any, **_kwargs: Any) -> Any:
+            raise RuntimeError("retrieval backend is down")
+
+        return SimpleNamespace(
+            provider_name="contract-provider",
+            hybrid_search=hybrid_search,
+        )
+
+    async def execute(
+        request: GeneralAIExecutionRequest,
+    ) -> GeneralAIExecutionResult:
+        requests.append(request)
+        return _satisfied_general_ai(request)
+
+    monkeypatch.setattr(chat.settings, "ask_ai_general_mode_enabled", True)
+    monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
+    monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_: True)
+    monkeypatch.setattr(
+        chat.RetrievalProviderFactory,
+        "get_provider",
+        failing_provider,
+    )
+    monkeypatch.setattr(chat, "execute_general_ai", execute)
+
+    response = authenticated_client.post("/chat", json={"message": "Unknown topic"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["citations"] == []
+    assert OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE in body["reply"]
+    assert NO_OFFICIAL_DOCUMENTS_DISCLOSURE not in body["reply"]
+    assert [section.trigger for section in requests[0].mode_decision.sections] == [
+        ModeTrigger.OFFICIAL_RETRIEVAL_UNAVAILABLE
+    ]
+
+
+def test_chat_retrieval_outage_keeps_safe_500_when_general_ai_is_off(
+    authenticated_client: TestClient,
+    contracts: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_provider() -> Any:
+        def hybrid_search(*_args: Any, **_kwargs: Any) -> Any:
+            raise RuntimeError("retrieval backend is down")
+
+        return SimpleNamespace(
+            provider_name="contract-provider",
+            hybrid_search=hybrid_search,
+        )
+
+    monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_: True)
+    monkeypatch.setattr(
+        chat.RetrievalProviderFactory,
+        "get_provider",
+        failing_provider,
+    )
+
+    response = authenticated_client.post("/chat", json={"message": "Unknown topic"})
+
+    assert response.status_code == contracts["retrieval_failure"]["status_code"]
+    body = response.json()
+    assert body["code"] == contracts["retrieval_failure"]["body"]["code"]
+    assert body["detail"] == contracts["retrieval_failure"]["body"]["detail"]
+    assert "retrieval backend is down" not in json.dumps(body)
 
 
 def test_chat_metrics_observe_suppressed_persistence_without_changing_response(

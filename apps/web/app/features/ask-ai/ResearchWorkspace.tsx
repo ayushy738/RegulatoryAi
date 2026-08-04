@@ -10,9 +10,11 @@ import {
 
 import {
   useFederatedResearchSearch,
+  useGeneralAiAnswer,
   useResearchWorkspaceScope,
   useResolveResearchEntity,
 } from "@/lib/ask-ai-data";
+import type { AskGeneralAiAnswer } from "@/lib/ask-ai-data";
 import type {
   AskEntityLookupCandidate,
   AskEntityLookupResponse,
@@ -25,6 +27,7 @@ import type {
 
 import { EntityLookupCanvas } from "./EntityLookupCanvas";
 import { FederatedSearchResults } from "./FederatedSearchResults";
+import { GeneralAiAnswerCanvas } from "./GeneralAiAnswerCanvas";
 import {
   ResearchSessionRail,
   type ResearchExportDownloader,
@@ -55,6 +58,12 @@ export function ResearchWorkspace({
   const [entityResult, setEntityResult] =
     useState<AskEntityLookupResponse | null>(null);
   const [entityError, setEntityError] = useState<string | null>(null);
+  const [generalAnswer, setGeneralAnswer] =
+    useState<AskGeneralAiAnswer | null>(null);
+  const [generalAnswerFor, setGeneralAnswerFor] = useState<string | null>(null);
+  const [generalAnswerError, setGeneralAnswerError] = useState<string | null>(
+    null,
+  );
   const [searchResult, setSearchResult] =
     useState<AskFederatedSearchResponse | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -69,8 +78,11 @@ export function ResearchWorkspace({
   const workspaceScope = useResearchWorkspaceScope();
   const entityLookup = useResolveResearchEntity();
   const federatedSearch = useFederatedResearchSearch();
+  const generalAi = useGeneralAiAnswer();
   const resolveEntity = entityLookup.mutateAsync;
   const searchResearch = federatedSearch.mutateAsync;
+  const askGeneralAi = generalAi.mutateAsync;
+  const generalAiAvailable = generalAi.available;
 
   const lookupEntity = useCallback(
     async (mention: string, updateRoute: boolean) => {
@@ -78,10 +90,25 @@ export function ResearchWorkspace({
       setSearchResult(null);
       setSearchError(null);
       setEntityError(null);
+      setGeneralAnswer(null);
+      setGeneralAnswerError(null);
+      setGeneralAnswerFor(null);
       try {
         const result = await resolveEntity({ mention });
         setEntityResult(result);
         setActiveSessionId(null);
+        if (result.status === "no_match" && generalAiAvailable) {
+          // A healthy regulatory no-match continues with General AI instead of
+          // ending the request.
+          setGeneralAnswerFor(mention);
+          try {
+            setGeneralAnswer(await askGeneralAi(mention));
+          } catch {
+            setGeneralAnswerError(
+              "General AI knowledge is temporarily unavailable.",
+            );
+          }
+        }
         if (
           updateRoute &&
           result.status === "resolved" &&
@@ -100,7 +127,7 @@ export function ResearchWorkspace({
         throw new Error("Entity lookup failed");
       }
     },
-    [resolveEntity],
+    [askGeneralAi, generalAiAvailable, resolveEntity],
   );
 
   const runSearch = useCallback(
@@ -190,6 +217,9 @@ export function ResearchWorkspace({
     setActiveSessionId(null);
     setEntityResult(null);
     setEntityError(null);
+    setGeneralAnswer(null);
+    setGeneralAnswerError(null);
+    setGeneralAnswerFor(null);
     setSearchResult(null);
     setSearchError(null);
     setSearchFilters({});
@@ -311,6 +341,13 @@ export function ResearchWorkspace({
                   );
                 }
               }}
+            />
+          ) : generalAnswerFor !== null && entityError === null ? (
+            <GeneralAiAnswerCanvas
+              mention={generalAnswerFor}
+              answer={generalAnswer}
+              pending={generalAi.isPending}
+              error={generalAnswerError}
             />
           ) : (
             <EntityLookupCanvas

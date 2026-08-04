@@ -23,6 +23,9 @@ const lookupFixture = vi.hoisted(() => ({
     searchAvailable: false,
     searchPending: false,
     searchAsync: vi.fn(),
+    generalAvailable: false,
+    generalPending: false,
+    generalAsync: vi.fn(),
   },
 }));
 
@@ -39,6 +42,11 @@ vi.mock("@/lib/ask-ai-data", () => ({
     available: lookupFixture.state.searchAvailable,
     isPending: lookupFixture.state.searchPending,
     mutateAsync: lookupFixture.state.searchAsync,
+  }),
+  useGeneralAiAnswer: () => ({
+    available: lookupFixture.state.generalAvailable,
+    isPending: lookupFixture.state.generalPending,
+    mutateAsync: lookupFixture.state.generalAsync,
   }),
 }));
 
@@ -82,6 +90,9 @@ beforeEach(() => {
   lookupFixture.state.searchAvailable = false;
   lookupFixture.state.searchPending = false;
   lookupFixture.state.searchAsync.mockReset();
+  lookupFixture.state.generalAvailable = false;
+  lookupFixture.state.generalPending = false;
+  lookupFixture.state.generalAsync.mockReset();
   window.history.replaceState({}, "", "/ask");
 });
 
@@ -297,6 +308,87 @@ describe("Research Workspace entity lookup route", () => {
     expect(
       await screen.findByRole("alert"),
     ).toHaveTextContent("No database, provider, or diagnostic details");
+    expect(screen.queryByText("raw provider failure")).not.toBeInTheDocument();
+  });
+
+  it("continues a healthy no-match with General AI knowledge", async () => {
+    const user = userEvent.setup();
+    lookupFixture.state.generalAvailable = true;
+    lookupFixture.state.mutateAsync.mockResolvedValueOnce({
+      ...resolvedDsm,
+      status: "no_match",
+      mention: "DSM",
+      match_rule: "clarification",
+      selected: null,
+      candidates: [],
+      clarification_question:
+        "Which regulatory entity or jurisdiction do you mean?",
+      surface: null,
+    });
+    lookupFixture.state.generalAsync.mockResolvedValueOnce({
+      question: "DSM",
+      reply:
+        "DSM may refer to Demand-Side Management.\n\nThis explanation is generated from general AI knowledge because no official regulatory documents were found.",
+      citations: 0,
+    });
+    render(<ResearchWorkspace />);
+
+    await user.type(
+      screen.getByLabelText("Ask a regulatory research question"),
+      "DSM",
+    );
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText("General AI Knowledge"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This explanation is generated from general AI knowledge because no official regulatory documents were found.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("DSM may refer to Demand-Side Management."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Search official documents manually",
+      }),
+    ).toHaveAttribute("href", "/browse");
+    expect(
+      screen.queryByRole("heading", { name: "No canonical entity matched" }),
+    ).not.toBeInTheDocument();
+    expect(lookupFixture.state.generalAsync).toHaveBeenCalledWith("DSM");
+  });
+
+  it("keeps a safe state when General AI cannot answer a no-match", async () => {
+    const user = userEvent.setup();
+    lookupFixture.state.generalAvailable = true;
+    lookupFixture.state.mutateAsync.mockResolvedValueOnce({
+      ...resolvedDsm,
+      status: "no_match",
+      mention: "DSM",
+      match_rule: "clarification",
+      selected: null,
+      candidates: [],
+      clarification_question:
+        "Which regulatory entity or jurisdiction do you mean?",
+      surface: null,
+    });
+    lookupFixture.state.generalAsync.mockRejectedValueOnce(
+      new Error("raw provider failure"),
+    );
+    render(<ResearchWorkspace />);
+
+    await user.type(
+      screen.getByLabelText("Ask a regulatory research question"),
+      "DSM",
+    );
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText("General explanation unavailable"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("raw provider failure")).not.toBeInTheDocument();
   });
 

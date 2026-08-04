@@ -595,6 +595,11 @@ def test_parallel_adapter_uses_existing_client_once(
     )
     monkeypatch.setattr(
         general_ai_module.settings,
+        "llm_model_chat",
+        "chat-model",
+    )
+    monkeypatch.setattr(
+        general_ai_module.settings,
         "llm_model_agent",
         "agent-model",
     )
@@ -605,17 +610,17 @@ def test_parallel_adapter_uses_existing_client_once(
 
     assert raw == _raw("general")
     assert provider.provider_name == "parallel"
-    assert provider.model == "agent-model"
+    assert provider.model == "chat-model"
     assert calls == [
         {
             "system": "system",
             "user": "user",
-            "model": "agent-model",
+            "model": "chat-model",
         }
     ]
 
 
-def test_parallel_adapter_uses_nonblank_chat_model_fallback(
+def test_parallel_adapter_uses_nonblank_agent_model_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FakeClient:
@@ -635,17 +640,17 @@ def test_parallel_adapter_uses_nonblank_chat_model_fallback(
         "parallel_api_key",
         "configured",
     )
-    monkeypatch.setattr(general_ai_module.settings, "llm_model_agent", "   ")
+    monkeypatch.setattr(general_ai_module.settings, "llm_model_chat", "   ")
     monkeypatch.setattr(
         general_ai_module.settings,
-        "llm_model_chat",
-        "chat-model",
+        "llm_model_agent",
+        "agent-model",
     )
     monkeypatch.setattr(general_ai_module, "ParallelClient", FakeClient)
 
     provider = ParallelGeneralAIProvider()
 
-    assert provider.model == "chat-model"
+    assert provider.model == "agent-model"
 
 
 def test_forged_nested_mode_policy_is_revalidated_before_provider_use() -> None:

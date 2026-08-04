@@ -25,7 +25,7 @@ from backend.ask.orchestration.contracts import (
     ProvenanceClass,
 )
 from backend.core.config import settings
-from backend.core.llm import ParallelClient
+from backend.core.llm import JSON_FENCE_RE, ParallelClient
 
 GENERAL_AI_SCHEMA_VERSION = "1"
 GENERAL_AI_POLICY_VERSION = "ask-ai-general-ai-v1"
@@ -68,6 +68,16 @@ Do not cite, link, name, imitate, or invent official documents or sources.
 Do not establish legal applicability, binding obligations, deadlines, or
 current legal status. Do not include the user-facing disclosure; the system
 attaches approved disclosure copy after validation. Return no markdown.
+Never write obligation or force wording such as must, shall, required to,
+obligated to, applies to, applicable to, binding, legally binding, in force,
+has legal effect, deadline is, or due by; describe concepts descriptively.
+Never echo, restate, or wrap the request payload.
+Return only this raw JSON object, one section object per requested
+section_key in the requested order, with no other keys:
+{"schema_version":"1","sections":[{"section_key":"<requested section_key>",
+"content":"<explanation>","assumptions":["<assumption>"],
+"uncertainty_statements":["<uncertainty>"],"citation_identities":[],
+"source_links":[],"legal_applicability_claims":[]}]}
 """.strip()
 
 
@@ -109,8 +119,10 @@ class ParallelGeneralAIProvider:
             raise RuntimeError("The v2 General AI capability requires Parallel")
         if _nonblank(settings.parallel_api_key) is None:
             raise RuntimeError("The v2 General AI capability requires credentials")
-        model = _nonblank(settings.llm_model_agent) or _nonblank(
-            settings.llm_model_chat
+        # The chat model is preferred: Parallel's research processors answer in
+        # prose and cannot honour the strict Mode 2 JSON contract.
+        model = _nonblank(settings.llm_model_chat) or _nonblank(
+            settings.llm_model_agent
         )
         if model is None or model == "offline-demo":
             raise RuntimeError("The v2 General AI capability requires a model")
@@ -467,14 +479,14 @@ async def execute_general_ai(
             GeneralAIExecutionState.INVALID_OUTPUT,
             "GENERAL_AI_OUTPUT_INVALID",
         )
+    requested_keys = tuple(section.section_key for section in assigned_sections)
     try:
-        payload = GeneralAIProviderPayload.model_validate_json(raw)
+        payload = _provider_payload(raw, requested_keys)
     except (TypeError, ValueError):
         return _failure(
             GeneralAIExecutionState.INVALID_OUTPUT,
             "GENERAL_AI_OUTPUT_INVALID",
         )
-    requested_keys = tuple(section.section_key for section in assigned_sections)
     output_keys = tuple(section.section_key for section in payload.sections)
     if output_keys != requested_keys:
         return _failure(
@@ -508,6 +520,34 @@ def general_ai_result_json(result: GeneralAIExecutionResult) -> str:
         separators=(",", ":"),
         sort_keys=True,
     )
+
+
+def _provider_payload(
+    raw: str,
+    requested_keys: tuple[str, ...],
+) -> GeneralAIProviderPayload:
+    # Chat providers wrap JSON in markdown fences, return the section array on
+    # its own, and drop the echoed section key. Only that transport shape is
+    # normalized here; every Mode 2 content rule is still enforced below.
+    document = json.loads(JSON_FENCE_RE.sub("", raw.strip()).strip())
+    if isinstance(document, list):
+        document = {
+            "schema_version": GENERAL_AI_SCHEMA_VERSION,
+            "sections": document,
+        }
+    if not isinstance(document, dict):
+        raise ValueError("General AI output is not a JSON object")
+    sections = document.get("sections")
+    if isinstance(sections, list):
+        document["sections"] = [
+            {**section, "section_key": requested_keys[index]}
+            if isinstance(section, dict)
+            and index < len(requested_keys)
+            and _nonblank(section.get("section_key")) is None
+            else section
+            for index, section in enumerate(sections)
+        ]
+    return GeneralAIProviderPayload.model_validate_json(json.dumps(document))
 
 
 def _provider_prompt(
