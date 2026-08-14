@@ -34,6 +34,41 @@ def _parse_json_response(content: str) -> dict[str, Any]:
     return json.loads(stripped)
 
 
+def _build_chat_completion_messages(
+    *,
+    system: str,
+    user: str,
+    history: list[dict[str, str]] | None = None,
+) -> list[dict[str, str]]:
+    """Build OpenAI-compatible chat messages with alternating user/assistant roles.
+
+    Parallel (and similar providers) reject consecutive same-role turns. Legacy
+    /chat persists the user row before the model call, so a MODEL_UNAVAILABLE
+    failure leaves an orphan user message. The next request then loads that
+    orphan into history and appends another user turn — which Parallel rejects
+    with HTTP 400 "Messages must alternate between user and assistant roles".
+    """
+    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    for item in history or []:
+        role = str(item.get("role") or "").strip().lower()
+        content = str(item.get("content") or "").strip()
+        if role not in {"user", "assistant"} or not content:
+            continue
+        # First non-system turn must be user for OpenAI-compatible APIs.
+        if len(messages) == 1 and role == "assistant":
+            continue
+        if messages[-1]["role"] == role:
+            messages[-1]["content"] = f"{messages[-1]['content']}\n\n{content}"
+            continue
+        messages.append({"role": role, "content": content})
+    if messages[-1]["role"] == "user":
+        # Replace trailing orphan user turn with the current question.
+        messages[-1] = {"role": "user", "content": user}
+    else:
+        messages.append({"role": "user", "content": user})
+    return messages
+
+
 class OfflineClient(LLMClient):
     def complete_json(self, system: str, user: str, model: str) -> dict[str, Any]:
         return {
@@ -129,11 +164,11 @@ class OpenAIClient(LLMClient):
         model: str,
         history: list[dict[str, str]] | None = None,
     ) -> str:
-        messages = [
-            {"role": "system", "content": system},
-            *(history or []),
-            {"role": "user", "content": user},
-        ]
+        messages = _build_chat_completion_messages(
+            system=system,
+            user=user,
+            history=history,
+        )
         response = self.client.chat.completions.create(model=model, messages=messages)
         return response.choices[0].message.content or ""
 
@@ -171,11 +206,11 @@ class ParallelClient(LLMClient):
                 "Parallel AI is configured, but LLM_MODEL_CHAT is not set. "
                 "Add the model name to .env and restart the API."
             )
-        messages = [
-            {"role": "system", "content": system},
-            *(history or []),
-            {"role": "user", "content": user},
-        ]
+        messages = _build_chat_completion_messages(
+            system=system,
+            user=user,
+            history=history,
+        )
         try:
             response = httpx.post(
                 f"{self.base_url}/chat/completions",
@@ -200,7 +235,6 @@ class ParallelClient(LLMClient):
             raise RuntimeError(
                 "Unable to reach the AI service. Please try again in a moment."
             ) from exc
-
 
 def get_llm_client() -> LLMClient:
     if settings.llm_provider == "anthropic":
