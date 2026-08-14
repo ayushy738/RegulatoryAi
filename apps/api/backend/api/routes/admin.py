@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from backend.api.auth import CurrentUser, admin_user
+from backend.api.auth import CurrentUser, admin_user, rag_process_user
 from backend.core.logging import log_event
 from backend.core.models import (
     CrawlTriggerResponse,
@@ -53,6 +53,7 @@ from backend.rag.indexing import (
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 AdminUserDep = Annotated[CurrentUser, Depends(admin_user)]
+RagProcessUserDep = Annotated[CurrentUser, Depends(rag_process_user)]
 
 
 @router.get("/sources")
@@ -269,7 +270,7 @@ async def rag_queue(user: AdminUserDep, limit: int = 100) -> list[dict]:
 
 @router.post("/rag/process")
 async def rag_process(
-    user: AdminUserDep,
+    user: RagProcessUserDep,
     limit: int = 25,
     include_processing: bool = False,
 ) -> dict:

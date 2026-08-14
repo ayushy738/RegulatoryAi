@@ -15,16 +15,8 @@ services:
     envVarGroups:
       - regai-secrets
 
-  # Drain rag_index_jobs that crawls only enqueue. Without this cron, PENDING
-  # jobs accumulate until someone manually hits admin /rag/process or the CLI.
-  - type: cron
-    name: regai-rag-index
-    runtime: docker
-    dockerfilePath: apps/api/Dockerfile.api
-    dockerCommand: python -m backend.tools.rag_index_worker --limit 50
-    schedule: "*/15 * * * *"
-    envVarGroups:
-      - regai-secrets
+  # RAG indexing is scheduled via GitHub Actions (.github/workflows/rag-index.yml)
+  # calling POST /admin/rag/process — Render Cron is paid and not used.
 
   - type: web
     name: regai-frontend

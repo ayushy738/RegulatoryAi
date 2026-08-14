@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated, Literal
@@ -276,6 +277,61 @@ def require_admin(user: CurrentUser) -> CurrentUser:
 
 
 async def admin_user(user: Annotated[CurrentUser, Depends(current_user)]) -> CurrentUser:
+    return require_admin(user)
+
+
+def _configured_rag_worker_token() -> str | None:
+    secret = settings.rag_worker_token
+    if secret is None:
+        return None
+    value = secret.get_secret_value().strip()
+    return value or None
+
+
+def rag_worker_token_matches(
+    authorization: str | None = None,
+    x_rag_worker_token: str | None = None,
+) -> bool:
+    """Return True when a configured RAG_WORKER_TOKEN matches the request."""
+    expected = _configured_rag_worker_token()
+    if expected is None:
+        return False
+    candidates: list[str] = []
+    if x_rag_worker_token and x_rag_worker_token.strip():
+        candidates.append(x_rag_worker_token.strip())
+    if authorization:
+        scheme, separator, credential = authorization.partition(" ")
+        if separator and scheme.lower() == "bearer" and credential.strip():
+            candidates.append(credential.strip())
+    for candidate in candidates:
+        # compare_digest requires equal length; mismatched lengths are not a match.
+        if len(candidate) != len(expected):
+            continue
+        if hmac.compare_digest(candidate, expected):
+            return True
+    return False
+
+
+async def rag_process_user(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    x_rag_worker_token: str | None = Header(default=None, alias="X-RAG-Worker-Token"),
+    access_cookie: str | None = Cookie(default=None, alias=IDENTITY_ACCESS_COOKIE),
+) -> CurrentUser:
+    """Authorize POST /admin/rag/process via admin JWT or scoped worker token."""
+    if rag_worker_token_matches(authorization, x_rag_worker_token):
+        record_authentication_observation(
+            source="unknown",
+            outcome="success",
+            reason_code="RAG_WORKER_TOKEN",
+        )
+        return CurrentUser(
+            id="rag-worker",
+            email=None,
+            role="admin",
+            source="supabase",
+        )
+    user = await current_user(request, authorization, access_cookie)
     return require_admin(user)
 
 

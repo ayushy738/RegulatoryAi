@@ -1,0 +1,55 @@
+name: RAG Index Drain
+
+# Free production scheduler for rag_index_jobs.
+# Calls the existing authenticated API (process_pending_rag_jobs) — no Render Cron.
+on:
+  schedule:
+    # Every 30 minutes. GitHub may delay scheduled runs under load.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drain-pending-rag-jobs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Process pending RAG jobs via API
+        env:
+          API_BASE_URL: ${{ secrets.RAG_API_BASE_URL }}
+          RAG_WORKER_TOKEN: ${{ secrets.RAG_WORKER_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${API_BASE_URL:-}" ]; then
+            echo "Missing GitHub Actions secret: RAG_API_BASE_URL"
+            exit 1
+          fi
+          if [ -z "${RAG_WORKER_TOKEN:-}" ]; then
+            echo "Missing GitHub Actions secret: RAG_WORKER_TOKEN"
+            exit 1
+          fi
+
+          BASE="${API_BASE_URL%/}"
+          URL="${BASE}/admin/rag/process?limit=50"
+
+          echo "POST ${URL}"
+          HTTP_CODE="$(
+            curl -sS -o /tmp/rag-process.json -w "%{http_code}" \
+              -X POST \
+              -H "Authorization: Bearer ${RAG_WORKER_TOKEN}" \
+              -H "Accept: application/json" \
+              "${URL}"
+          )"
+
+          echo "HTTP ${HTTP_CODE}"
+          echo "Response body:"
+          cat /tmp/rag-process.json
+          echo
+
+          if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
+            echo "RAG process request returned non-success status"
+            exit 1
+          fi

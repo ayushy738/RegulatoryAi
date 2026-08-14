@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     rag_chunk_overlap_tokens: int = 120
     rag_context_token_limit: int = 6500
     rag_top_k: int = 15
+    # Shared secret for GitHub Actions / ops to call POST /admin/rag/process
+    # without a short-lived admin JWT. Leave unset to require admin JWT only.
+    rag_worker_token: SecretStr | None = None
 
     ask_ai_v2_write_enabled: bool = False
     ask_ai_v2_api_enabled: bool = False

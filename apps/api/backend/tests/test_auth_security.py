@@ -126,14 +126,111 @@ def test_valid_admin_still_succeeds(
 
 
 def test_every_admin_route_requires_the_admin_dependency() -> None:
+    from backend.api.auth import rag_process_user
+
+    allowed_admin_deps = {admin_user, rag_process_user}
     unprotected_routes = []
     for route in admin.router.routes:
         if not isinstance(route, APIRoute):
             continue
-        if admin_user not in {dependency.call for dependency in route.dependant.dependencies}:
+        dependency_calls = {dependency.call for dependency in route.dependant.dependencies}
+        if dependency_calls.isdisjoint(allowed_admin_deps):
             unprotected_routes.append(f"{','.join(sorted(route.methods))} {route.path}")
 
     assert unprotected_routes == []
+
+
+def test_rag_process_accepts_scoped_worker_token(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic import SecretStr
+
+    monkeypatch.setattr(
+        auth.settings,
+        "rag_worker_token",
+        SecretStr("test-rag-worker-token"),
+    )
+    monkeypatch.setattr(auth, "record_authentication_observation", lambda **_: None)
+    monkeypatch.setattr(
+        admin,
+        "process_pending_rag_jobs",
+        lambda limit, include_processing: {
+            "processed": 1,
+            "limit": limit,
+            "include_processing": include_processing,
+        },
+    )
+
+    response = client.post(
+        "/admin/rag/process?limit=50",
+        headers={"Authorization": "Bearer test-rag-worker-token"},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["processed"] == 1
+
+
+def test_rag_process_rejects_wrong_worker_token(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic import SecretStr
+
+    monkeypatch.setattr(
+        auth.settings,
+        "rag_worker_token",
+        SecretStr("test-rag-worker-token"),
+    )
+    monkeypatch.setattr(auth, "record_authentication_observation", lambda **_: None)
+
+    def reject_token(token: str) -> CurrentUser:
+        assert token
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+
+    monkeypatch.setattr(auth, "_validate_token", reject_token)
+
+    response = client.post(
+        "/admin/rag/process?limit=50",
+        headers={"Authorization": "Bearer wrong-token"},
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_rag_process_still_allows_admin_jwt(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth.settings, "rag_worker_token", None)
+    monkeypatch.setattr(auth, "record_authentication_observation", lambda **_: None)
+    monkeypatch.setattr(
+        auth,
+        "_validate_token",
+        _token_validator(
+            CurrentUser(
+                id="22222222-2222-4222-8222-222222222222",
+                email="admin@example.com",
+                role="admin",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        admin,
+        "process_pending_rag_jobs",
+        lambda limit, include_processing: {"processed": 2, "limit": limit},
+    )
+
+    response = client.post(
+        "/admin/rag/process?limit=25",
+        headers={"Authorization": "Bearer admin-token"},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["processed"] == 2
 
 
 def test_every_product_route_requires_an_authenticated_user() -> None:
