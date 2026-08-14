@@ -405,9 +405,7 @@ function useWorkspaceController(
     mutationFn: (source: SourceHealth) => crawlSource(source.id, token),
     onMutate: (source) => setBusyAction(`crawl-source-${source.id}`),
     onSuccess: (result) => {
-      setStatusMessage(
-        `Crawl finished: ${result.docs_found} documents, ${result.new_events} events.`,
-      );
+      setStatusMessage(`Crawl queued (run #${result.run_id}). Status: ${result.status}.`);
       void queryClient.invalidateQueries({ queryKey: queryKeys.digest });
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.sources });
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.runs });
@@ -420,9 +418,7 @@ function useWorkspaceController(
     mutationFn: (page: SourcePage) => crawlSourcePage(page.id, token),
     onMutate: (page) => setBusyAction(`crawl-page-${page.id}`),
     onSuccess: (result) => {
-      setStatusMessage(
-        `Page crawl finished: ${result.docs_found} documents, ${result.new_events} events.`,
-      );
+      setStatusMessage(`Page crawl queued (run #${result.run_id}). Status: ${result.status}.`);
       void queryClient.invalidateQueries({ queryKey: queryKeys.digest });
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.sources });
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.runs });

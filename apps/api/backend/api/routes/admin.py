@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from backend.api.auth import CurrentUser, admin_user
+from backend.core.logging import log_event
 from backend.core.models import (
     CrawlTriggerResponse,
     SourceAnalyticsResponse,
@@ -33,7 +34,7 @@ from backend.core.repository import (
     update_source,
     update_source_page,
 )
-from backend.pipeline.run_once import run_crawl
+from backend.pipeline.run_once import execute_crawl_run, queue_crawl_run
 from backend.rag.admin import (
     chunk_count,
     chunk_inspector,
@@ -143,15 +144,55 @@ async def remove_source_page(page_id: int, user: AdminUserDep) -> dict:
 
 
 @router.post("/pages/{page_id}/crawl", response_model=CrawlTriggerResponse)
-async def crawl_source_page(page_id: int, user: AdminUserDep) -> dict:
+async def crawl_source_page(
+    page_id: int,
+    user: AdminUserDep,
+    background_tasks: BackgroundTasks,
+) -> dict:
     del user
-    return await run_crawl(page_id=page_id)
+    try:
+        payload = queue_crawl_run(page_id=page_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    background_tasks.add_task(
+        execute_crawl_run,
+        int(payload["run_id"]),
+        source_id=None,
+        page_id=page_id,
+    )
+    log_event(
+        "crawl_background_scheduled",
+        run_id=payload["run_id"],
+        page_id=page_id,
+        status="queued",
+    )
+    return payload
 
 
 @router.post("/sources/{source_id}/crawl", response_model=CrawlTriggerResponse)
-async def crawl_source(source_id: int, user: AdminUserDep) -> dict:
+async def crawl_source(
+    source_id: int,
+    user: AdminUserDep,
+    background_tasks: BackgroundTasks,
+) -> dict:
     del user
-    return await run_crawl(source_id=source_id)
+    try:
+        payload = queue_crawl_run(source_id=source_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    background_tasks.add_task(
+        execute_crawl_run,
+        int(payload["run_id"]),
+        source_id=source_id,
+        page_id=None,
+    )
+    log_event(
+        "crawl_background_scheduled",
+        run_id=payload["run_id"],
+        source_id=source_id,
+        status="queued",
+    )
+    return payload
 
 
 @router.get("/runs")

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import date
 
 from backend.core.logging import configure_logging, log_event
@@ -8,6 +9,7 @@ from backend.core.repository import (
     finalize_crawl_run,
     list_enabled_source_pages,
     load_checkpoint,
+    mark_crawl_run_running,
     mark_source_page_crawled,
     persist_extracted_documents,
     record_discovery_audits,
@@ -18,10 +20,32 @@ from backend.pipeline.agent_scraper import scrape_source_page
 from backend.pipeline.digest_builder import build_digest
 from backend.pipeline.notifier import enqueue_notifications, send_pending_notifications
 from backend.pipeline.primary_document import acquire_primary_documents
+from backend.rag.indexing import drain_rag_jobs_after_crawl
 
 
-async def run_once() -> dict:
-    return await run_crawl()
+def queue_crawl_run(
+    *,
+    source_id: int | None = None,
+    page_id: int | None = None,
+) -> dict:
+    """Create exactly one queued crawl_run for an admin HTTP trigger.
+
+    Does not execute crawl stages. The caller must schedule execute_crawl_run.
+    """
+
+    configure_logging()
+    run_id = create_crawl_run()
+    if run_id is None:
+        raise RuntimeError("Failed to create crawl_run")
+    log_event(
+        "crawl_triggered",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        mode="background",
+        status="queued",
+    )
+    return _queued_trigger_response(run_id)
 
 
 async def run_crawl(
@@ -29,16 +53,74 @@ async def run_crawl(
     source_id: int | None = None,
     page_id: int | None = None,
 ) -> dict:
+    """CLI/cron path: create one run and execute it to a terminal state inline."""
+
     configure_logging()
     run_id = create_crawl_run()
-    log_event("run_started")
+    if run_id is None:
+        raise RuntimeError("Failed to create crawl_run")
+    log_event(
+        "crawl_triggered",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        mode="inline",
+        status="queued",
+    )
+    return await execute_crawl_run(run_id, source_id=source_id, page_id=page_id)
+
+
+async def execute_crawl_run(
+    run_id: int,
+    *,
+    source_id: int | None = None,
+    page_id: int | None = None,
+) -> dict:
+    """Own the lifecycle for an existing crawl_run.
+
+    Marks the run running, executes existing stages, and always finalizes on
+    BaseException (including CancelledError) before re-raising.
+    """
+
+    configure_logging()
+    started = time.perf_counter()
+    log_event(
+        "crawl_background_started",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        status="running",
+    )
+    mark_crawl_run_running(run_id)
     try:
-        return await _run_crawl_stages(run_id, source_id=source_id, page_id=page_id)
+        result = await _run_crawl_stages(run_id, source_id=source_id, page_id=page_id)
+        log_event(
+            "crawl_background_finished",
+            run_id=run_id,
+            source_id=source_id,
+            page_id=page_id,
+            status=result.get("status"),
+            duration_ms=int((time.perf_counter() - started) * 1000),
+        )
+        return result
     except BaseException as exc:
-        # Includes CancelledError: the crawl is awaited inline by the admin routes,
-        # so a client disconnect would otherwise leave the run stuck at 'running'.
+        # Includes CancelledError: background execution must still finalize the
+        # crawl_runs row so it cannot remain stuck in queued/running.
         _finalize_abandoned_run(run_id, exc)
+        log_event(
+            "crawl_background_failed",
+            run_id=run_id,
+            source_id=source_id,
+            page_id=page_id,
+            status="failed",
+            error=f"{type(exc).__name__}: {exc}",
+            duration_ms=int((time.perf_counter() - started) * 1000),
+        )
         raise
+
+
+async def run_once() -> dict:
+    return await run_crawl()
 
 
 def _finalize_abandoned_run(run_id: int | None, exc: BaseException) -> None:
@@ -59,7 +141,13 @@ def _finalize_abandoned_run(run_id: int | None, exc: BaseException) -> None:
             run_id=run_id,
             error=f"{type(finalize_error).__name__}: {finalize_error}",
         )
-    log_event("run_finished", status="failed", abandoned=True, error=error["error"])
+    log_event(
+        "run_finished",
+        run_id=run_id,
+        status="failed",
+        abandoned=True,
+        error=error["error"],
+    )
 
 
 async def _run_crawl_stages(
@@ -74,9 +162,25 @@ async def _run_crawl_stages(
     extracted_docs = []
     successful_page_docs: dict[int, list] = {}
 
+    log_event(
+        "crawl_stage_started",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="source_selection",
+    )
     source_pages = list_enabled_source_pages(source_id=source_id, page_id=page_id)
     log_event(
+        "crawl_stage_finished",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="source_selection",
+        source_pages=len(source_pages),
+    )
+    log_event(
         "source_pages_loaded",
+        run_id=run_id,
         source_pages=len(source_pages),
         source_id=source_id,
         source_page_id=page_id,
@@ -92,8 +196,15 @@ async def _run_crawl_stages(
             new_events=0,
             errors=errors,
         )
-        log_event("run_finished", status="failed", docs_found=0, new_events=0)
+        log_event(
+            "run_finished",
+            run_id=run_id,
+            status="failed",
+            docs_found=0,
+            new_events=0,
+        )
         return {
+            "run_id": run_id,
             "status": "failed",
             "sources_attempted": 0,
             "pages_attempted": 0,
@@ -115,7 +226,16 @@ async def _run_crawl_stages(
         try:
             page = {**page, "checkpoint": load_checkpoint(page_id_int)}
             log_event(
+                "crawl_stage_started",
+                run_id=run_id,
+                source_id=source_id,
+                page_id=page_id_int,
+                crawl_stage="discovery",
+                source_code=source_code,
+            )
+            log_event(
                 "crawl_discovery_started",
+                run_id=run_id,
                 source_code=source_code,
                 source_page_id=page_id_int,
                 source_page=page["name"],
@@ -123,13 +243,32 @@ async def _run_crawl_stages(
             docs = await scrape_source_page(page)
             log_event(
                 "crawl_discovery_finished",
+                run_id=run_id,
                 source_code=source_code,
                 source_page_id=page_id_int,
                 docs_found=len(docs),
             )
+            log_event(
+                "crawl_stage_finished",
+                run_id=run_id,
+                source_id=source_id,
+                page_id=page_id_int,
+                crawl_stage="discovery",
+                source_code=source_code,
+                docs_found=len(docs),
+            )
             docs_found += len(docs)
             log_event(
+                "crawl_stage_started",
+                run_id=run_id,
+                source_id=source_id,
+                page_id=page_id_int,
+                crawl_stage="primary_document_acquisition",
+                source_code=source_code,
+            )
+            log_event(
                 "primary_document_acquisition_started",
+                run_id=run_id,
                 source_code=source_code,
                 source_page_id=page_id_int,
                 docs_found=len(docs),
@@ -137,10 +276,20 @@ async def _run_crawl_stages(
             primary_result = await acquire_primary_documents(docs)
             log_event(
                 "primary_document_acquisition_finished",
+                run_id=run_id,
                 source_code=source_code,
                 source_page_id=page_id_int,
                 primary_docs_found=len(primary_result.accepted),
                 audits=len(primary_result.audits),
+            )
+            log_event(
+                "crawl_stage_finished",
+                run_id=run_id,
+                source_id=source_id,
+                page_id=page_id_int,
+                crawl_stage="primary_document_acquisition",
+                source_code=source_code,
+                primary_docs_found=len(primary_result.accepted),
             )
             audits = _with_source_page_metadata(primary_result.audits, page)
             if not docs:
@@ -154,6 +303,7 @@ async def _run_crawl_stages(
             successful_source_ids.add(int(page["source_id"]))
             log_event(
                 "source_page_ok",
+                run_id=run_id,
                 source_code=source_code,
                 source_page_id=page["id"],
                 docs_found=len(docs),
@@ -171,38 +321,130 @@ async def _run_crawl_stages(
             )
             log_event(
                 "source_page_failed",
+                run_id=run_id,
                 source_code=source_code,
                 source_page_id=page["id"],
                 error=str(exc),
             )
 
-    log_event("document_persistence_started", extracted_docs=len(extracted_docs))
+    log_event(
+        "crawl_stage_started",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="document_persistence",
+        extracted_docs=len(extracted_docs),
+    )
+    log_event(
+        "document_persistence_started",
+        run_id=run_id,
+        extracted_docs=len(extracted_docs),
+    )
     new_event_ids = persist_extracted_documents(extracted_docs)
     log_event(
         "document_persistence_finished",
+        run_id=run_id,
         extracted_docs=len(extracted_docs),
         new_events=len(new_event_ids),
     )
+    log_event(
+        "crawl_stage_finished",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="document_persistence",
+        new_events=len(new_event_ids),
+    )
+    # Phase 4: documents are durable (Phase 3); drain RAG so crawl cannot leave
+    # jobs stranded at PENDING. Failures stay on the job/status tables and do
+    # not rewrite crawl lifecycle or Phase 2 telemetry.
+    log_event(
+        "crawl_stage_started",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="rag_indexing",
+        extracted_docs=len(extracted_docs),
+    )
+    rag_drain = drain_rag_jobs_after_crawl(
+        extracted_document_count=len(extracted_docs),
+        run_id=run_id,
+    )
+    log_event(
+        "crawl_stage_finished",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="rag_indexing",
+        rag_processed=(rag_drain or {}).get("processed", 0),
+        rag_ready=(rag_drain or {}).get("ready", 0),
+        rag_failed=(rag_drain or {}).get("failed", 0),
+    )
     checkpoints_advanced = 0
-    log_event("checkpoint_update_started", successful_pages=len(successful_page_docs))
+    log_event(
+        "crawl_stage_started",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="checkpoint_update",
+        successful_pages=len(successful_page_docs),
+    )
+    log_event(
+        "checkpoint_update_started",
+        run_id=run_id,
+        successful_pages=len(successful_page_docs),
+    )
     for successful_page_id, docs in successful_page_docs.items():
         mark_source_page_crawled(successful_page_id)
         if docs:
             save_checkpoint(successful_page_id, docs[0], run_id=run_id)
             checkpoints_advanced += 1
-    log_event("checkpoint_update_finished", checkpoints_advanced=checkpoints_advanced)
-    log_event("digest_build_started", new_events=len(new_event_ids))
+    log_event(
+        "checkpoint_update_finished",
+        run_id=run_id,
+        checkpoints_advanced=checkpoints_advanced,
+    )
+    log_event(
+        "crawl_stage_finished",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="checkpoint_update",
+        checkpoints_advanced=checkpoints_advanced,
+    )
+    log_event(
+        "crawl_stage_started",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="notifications",
+        new_events=len(new_event_ids),
+    )
+    log_event("digest_build_started", run_id=run_id, new_events=len(new_event_ids))
     digest = build_digest(date.today(), new_event_ids)
-    log_event("digest_build_finished", digest_events=len(digest.events))
-    log_event("notification_enqueue_started", new_events=len(new_event_ids))
+    log_event("digest_build_finished", run_id=run_id, digest_events=len(digest.events))
+    log_event("notification_enqueue_started", run_id=run_id, new_events=len(new_event_ids))
     enqueue_notifications(new_event_ids)
-    log_event("notification_enqueue_finished", new_events=len(new_event_ids))
-    log_event("notification_delivery_started", digest_events=len(digest.events))
+    log_event("notification_enqueue_finished", run_id=run_id, new_events=len(new_event_ids))
+    log_event(
+        "notification_delivery_started",
+        run_id=run_id,
+        digest_events=len(digest.events),
+    )
     email_result = send_pending_notifications(digest.events)
     log_event(
         "notification_delivery_finished",
+        run_id=run_id,
         digest_events=len(digest.events),
         notification_message_id=email_result.message_id,
+    )
+    log_event(
+        "crawl_stage_finished",
+        run_id=run_id,
+        source_id=source_id,
+        page_id=page_id,
+        crawl_stage="notifications",
+        digest_events=len(digest.events),
     )
     status = "success" if not errors else "partial"
     finalize_crawl_run(
@@ -214,8 +456,15 @@ async def _run_crawl_stages(
         new_events=len(new_event_ids),
         errors=errors,
     )
-    log_event("run_finished", status=status, docs_found=docs_found, new_events=len(new_event_ids))
+    log_event(
+        "run_finished",
+        run_id=run_id,
+        status=status,
+        docs_found=docs_found,
+        new_events=len(new_event_ids),
+    )
     return {
+        "run_id": run_id,
         "status": status,
         "sources_attempted": len(attempted_source_ids),
         "pages_attempted": len(source_pages),
@@ -227,6 +476,23 @@ async def _run_crawl_stages(
         "checkpoints_advanced": checkpoints_advanced,
         "notification_message_id": email_result.message_id,
         "errors": errors,
+    }
+
+
+def _queued_trigger_response(run_id: int) -> dict:
+    return {
+        "run_id": run_id,
+        "status": "queued",
+        "sources_attempted": 0,
+        "pages_attempted": 0,
+        "sources_succeeded": 0,
+        "pages_succeeded": 0,
+        "docs_found": 0,
+        "primary_docs_found": 0,
+        "new_events": 0,
+        "checkpoints_advanced": 0,
+        "notification_message_id": None,
+        "errors": [],
     }
 
 

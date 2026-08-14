@@ -49,6 +49,8 @@ def enqueue_rag_index_job(
         ),
         {"document_id": document_id, "version_id": version_id},
     )
+    # Keep RAG_READY only when the same version is already indexed. A new
+    # version must not inherit a stale ready marker while its job is pending.
     session.execute(
         text(
             """
@@ -57,7 +59,10 @@ def enqueue_rag_index_job(
             on conflict (document_id) do update set
               version_id = excluded.version_id,
               status = case
-                when document_rag_status.status = 'RAG_READY' then document_rag_status.status
+                when document_rag_status.status = 'RAG_READY'
+                     and document_rag_status.version_id
+                         is not distinct from excluded.version_id
+                then document_rag_status.status
                 else 'PENDING'
               end,
               updated_at = now()
@@ -77,6 +82,11 @@ def process_pending_rag_jobs(
         limit=limit,
         include_processing=include_processing,
     )
+    logger.info(
+        "[RAG_WORKER] polling limit=%s include_processing=%s",
+        limit,
+        include_processing,
+    )
     if include_processing:
         requeue_processing_jobs(limit=limit)
     results = []
@@ -85,16 +95,43 @@ def process_pending_rag_jobs(
         if not jobs:
             break
         job = jobs[0]
+        job_id = int(job["job_id"])
+        document_id = int(job["document_id"])
+        version_id = job.get("version_id")
+        logger.info(
+            "[RAG_WORKER] claimed job_id=%s document_id=%s version_id=%s",
+            job_id,
+            document_id,
+            version_id,
+        )
+        log_event(
+            "rag_index_job_claimed",
+            rag_job_id=job_id,
+            document_id=document_id,
+            document_version_id=version_id,
+        )
         result = index_document(
-            document_id=int(job["document_id"]),
-            version_id=job.get("version_id"),
-            job_id=int(job["job_id"]),
+            document_id=document_id,
+            version_id=version_id,
+            job_id=job_id,
+        )
+        logger.info(
+            "[RAG_WORKER] finished job_id=%s document_id=%s status=%s "
+            "chunks=%s embedded=%s error=%s latency_ms=%s",
+            job_id,
+            document_id,
+            result.status,
+            result.chunk_count,
+            result.embedded_chunk_count,
+            result.error,
+            result.latency_ms,
         )
         results.append(result)
     payload = {
         "processed": len(results),
         "ready": sum(1 for result in results if result.status == "RAG_READY"),
         "failed": sum(1 for result in results if result.status == "FAILED"),
+        "skipped": sum(1 for result in results if result.status == "SKIPPED"),
         "results": [result.__dict__ for result in results],
     }
     log_event(
@@ -102,8 +139,54 @@ def process_pending_rag_jobs(
         processed=payload["processed"],
         ready=payload["ready"],
         failed=payload["failed"],
+        skipped=payload["skipped"],
     )
     return payload
+
+
+def drain_rag_jobs_after_crawl(
+    *,
+    extracted_document_count: int,
+    run_id: int | None = None,
+) -> dict[str, Any] | None:
+    """Drain the RAG queue after durable crawl persistence.
+
+    Reuses process_pending_rag_jobs. Failures are isolated so crawl lifecycle
+    (queued → running → success/partial/failed) is unchanged. Does not write
+    crawl_runs RAG metrics — Phase 2 keeps those as unavailable unless
+    run-scoped attribution exists.
+    """
+
+    if extracted_document_count <= 0:
+        return None
+    # Prefer covering this crawl's enqueues; modest headroom retries older FAILED.
+    limit = max(extracted_document_count, 25)
+    log_event(
+        "crawl_rag_drain_started",
+        run_id=run_id,
+        extracted_docs=extracted_document_count,
+        limit=limit,
+    )
+    try:
+        payload = process_pending_rag_jobs(limit=limit)
+        log_event(
+            "crawl_rag_drain_finished",
+            run_id=run_id,
+            processed=payload["processed"],
+            ready=payload["ready"],
+            failed=payload["failed"],
+            skipped=payload.get("skipped", 0),
+        )
+        return payload
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        logger.warning("crawl RAG drain failed: %s", error)
+        log_event(
+            "crawl_rag_drain_failed",
+            run_id=run_id,
+            error=error,
+        )
+        return None
 
 
 def requeue_processing_jobs(*, limit: int | None = None) -> dict[str, int]:
@@ -218,6 +301,12 @@ def index_document(
             text=row["text_content"],
             content_hash=row.get("content_hash"),
         )
+        logger.info(
+            "[RAG_WORKER] chunking document_id=%s version_id=%s chunk_count=%s",
+            document_id,
+            row.get("version_id"),
+            len(chunks),
+        )
         chunks = _replace_chunks(chunks)
         _update_status(
             document_id=document_id,
@@ -227,6 +316,13 @@ def index_document(
             embedded_chunk_count=0,
         )
         provider = EmbeddingProviderFactory.get_provider()
+        logger.info(
+            "[RAG_WORKER] embedding document_id=%s provider=%s model=%s chunks=%s",
+            document_id,
+            provider.provider_name,
+            provider.model,
+            len(chunks),
+        )
         _update_status(
             document_id=document_id,
             version_id=row.get("version_id"),
@@ -257,6 +353,15 @@ def index_document(
             provider=provider.provider_name,
             model=provider.model,
         )
+        logger.info(
+            "[RAG_WORKER] completed document_id=%s job_id=%s chunks=%s embedded=%s "
+            "latency_ms=%s",
+            document_id,
+            job_id,
+            result.chunk_count,
+            result.embedded_chunk_count,
+            result.latency_ms,
+        )
         log_event(
             "rag_index_document_finished",
             document_id=document_id,
@@ -272,6 +377,12 @@ def index_document(
         return result
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
+        logger.warning(
+            "[RAG_WORKER] failed document_id=%s job_id=%s error=%s",
+            document_id,
+            job_id,
+            error,
+        )
         logger.warning("RAG indexing failed for document %s: %s", document_id, error)
         result = RagIndexResult(
             document_id=document_id,
@@ -303,8 +414,12 @@ def _claim_jobs(*, limit: int) -> list[dict[str, Any]]:
                 select job_id, document_id, version_id
                 from rag_index_jobs
                 where status in ('PENDING', 'FAILED')
-                order by updated_at, job_id
+                order by
+                  case when status = 'PENDING' then 0 else 1 end,
+                  updated_at,
+                  job_id
                 limit :limit
+                for update skip locked
                 """
             ),
             {"limit": limit},

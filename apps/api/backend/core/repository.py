@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -8,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.core.db import session_scope
+from backend.core.logging import log_event
 from backend.core.models import (
     DigestResponse,
     DiscoveredDoc,
@@ -680,23 +682,63 @@ def toggle_source(source_id: int) -> dict[str, Any]:
     return {"source_id": source_id, "enabled": bool(row.enabled) if row else False}
 
 
+_CRAWL_RUN_SELECT = """
+select
+  cr.id,
+  cr.started_at,
+  cr.finished_at,
+  cr.status::text as status,
+  cr.sources_attempted,
+  cr.sources_succeeded,
+  cr.docs_found,
+  cr.new_events,
+  cr.errors,
+  coalesce(audit.audit_candidates, 0) as audit_candidates,
+  coalesce(audit.audit_accepted, 0) as audit_accepted,
+  coalesce(audit.audit_with_content, 0) as audit_with_content,
+  coalesce(audit.audit_pages, 0) as audit_pages,
+  coalesce(pages.pages_attempted, 0) as derived_pages_attempted
+from crawl_runs cr
+left join lateral (
+  select
+    count(*)::int as audit_candidates,
+    count(*) filter (where da.is_valid_event_source)::int as audit_accepted,
+    count(*) filter (where da.content_hash is not null)::int as audit_with_content,
+    count(
+      distinct nullif(da.metadata->>'source_page_id', '')
+    )::int as audit_pages
+  from discovery_audit da
+  where da.run_id = cr.id
+) audit on true
+left join lateral (
+  select count(distinct page_id)::int as pages_attempted
+  from (
+    select nullif(da.metadata->>'source_page_id', '') as page_id
+    from discovery_audit da
+    where da.run_id = cr.id
+    union
+    select nullif(err.item->>'source_page_id', '') as page_id
+    from jsonb_array_elements(coalesce(cr.errors, '[]'::jsonb)) as err(item)
+  ) page_ids
+  where page_id is not null
+) pages on true
+"""
+
+
 def list_crawl_runs(limit: int = 25) -> list[dict[str, Any]]:
     try:
         with session_scope() as session:
             rows = session.execute(
                 text(
-                    """
-                    select id, started_at, finished_at, status::text as status,
-                           sources_attempted, sources_succeeded, docs_found,
-                           new_events, errors
-                    from crawl_runs
-                    order by started_at desc
+                    f"""
+                    {_CRAWL_RUN_SELECT}
+                    order by cr.started_at desc
                     limit :limit
                     """
                 ),
                 {"limit": limit},
             ).mappings()
-            return [dict(row) for row in rows]
+            return [assemble_crawl_run_telemetry(dict(row)) for row in rows]
     except SQLAlchemyError:
         return []
 
@@ -706,19 +748,102 @@ def get_crawl_run(run_id: int) -> dict[str, Any] | None:
         with session_scope() as session:
             row = session.execute(
                 text(
-                    """
-                    select id, started_at, finished_at, status::text as status,
-                           sources_attempted, sources_succeeded, docs_found,
-                           new_events, errors
-                    from crawl_runs
-                    where id = :run_id
+                    f"""
+                    {_CRAWL_RUN_SELECT}
+                    where cr.id = :run_id
                     """
                 ),
                 {"run_id": run_id},
             ).mappings().first()
-            return dict(row) if row else None
+            return assemble_crawl_run_telemetry(dict(row)) if row else None
     except SQLAlchemyError:
         return None
+
+
+def page_ids_from_crawl_errors(errors: Any) -> set[int]:
+    """Extract source_page_id values recorded on crawl_runs.errors JSON."""
+
+    page_ids: set[int] = set()
+    if not isinstance(errors, list):
+        return page_ids
+    for item in errors:
+        if not isinstance(item, dict):
+            continue
+        raw = item.get("source_page_id")
+        if raw is None:
+            continue
+        try:
+            page_ids.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return page_ids
+
+
+def assemble_crawl_run_telemetry(row: dict[str, Any]) -> dict[str, Any]:
+    """Build an explicitly run-scoped crawl-run read model.
+
+    Unavailable metrics are returned as null so clients can distinguish them
+    from genuine zeros. Never substitutes global database totals.
+    """
+
+    errors = row.get("errors") or []
+    if isinstance(errors, str):
+        try:
+            errors = json.loads(errors)
+        except json.JSONDecodeError:
+            errors = []
+    if not isinstance(errors, list):
+        errors = []
+
+    docs_found = int(row.get("docs_found") or 0)
+    new_events = int(row.get("new_events") or 0)
+    audit_pages = int(row.get("audit_pages") or 0)
+    audit_with_content = int(row.get("audit_with_content") or 0)
+    if "derived_pages_attempted" in row:
+        pages_attempted = int(row.get("derived_pages_attempted") or 0)
+    else:
+        # Unit-test path without SQL lateral aggregates.
+        audit_ids = {
+            int(value)
+            for value in (row.get("audit_page_ids") or [])
+            if value is not None
+        }
+        pages_attempted = len(audit_ids | page_ids_from_crawl_errors(errors))
+        if not audit_ids and not page_ids_from_crawl_errors(errors):
+            pages_attempted = audit_pages
+
+    sources_attempted = int(row.get("sources_attempted") or 0)
+    if pages_attempted == 0 and sources_attempted > 0:
+        pages_attempted_value: int | None = None
+        pages_succeeded_value: int | None = None
+    else:
+        pages_attempted_value = pages_attempted
+        pages_succeeded_value = audit_pages
+
+    return {
+        "id": row["id"],
+        "started_at": row.get("started_at"),
+        "finished_at": row.get("finished_at"),
+        "status": row.get("status"),
+        "sources_attempted": sources_attempted,
+        "sources_succeeded": int(row.get("sources_succeeded") or 0),
+        # Legacy field names retained for compatibility; values are run-scoped.
+        "docs_found": docs_found,
+        "new_events": new_events,
+        "errors": errors,
+        # Explicit run-scoped metrics for admin run cards.
+        "pages_attempted": pages_attempted_value,
+        "pages_succeeded": pages_succeeded_value,
+        "documents_discovered": docs_found,
+        "documents_with_content": audit_with_content,
+        "events_created": new_events,
+        # Cannot attribute these tables to crawl_runs.id with current schema.
+        "versions_created": None,
+        "families_touched": None,
+        "graph_extractions": None,
+        "rag_jobs_enqueued": None,
+        "rag_indexed": None,
+    }
 
 
 def get_source_analytics(source_id: int) -> dict[str, Any]:
@@ -1057,14 +1182,41 @@ def get_admin_analytics() -> dict[str, Any]:
 
 
 def create_crawl_run() -> int | None:
+    """Insert a crawl_runs row in queued status. One trigger must create one run."""
+
     try:
         with session_scope() as session:
             row = session.execute(
-                text("insert into crawl_runs default values returning id")
+                text(
+                    """
+                    insert into crawl_runs (status)
+                    values (cast('queued' as run_status_t))
+                    returning id
+                    """
+                )
             ).first()
-            return row.id if row else None
+            return int(row.id) if row else None
     except SQLAlchemyError:
         return None
+
+
+def mark_crawl_run_running(run_id: int) -> None:
+    """Transition a queued crawl run to running when background execution starts."""
+
+    with session_scope() as session:
+        session.execute(
+            text(
+                """
+                update crawl_runs
+                set status = cast('running' as run_status_t),
+                    started_at = now(),
+                    finished_at = null
+                where id = :run_id
+                  and status = cast('queued' as run_status_t)
+                """
+            ),
+            {"run_id": run_id},
+        )
 
 
 def finalize_crawl_run(
@@ -1104,6 +1256,16 @@ def finalize_crawl_run(
                 "errors": json.dumps(errors),
             },
         )
+    log_event(
+        "crawl_finalized",
+        run_id=run_id,
+        status=status,
+        sources_attempted=sources_attempted,
+        sources_succeeded=sources_succeeded,
+        docs_found=docs_found,
+        new_events=new_events,
+        error_count=len(errors),
+    )
 
 
 def record_discovery_audits(run_id: int | None, audits: list[DiscoveryAuditRecord]) -> None:
@@ -1258,15 +1420,83 @@ def create_digest_for_events(run_date: date, event_ids: list[int]) -> DigestResp
 
 
 def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
+    """Persist one document durably, then run downstream intelligence in a new session.
+
+    Session A commits documents/texts/versions/family before any LLM/graph/RAG work.
+    Session B failures cannot roll back Session A.
+    """
+
+    discovered = extracted.fetched.discovered
+    topics = _topic_tags(f"{discovered.title}\n{extracted.text}")
+    summary = _summary_from_extracted(extracted)
+    intelligence = assess_event_intelligence(extracted, topics=topics, summary=summary)
+    summary = attach_intelligence_to_summary(summary, intelligence)
+
+    durable = _persist_document_durable(
+        extracted,
+        topics=topics,
+        summary=summary,
+        intelligence=intelligence,
+    )
+    if durable is None:
+        return None
+
+    try:
+        return _process_document_downstream(durable)
+    except Exception as exc:
+        # Document/version/family already committed in Session A.
+        logger.warning(
+            "downstream intelligence failed after durable persist for %s "
+            "(document_id=%s version_id=%s): %s: %s",
+            durable.url,
+            durable.document_id,
+            durable.version_id,
+            type(exc).__name__,
+            exc,
+        )
+        log_event(
+            "document_downstream_failed",
+            document_id=durable.document_id,
+            document_version_id=durable.version_id,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        return None
+
+
+@dataclass(frozen=True)
+class _DurableDocumentState:
+    """Committed document/version/family state used by post-commit downstream work."""
+
+    extracted: ExtractedDoc
+    url: str
+    content_hash: str
+    document_id: int
+    version_id: int | None
+    source_id: int | None
+    prior_reference: PriorVersionReference | None
+    family_id: int | None
+    assignment_type: str | None
+    had_prior_document: bool
+    create_events: bool
+    topics: list[str]
+    summary: SummaryPayload
+    intelligence: EventIntelligence
+
+
+def _persist_document_durable(
+    extracted: ExtractedDoc,
+    *,
+    topics: list[str],
+    summary: SummaryPayload,
+    intelligence: EventIntelligence,
+) -> _DurableDocumentState | None:
+    """Session A: write durable document rows and required family linkage, then commit."""
+
     discovered = extracted.fetched.discovered
     url = canonical_url(discovered.source_url)
     url_hash = sha256_normalized_text(url)
     content_hash = extracted.content_hash
     file_hash = extracted.fetched.file_hash
-    topics = _topic_tags(f"{discovered.title}\n{extracted.text}")
-    summary = _summary_from_extracted(extracted)
-    intelligence = assess_event_intelligence(extracted, topics=topics, summary=summary)
-    summary = attach_intelligence_to_summary(summary, intelligence)
     try:
         with session_scope() as session:
             source = session.execute(
@@ -1367,204 +1597,70 @@ def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
                     "http_status": extracted.fetched.http_status,
                 },
             ).first()
+
             if not version:
+                version_id = latest.version_id if latest else None
                 registry_result = _register_family_for_graph_extraction(
                     session,
                     document_id=document.id,
-                    version_id=latest.version_id if latest else None,
+                    version_id=version_id,
                     extracted=extracted,
                     source_url=url,
                 )
-                _run_graph_extraction_for_document(
-                    session,
-                    document_id=document.id,
-                    version_id=latest.version_id if latest else None,
-                    extracted=extracted,
-                    source_url=url,
-                    family_id=registry_result.family_id,
-                    assignment_type=registry_result.assignment_type,
-                )
-                _enqueue_rag_indexing_for_document(
-                    session,
-                    document_id=document.id,
-                    version_id=latest.version_id if latest else None,
-                )
-                change = detect_regulatory_change(extracted, prior=prior_reference)
-                _record_regulatory_change_audit(
-                    session,
-                    event_id=None,
-                    document_id=document.id,
-                    version_id=latest.version_id if latest else None,
-                    source_url=url,
-                    content_hash=content_hash,
-                    title=discovered.title,
-                    change=change,
-                )
-                return None
-            if latest and latest.content_hash == content_hash:
+                create_events = False
+            elif latest and latest.content_hash == content_hash:
+                version_id = version.id
                 registry_result = _register_family_for_graph_extraction(
                     session,
                     document_id=document.id,
-                    version_id=version.id,
+                    version_id=version_id,
                     extracted=extracted,
                     source_url=url,
                 )
-                _run_graph_extraction_for_document(
+                create_events = False
+            else:
+                version_id = version.id
+                registry_result = register_document_version_family(
                     session,
-                    document_id=document.id,
-                    version_id=version.id,
-                    extracted=extracted,
-                    source_url=url,
-                    family_id=registry_result.family_id,
-                    assignment_type=registry_result.assignment_type,
+                    RegistryInput(
+                        document_id=document.id,
+                        document_version_id=version_id,
+                        title=discovered.title,
+                        issuer=discovered.issuing_body,
+                        source_url=url,
+                        document_type=discovered.doc_type,
+                        issue_date=discovered.issue_date,
+                        content_hash=content_hash,
+                        text_content=extracted.text,
+                        content_length=len(extracted.text),
+                        first_seen_at=None,
+                    ),
                 )
-                _enqueue_rag_indexing_for_document(
-                    session,
-                    document_id=document.id,
-                    version_id=version.id,
-                )
-                change = detect_regulatory_change(extracted, prior=prior_reference)
-                _record_regulatory_change_audit(
-                    session,
-                    event_id=None,
-                    document_id=document.id,
-                    version_id=version.id,
-                    source_url=url,
-                    content_hash=content_hash,
-                    title=discovered.title,
-                    change=change,
-                )
-                return None
-            registry_result = register_document_version_family(
-                session,
-                RegistryInput(
-                    document_id=document.id,
-                    document_version_id=version.id,
-                    title=discovered.title,
-                    issuer=discovered.issuing_body,
-                    source_url=url,
-                    document_type=discovered.doc_type,
-                    issue_date=discovered.issue_date,
-                    content_hash=content_hash,
-                    text_content=extracted.text,
-                    content_length=len(extracted.text),
-                    first_seen_at=None,
-                ),
-            )
-            _run_graph_extraction_for_document(
-                session,
-                document_id=document.id,
-                version_id=version.id,
+                create_events = True
+
+            state = _DurableDocumentState(
                 extracted=extracted,
-                source_url=url,
+                url=url,
+                content_hash=content_hash,
+                document_id=int(document.id),
+                version_id=int(version_id) if version_id is not None else None,
+                source_id=int(source.id) if source else None,
+                prior_reference=prior_reference,
                 family_id=registry_result.family_id,
                 assignment_type=registry_result.assignment_type,
-            )
-            _enqueue_rag_indexing_for_document(
-                session,
-                document_id=document.id,
-                version_id=version.id,
-            )
-            if not prior_reference:
-                prior_reference = _find_family_prior_reference(
-                    session,
-                    family_id=registry_result.family_id,
-                    current_version_id=version.id,
-                )
-            if not prior_reference:
-                prior_reference = _find_related_prior_reference(
-                    session,
-                    extracted=extracted,
-                    current_document_id=document.id,
-                    source_id=source.id if source else None,
-                )
-            change = detect_regulatory_change(extracted, prior=prior_reference)
-            _record_regulatory_change_audit(
-                session,
-                event_id=None,
-                document_id=document.id,
-                version_id=version.id,
-                source_url=url,
-                content_hash=content_hash,
-                title=discovered.title,
-                change=change,
-            )
-            if not change.is_material or change.change_type == "NO_MATERIAL_CHANGE":
-                return None
-            if not intelligence.event_allowed:
-                _record_event_intelligence_audit(
-                    session,
-                    event_id=None,
-                    document_id=document.id,
-                    version_id=version.id,
-                    source_url=url,
-                    content_hash=content_hash,
-                    title=discovered.title,
-                    intelligence=intelligence,
-                )
-                return None
-            summary = attach_change_to_summary(summary, change)
-            event_type = "CHANGED" if latest else "NEW"
-            event = session.execute(
-                text(
-                    """
-                    insert into events
-                      (document_id, version_id, event_type, digest_origin, raw_summary,
-                       topic_tags, suppressed)
-                    values
-                      (:document_id, :version_id, cast(:event_type as event_t),
-                       :digest_origin, :raw_summary, :topic_tags, false)
-                    returning id
-                    """
-                ),
-                {
-                    "document_id": document.id,
-                    "version_id": version.id,
-                    "event_type": event_type,
-                    "digest_origin": discovered.source_code,
-                    "raw_summary": summary.plain_english_summary,
-                    "topic_tags": topics,
-                },
-            ).first()
-            session.execute(
-                text(
-                    """
-                    insert into summaries (event_id, model, summary_json, key_points)
-                    values (:event_id, :model, cast(:summary_json as jsonb), :key_points)
-                    on conflict (event_id, model) do update set
-                      summary_json = excluded.summary_json,
-                      key_points = excluded.key_points,
-                      created_at = now()
-                    """
-                ),
-                {
-                    "event_id": event.id,
-                    "model": SUMMARY_MODEL,
-                    "summary_json": summary.model_dump_json(),
-                    "key_points": [summary.plain_english_summary],
-                },
-            )
-            _record_regulatory_change_audit(
-                session,
-                event_id=event.id,
-                document_id=document.id,
-                version_id=version.id,
-                source_url=url,
-                content_hash=content_hash,
-                title=discovered.title,
-                change=change,
-            )
-            _record_event_intelligence_audit(
-                session,
-                event_id=event.id,
-                document_id=document.id,
-                version_id=version.id,
-                source_url=url,
-                content_hash=content_hash,
-                title=discovered.title,
+                had_prior_document=bool(latest),
+                create_events=create_events,
+                topics=topics,
+                summary=summary,
                 intelligence=intelligence,
             )
-            return event.id
+            log_event(
+                "document_durable_persisted",
+                document_id=state.document_id,
+                document_version_id=state.version_id,
+                create_events=state.create_events,
+            )
+            return state
     except SQLAlchemyError as exc:
         logger.warning(
             "persist_extracted_document failed for %s: %s",
@@ -1572,6 +1668,137 @@ def _persist_extracted_document(extracted: ExtractedDoc) -> int | None:
             exc,
         )
         return None
+
+
+def _process_document_downstream(state: _DurableDocumentState) -> int | None:
+    """Session B: graph/RAG/change/event work after durable document commit."""
+
+    extracted = state.extracted
+    discovered = extracted.fetched.discovered
+    with session_scope() as session:
+        _run_graph_extraction_for_document(
+            session,
+            document_id=state.document_id,
+            version_id=state.version_id,
+            extracted=extracted,
+            source_url=state.url,
+            family_id=state.family_id,
+            assignment_type=state.assignment_type,
+        )
+        _enqueue_rag_indexing_for_document(
+            session,
+            document_id=state.document_id,
+            version_id=state.version_id,
+        )
+
+        prior_reference = state.prior_reference
+        if state.create_events and state.version_id is not None:
+            if not prior_reference:
+                prior_reference = _find_family_prior_reference(
+                    session,
+                    family_id=state.family_id,
+                    current_version_id=state.version_id,
+                )
+            if not prior_reference:
+                prior_reference = _find_related_prior_reference(
+                    session,
+                    extracted=extracted,
+                    current_document_id=state.document_id,
+                    source_id=state.source_id,
+                )
+
+        change = detect_regulatory_change(extracted, prior=prior_reference)
+        _record_regulatory_change_audit(
+            session,
+            event_id=None,
+            document_id=state.document_id,
+            version_id=state.version_id,
+            source_url=state.url,
+            content_hash=state.content_hash,
+            title=discovered.title,
+            change=change,
+        )
+
+        if not state.create_events:
+            return None
+        if not change.is_material or change.change_type == "NO_MATERIAL_CHANGE":
+            return None
+        if not state.intelligence.event_allowed:
+            _record_event_intelligence_audit(
+                session,
+                event_id=None,
+                document_id=state.document_id,
+                version_id=state.version_id,
+                source_url=state.url,
+                content_hash=state.content_hash,
+                title=discovered.title,
+                intelligence=state.intelligence,
+            )
+            return None
+
+        summary = attach_change_to_summary(state.summary, change)
+        event_type = "CHANGED" if state.had_prior_document else "NEW"
+        event = session.execute(
+            text(
+                """
+                insert into events
+                  (document_id, version_id, event_type, digest_origin, raw_summary,
+                   topic_tags, suppressed)
+                values
+                  (:document_id, :version_id, cast(:event_type as event_t),
+                   :digest_origin, :raw_summary, :topic_tags, false)
+                returning id
+                """
+            ),
+            {
+                "document_id": state.document_id,
+                "version_id": state.version_id,
+                "event_type": event_type,
+                "digest_origin": discovered.source_code,
+                "raw_summary": summary.plain_english_summary,
+                "topic_tags": state.topics,
+            },
+        ).first()
+        session.execute(
+            text(
+                """
+                insert into summaries (event_id, model, summary_json, key_points)
+                values (:event_id, :model, cast(:summary_json as jsonb), :key_points)
+                on conflict (event_id, model) do update set
+                  summary_json = excluded.summary_json,
+                  key_points = excluded.key_points,
+                  created_at = now()
+                """
+            ),
+            {
+                "event_id": event.id,
+                "model": SUMMARY_MODEL,
+                "summary_json": summary.model_dump_json(),
+                "key_points": [summary.plain_english_summary],
+            },
+        )
+        _record_regulatory_change_audit(
+            session,
+            event_id=event.id,
+            document_id=state.document_id,
+            version_id=state.version_id,
+            source_url=state.url,
+            content_hash=state.content_hash,
+            title=discovered.title,
+            change=change,
+        )
+        _record_event_intelligence_audit(
+            session,
+            event_id=event.id,
+            document_id=state.document_id,
+            version_id=state.version_id,
+            source_url=state.url,
+            content_hash=state.content_hash,
+            title=discovered.title,
+            intelligence=state.intelligence,
+        )
+        return int(event.id)
+
 
 
 def _register_family_for_graph_extraction(

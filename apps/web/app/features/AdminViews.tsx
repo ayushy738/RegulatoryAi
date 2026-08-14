@@ -45,6 +45,12 @@ import { Panel } from "@/app/components/ui/Panel";
 import { compactNumber, formatDate, formatRelativeDate } from "@/app/workspace/format";
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 
+/** Run-card helper: null/undefined means unavailable, not zero. */
+export function formatRunMetric(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "Not available";
+  return compactNumber(value);
+}
+
 export function AdminGate({ children }: { children: ReactNode }) {
   const { adminStatus } = useWorkspace();
   if (adminStatus.isLoading) return <LoadingState label="Loading admin data..." />;
@@ -106,8 +112,8 @@ export function AdminDashboardView() {
               ["Run", (row) => `#${row.id}`],
               ["Status", (row) => row.status],
               ["Started", (row) => formatRelativeDate(row.started_at)],
-              ["Docs", (row) => compactNumber(row.docs_found)],
-              ["Events", (row) => compactNumber(row.new_events)],
+              ["Docs discovered", (row) => compactNumber(row.documents_discovered ?? row.docs_found)],
+              ["Events", (row) => compactNumber(row.events_created ?? row.new_events)],
             ]}
           />
         </Panel>
@@ -570,8 +576,9 @@ export function AdminRunsView() {
           <span>Operations Console</span>
           <h1>Crawl Runs</h1>
           <p>
-            Latest run {latestRun ? `#${latestRun.id}` : "not available"} | documents {compactNumber(adminDocs.length)} |
-            events {compactNumber(adminEvents.length)} | RAG ready {compactNumber(ragStatus?.ready ?? 0)}.
+            Latest run {latestRun ? `#${latestRun.id}` : "not available"}. Workspace totals:{" "}
+            documents {compactNumber(adminDocs.length)} | events {compactNumber(adminEvents.length)} |
+            RAG ready {compactNumber(ragStatus?.ready ?? 0)}.
           </p>
         </div>
         <div className="ops-action-row">
@@ -586,7 +593,10 @@ export function AdminRunsView() {
         </div>
       </section>
 
-      <section className="admin-run-health-grid">
+      <section className="admin-run-health-grid" aria-label="Workspace database totals">
+        <span className="muted" style={{ gridColumn: "1 / -1" }}>
+          Workspace totals (global database — not tied to a single crawl run)
+        </span>
         <span><strong>{compactNumber(sourcePages.length)}</strong> monitored pages</span>
         <span><strong>{compactNumber(adminDocs.length)}</strong> documents</span>
         <span><strong>{compactNumber(adminEvents.length)}</strong> events</span>
@@ -643,14 +653,42 @@ export function AdminRunsView() {
                 </div>
                 <div className="admin-run-detail-grid">
                   <span><strong>Website</strong> Curated source set</span>
-                  <span><strong>Pages crawled</strong> {compactNumber(sourcePages.length)}</span>
-                  <span><strong>Sources</strong> {run.sources_succeeded}/{run.sources_attempted}</span>
-                  <span><strong>Documents</strong> {compactNumber(run.docs_found)}</span>
-                  <span><strong>Events</strong> {compactNumber(run.new_events)}</span>
-                  <span><strong>Families</strong> {compactNumber(families.length)}</span>
-                  <span><strong>Versions</strong> {compactNumber(versions)}</span>
-                  <span><strong>Graph Objects</strong> {compactNumber(graphObjects)}</span>
-                  <span><strong>RAG Indexed</strong> {compactNumber(ragStatus?.ready ?? 0)}</span>
+                  <span>
+                    <strong>Pages attempted</strong> {formatRunMetric(run.pages_attempted)}
+                  </span>
+                  <span>
+                    <strong>Pages succeeded</strong> {formatRunMetric(run.pages_succeeded)}
+                  </span>
+                  <span>
+                    <strong>Sources</strong> {run.sources_succeeded}/{run.sources_attempted}
+                  </span>
+                  <span>
+                    <strong>Documents discovered</strong>{" "}
+                    {formatRunMetric(run.documents_discovered ?? run.docs_found)}
+                  </span>
+                  <span>
+                    <strong>Documents with content</strong>{" "}
+                    {formatRunMetric(run.documents_with_content)}
+                  </span>
+                  <span>
+                    <strong>Events created</strong>{" "}
+                    {formatRunMetric(run.events_created ?? run.new_events)}
+                  </span>
+                  <span>
+                    <strong>Versions created</strong> {formatRunMetric(run.versions_created)}
+                  </span>
+                  <span>
+                    <strong>Families touched</strong> {formatRunMetric(run.families_touched)}
+                  </span>
+                  <span>
+                    <strong>Graph extractions</strong> {formatRunMetric(run.graph_extractions)}
+                  </span>
+                  <span>
+                    <strong>RAG jobs enqueued</strong> {formatRunMetric(run.rag_jobs_enqueued)}
+                  </span>
+                  <span>
+                    <strong>RAG indexed</strong> {formatRunMetric(run.rag_indexed)}
+                  </span>
                 </div>
                 <div className="admin-run-timeline">
                   <span>Started {formatRelativeDate(run.started_at)}</span>

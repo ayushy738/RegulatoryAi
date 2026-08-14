@@ -35,3 +35,4 @@ docs/architecture/*
 # Local compliance reports (uploaded as CI artifacts)
 artifacts/
 ui-audit/chrome-profile/
+.tmp

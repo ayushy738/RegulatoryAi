@@ -190,11 +190,23 @@ export const crawlRunSchema = z.looseObject({
   docs_found: z.coerce.number().default(0),
   new_events: z.coerce.number().default(0),
   errors: z.array(z.record(z.string(), z.unknown())).default([]),
+  // Explicit run-scoped metrics. null means not derivable from current schema.
+  pages_attempted: z.number().nullable().optional(),
+  pages_succeeded: z.number().nullable().optional(),
+  documents_discovered: z.coerce.number().optional(),
+  documents_with_content: z.number().nullable().optional(),
+  events_created: z.coerce.number().optional(),
+  versions_created: z.number().nullable().optional(),
+  families_touched: z.number().nullable().optional(),
+  graph_extractions: z.number().nullable().optional(),
+  rag_jobs_enqueued: z.number().nullable().optional(),
+  rag_indexed: z.number().nullable().optional(),
 });
 
 export const crawlRunListSchema = z.array(crawlRunSchema);
 
 export const crawlTriggerResponseSchema = z.looseObject({
+  run_id: z.coerce.number(),
   status: z.string(),
   sources_attempted: z.coerce.number().default(0),
   pages_attempted: z.coerce.number().default(0),

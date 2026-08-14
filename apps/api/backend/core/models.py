@@ -292,14 +292,15 @@ class SourcePageUpdatePayload(BaseModel):
 
 
 class CrawlTriggerResponse(BaseModel):
+    run_id: int
     status: str
-    sources_attempted: int
-    pages_attempted: int
-    sources_succeeded: int
-    pages_succeeded: int
-    docs_found: int
-    primary_docs_found: int
-    new_events: int
+    sources_attempted: int = 0
+    pages_attempted: int = 0
+    sources_succeeded: int = 0
+    pages_succeeded: int = 0
+    docs_found: int = 0
+    primary_docs_found: int = 0
+    new_events: int = 0
     checkpoints_advanced: int = 0
     notification_message_id: str | None = None
     errors: list[dict[str, Any]] = Field(default_factory=list)
