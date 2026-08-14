@@ -16,6 +16,11 @@ from backend.rag.vector_store import VectorStoreFactory
 
 logger = logging.getLogger(__name__)
 
+# PROCESSING has no lease/heartbeat. Claim commits before index_document runs, so a
+# killed worker can leave jobs stuck in PROCESSING forever. Only reclaim rows whose
+# updated_at is older than this window so a legitimately active job is not stolen.
+RAG_PROCESSING_STALE_SECONDS = 15 * 60
+
 
 @dataclass(frozen=True)
 class RagIndexResult:
@@ -190,6 +195,12 @@ def drain_rag_jobs_after_crawl(
 
 
 def requeue_processing_jobs(*, limit: int | None = None) -> dict[str, int]:
+    """Move stale PROCESSING jobs back to PENDING.
+
+    Only jobs with updated_at older than RAG_PROCESSING_STALE_SECONDS are touched.
+    Fresh PROCESSING rows (active workers) are left alone. Uses FOR UPDATE SKIP
+    LOCKED so concurrent callers cannot requeue the same row twice.
+    """
     limit_sql = "limit :limit" if limit is not None else ""
     with session_scope() as session:
         rows = session.execute(
@@ -198,11 +209,13 @@ def requeue_processing_jobs(*, limit: int | None = None) -> dict[str, int]:
                 select job_id
                 from rag_index_jobs
                 where status = 'PROCESSING'
+                  and updated_at < (now() - (:stale_seconds * interval '1 second'))
                 order by updated_at, job_id
                 {limit_sql}
+                for update skip locked
                 """
             ),
-            {"limit": limit},
+            {"limit": limit, "stale_seconds": RAG_PROCESSING_STALE_SECONDS},
         ).mappings().all()
         job_ids = [int(row["job_id"]) for row in rows]
         if not job_ids:
@@ -212,12 +225,17 @@ def requeue_processing_jobs(*, limit: int | None = None) -> dict[str, int]:
                 """
                 update rag_index_jobs
                 set status = 'PENDING',
-                    last_error = 'Requeued after interrupted processing.',
+                    last_error = 'Requeued after stale PROCESSING timeout.',
                     updated_at = now()
                 where job_id = any(:job_ids)
                 """
             ),
             {"job_ids": job_ids},
+        )
+        logger.info(
+            "[RAG_WORKER] requeued stale PROCESSING jobs count=%s stale_seconds=%s",
+            len(job_ids),
+            RAG_PROCESSING_STALE_SECONDS,
         )
         return {"requeued": len(job_ids)}
 
@@ -414,15 +432,23 @@ def _claim_jobs(*, limit: int) -> list[dict[str, Any]]:
                 select job_id, document_id, version_id
                 from rag_index_jobs
                 where status in ('PENDING', 'FAILED')
+                   or (
+                     status = 'PROCESSING'
+                     and updated_at < (now() - (:stale_seconds * interval '1 second'))
+                   )
                 order by
-                  case when status = 'PENDING' then 0 else 1 end,
+                  case
+                    when status = 'PENDING' then 0
+                    when status = 'PROCESSING' then 1
+                    else 2
+                  end,
                   updated_at,
                   job_id
                 limit :limit
                 for update skip locked
                 """
             ),
-            {"limit": limit},
+            {"limit": limit, "stale_seconds": RAG_PROCESSING_STALE_SECONDS},
         ).mappings().all()
         job_ids = [int(row["job_id"]) for row in rows]
         if job_ids:
@@ -432,6 +458,11 @@ def _claim_jobs(*, limit: int) -> list[dict[str, Any]]:
                     update rag_index_jobs
                     set status = 'PROCESSING',
                         attempts = attempts + 1,
+                        last_error = case
+                          when status = 'PROCESSING' then
+                            'Reclaimed after stale PROCESSING timeout.'
+                          else last_error
+                        end,
                         updated_at = now()
                     where job_id = any(:job_ids)
                     """

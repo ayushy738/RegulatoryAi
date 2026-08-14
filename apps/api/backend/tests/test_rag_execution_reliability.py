@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -24,6 +25,7 @@ class _InMemoryRagStore:
         self.texts: dict[tuple[int, int | None], dict[str, Any]] = {}
         self._job_seq = 0
         self._chunk_seq = 0
+        self._locked_job_ids: set[int] = set()
 
     def enqueue(self, *, document_id: int, version_id: int | None) -> int:
         existing = next(
@@ -49,6 +51,7 @@ class _InMemoryRagStore:
                 "status": "PENDING",
                 "attempts": 0,
                 "last_error": None,
+                "updated_at": datetime.now(UTC),
             }
 
         prior = self.rag_status.get(document_id)
@@ -70,23 +73,48 @@ class _InMemoryRagStore:
         }
         return job_id
 
-    def claim(self, *, limit: int) -> list[dict[str, Any]]:
+    def _is_claimable(self, job: dict[str, Any], *, now: datetime) -> bool:
+        status = job["status"]
+        if status in {"PENDING", "FAILED"}:
+            return True
+        if status != "PROCESSING":
+            return False
+        updated_at = job.get("updated_at") or now
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=UTC)
+        age = now - updated_at
+        return age >= timedelta(seconds=indexing.RAG_PROCESSING_STALE_SECONDS)
+
+    def claim(self, *, limit: int, now: datetime | None = None) -> list[dict[str, Any]]:
+        clock = now or datetime.now(UTC)
         candidates = [
             job
             for job in self.jobs.values()
-            if job["status"] in {"PENDING", "FAILED"}
+            if int(job["job_id"]) not in self._locked_job_ids
+            and self._is_claimable(job, now=clock)
         ]
         candidates.sort(
             key=lambda job: (
-                0 if job["status"] == "PENDING" else 1,
+                0
+                if job["status"] == "PENDING"
+                else 1
+                if job["status"] == "PROCESSING"
+                else 2,
                 job["job_id"],
             )
         )
         claimed = candidates[:limit]
         for job in claimed:
+            if job["status"] == "PROCESSING":
+                job["last_error"] = "Reclaimed after stale PROCESSING timeout."
             job["status"] = "PROCESSING"
             job["attempts"] += 1
+            job["updated_at"] = clock
+            self._locked_job_ids.add(int(job["job_id"]))
         return [dict(job) for job in claimed]
+
+    def unlock_all(self) -> None:
+        self._locked_job_ids.clear()
 
     def set_text(
         self,
@@ -181,6 +209,8 @@ class _InMemoryRagStore:
         job = self.jobs[job_id]
         job["status"] = status
         job["last_error"] = error
+        job["updated_at"] = datetime.now(UTC)
+        self._locked_job_ids.discard(job_id)
 
 
 def _install_store(monkeypatch: pytest.MonkeyPatch, store: _InMemoryRagStore) -> None:
@@ -304,9 +334,11 @@ def test_pending_job_is_processed_to_ready(monkeypatch: pytest.MonkeyPatch) -> N
     assert payload["ready"] == 1
     assert payload["failed"] == 0
     assert store.jobs[job_id]["status"] == "COMPLETED"
+    assert store.jobs[job_id]["attempts"] == 1
     assert store.rag_status[42]["status"] == "RAG_READY"
     assert store.rag_status[42]["chunk_count"] >= 1
     assert store.rag_status[42]["embedded_chunk_count"] >= 1
+    assert store.rag_status[42]["embedded_chunk_count"] == store.rag_status[42]["chunk_count"]
     assert len(store.chunks) >= 1
     assert len(store.embeddings) >= 1
     assert len(store.embeddings) == len(store.chunks)
@@ -523,3 +555,188 @@ def test_claim_prefers_pending_over_failed(monkeypatch: pytest.MonkeyPatch) -> N
     claimed = indexing._claim_jobs(limit=1)
     assert claimed[0]["job_id"] == pending_id
     assert claimed[0]["document_id"] == 2
+
+
+def test_fresh_processing_job_is_not_reclaimed() -> None:
+    store = _InMemoryRagStore()
+    job_id = store.enqueue(document_id=266, version_id=266)
+    store.jobs[job_id]["status"] = "PROCESSING"
+    store.jobs[job_id]["attempts"] = 1
+    store.jobs[job_id]["updated_at"] = datetime.now(UTC)
+
+    claimed = store.claim(limit=10)
+    assert claimed == []
+    assert store.jobs[job_id]["status"] == "PROCESSING"
+    assert store.jobs[job_id]["attempts"] == 1
+
+
+def test_stale_processing_job_is_reclaimed_and_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _InMemoryRagStore()
+    _install_store(monkeypatch, store)
+    store.set_text(
+        document_id=266,
+        version_id=266,
+        text=(
+            "Orphaned PROCESSING jobs stuck after EMBEDDING must be reclaimed once "
+            "updated_at is older than the stale timeout and finish as RAG_READY."
+        ),
+    )
+    job_id = store.enqueue(document_id=266, version_id=266)
+    store.jobs[job_id]["status"] = "PROCESSING"
+    store.jobs[job_id]["attempts"] = 1
+    store.jobs[job_id]["updated_at"] = datetime.now(UTC) - timedelta(
+        seconds=indexing.RAG_PROCESSING_STALE_SECONDS + 30
+    )
+    # Simulate interrupted mid-embed: chunks exist, embeddings missing.
+    store.rag_status[266] = {
+        "document_id": 266,
+        "version_id": 266,
+        "status": "EMBEDDING",
+        "chunk_count": 14,
+        "embedded_chunk_count": 0,
+        "error": None,
+        "provider": "offline",
+        "model": "deterministic-hash-v1",
+    }
+    store.chunks = [
+        {
+            "id": i,
+            "document_id": 266,
+            "version_id": 266,
+            "text": f"chunk {i}",
+        }
+        for i in range(1, 15)
+    ]
+
+    payload = indexing.process_pending_rag_jobs(limit=1)
+
+    assert payload["processed"] == 1
+    assert payload["ready"] == 1
+    assert payload["failed"] == 0
+    assert store.jobs[job_id]["status"] == "COMPLETED"
+    assert store.jobs[job_id]["attempts"] == 2
+    assert store.rag_status[266]["status"] == "RAG_READY"
+    assert store.rag_status[266]["chunk_count"] >= 1
+    assert (
+        store.rag_status[266]["embedded_chunk_count"]
+        == store.rag_status[266]["chunk_count"]
+    )
+    assert len(store.embeddings) == len(store.chunks)
+
+
+def test_two_workers_cannot_reclaim_same_stale_job() -> None:
+    store = _InMemoryRagStore()
+    job_id = store.enqueue(document_id=173, version_id=266)
+    store.jobs[job_id]["status"] = "PROCESSING"
+    store.jobs[job_id]["attempts"] = 1
+    store.jobs[job_id]["updated_at"] = datetime.now(UTC) - timedelta(
+        seconds=indexing.RAG_PROCESSING_STALE_SECONDS + 60
+    )
+
+    first = store.claim(limit=1)
+    second = store.claim(limit=1)
+
+    assert len(first) == 1
+    assert first[0]["job_id"] == job_id
+    assert second == []
+    assert store.jobs[job_id]["attempts"] == 2
+    assert store.jobs[job_id]["status"] == "PROCESSING"
+
+
+def test_requeue_processing_only_touches_stale_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale_id = 173
+    captured: dict[str, Any] = {}
+
+    class _Result:
+        def __init__(self, rows: list[dict[str, Any]]) -> None:
+            self._rows = rows
+
+        def mappings(self) -> "_Result":
+            return self
+
+        def all(self) -> list[dict[str, Any]]:
+            return self._rows
+
+    class _Session:
+        def execute(self, statement: Any, params: dict[str, Any] | None = None) -> _Result:
+            sql = str(statement)
+            captured.setdefault("statements", []).append(sql)
+            if "select job_id" in sql.lower():
+                captured["select_params"] = params
+                assert params is not None
+                assert "stale_seconds" in params
+                assert "for update skip locked" in sql.lower()
+                return _Result([{"job_id": stale_id}])
+            captured["update_params"] = params
+            return _Result([])
+
+    class _Scope:
+        def __enter__(self) -> _Session:
+            return _Session()
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(indexing, "session_scope", lambda: _Scope())
+
+    result = indexing.requeue_processing_jobs(limit=10)
+    assert result == {"requeued": 1}
+    assert (
+        captured["select_params"]["stale_seconds"]
+        == indexing.RAG_PROCESSING_STALE_SECONDS
+    )
+    update_sql = captured["statements"][1].lower()
+    assert "pending" in update_sql
+    assert "stale processing timeout" in update_sql
+
+
+def test_claim_jobs_sql_reclaims_only_stale_processing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class _Result:
+        def __init__(self, rows: list[dict[str, Any]] | None = None) -> None:
+            self._rows = rows or []
+
+        def mappings(self) -> "_Result":
+            return self
+
+        def all(self) -> list[dict[str, Any]]:
+            return self._rows
+
+    class _Session:
+        def execute(self, statement: Any, params: dict[str, Any] | None = None) -> _Result:
+            sql = str(statement)
+            captured.setdefault("statements", []).append(sql)
+            if "select job_id, document_id, version_id" in sql.lower():
+                captured["select_params"] = params
+                assert params is not None
+                assert "processing" in sql.lower()
+                assert "stale_seconds" in params
+                assert "for update skip locked" in sql.lower()
+                return _Result(
+                    [{"job_id": 173, "document_id": 266, "version_id": 266}]
+                )
+            captured["update_params"] = params
+            return _Result([])
+
+    class _Scope:
+        def __enter__(self) -> _Session:
+            return _Session()
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(indexing, "session_scope", lambda: _Scope())
+    rows = indexing._claim_jobs(limit=1)
+    assert rows == [{"job_id": 173, "document_id": 266, "version_id": 266}]
+    assert (
+        captured["select_params"]["stale_seconds"]
+        == indexing.RAG_PROCESSING_STALE_SECONDS
+    )
+    assert "attempts = attempts + 1" in captured["statements"][1].lower()
