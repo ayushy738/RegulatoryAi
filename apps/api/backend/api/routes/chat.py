@@ -30,7 +30,11 @@ from backend.core.models import ChatRequest, ChatResponse
 from backend.core.repository import chat_history as get_chat_history
 from backend.core.repository import save_chat_message
 from backend.rag.audit import record_chat_retrieval_audit
-from backend.rag.context_builder import build_context
+from backend.rag.context_builder import (
+    build_context,
+    grounded_user_prompt,
+    max_prompt_context_chars,
+)
 from backend.rag.models import BuiltContext, IntentName, citation_to_dict
 from backend.rag.retrieval import RetrievalProviderFactory
 
@@ -162,7 +166,13 @@ async def chat(
         correlation_id=metrics.correlation_id,
         event_id=request.event_id,
     )
-    context = build_context(retrieval)
+    # Parallel enforces a 20k-character per-message limit. Token budgeting alone
+    # still fits ~14 full evidence blocks (~30k chars). Bound prompt_context so
+    # the grounded user message stays under that provider cap.
+    context = build_context(
+        retrieval,
+        max_prompt_chars=max_prompt_context_chars(request.message),
+    )
     log_event(
         "ask_context_build_finished",
         correlation_id=metrics.correlation_id,
@@ -170,6 +180,7 @@ async def chat(
         citations=len(context.citations),
         graph_facts=len(context.graph_facts),
         estimated_tokens=context.estimated_tokens,
+        prompt_chars=len(context.prompt_context),
     )
     if not context.citations:
         general_started = metrics.start()
@@ -237,10 +248,9 @@ async def chat(
         )
         reply = get_llm_client().complete_text(
             system=SYSTEM_PROMPT,
-            user=(
-                f"Conversation-aware retrieved context:\n{context.prompt_context}\n\n"
-                f"Question:\n{request.message}\n\n"
-                "Answer with grounded analysis and a short citation list."
+            user=grounded_user_prompt(
+                prompt_context=context.prompt_context,
+                question=request.message,
             ),
             model=model,
             history=history,
