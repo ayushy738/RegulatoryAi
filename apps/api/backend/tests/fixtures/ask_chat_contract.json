@@ -1,9 +1,11 @@
 {
   "success": {
-    "reply": "Grounded answer.\n\nCitations:\n1. Electricity Rules | Ministry of Power | 2026-07-01 | https://example.test/rules | chunk=501, page=7",
+    "reply": "Grounded answer.\n\nSources\n1. Electricity Rules — Ministry of Power · 2026-07-01\n   https://example.test/rules",
     "event_id": 42,
+    "session_id": "22222222-2222-4222-8222-222222222222",
     "model": "contract-model",
     "intent": "regulation_lookup",
+    "knowledge_basis": "official",
     "citations": [
       {
         "document_id": 17,
@@ -24,8 +26,10 @@
   "no_citations": {
     "reply": "I do not have enough retrieved evidence to answer this from the regulatory corpus. No citation-backed chunks or graph facts were found for this question.",
     "event_id": null,
+    "session_id": "22222222-2222-4222-8222-222222222222",
     "model": "contract-model",
     "intent": "general",
+    "knowledge_basis": "none",
     "citations": [],
     "related_questions": [
       "Try a named regulation"

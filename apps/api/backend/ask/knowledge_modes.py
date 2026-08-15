@@ -14,7 +14,7 @@ KNOWLEDGE_MODE_POLICY_VERSION = "ask-ai-knowledge-mode-v1"
 
 NO_OFFICIAL_DOCUMENTS_DISCLOSURE = (
     "This explanation is generated from general AI knowledge because no "
-    "official regulatory documents were found."
+    "sufficiently relevant official corpus evidence was selected for this question."
 )
 OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE = (
     "Official document search is temporarily unavailable. You can still view "

@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -2356,21 +2357,66 @@ def save_chat_message(
     role: str,
     content: str,
     event_id: int | None = None,
-) -> bool:
+    *,
+    session_id: str | None = None,
+    knowledge_basis: str | None = None,
+) -> int | bool:
+    """Persist one chat message.
+
+    Returns the new ``chat_messages.id`` so callers can bind retrieval audits to
+    the exact answer, or ``False`` when persistence was suppressed.
+    """
+
     try:
         with session_scope() as session:
-            session.execute(
+            message_id = session.execute(
                 text(
                     """
-                    insert into chat_messages (user_id, event_id, role, content)
-                    values (:user_id, :event_id, :role, :content)
+                    insert into chat_messages (
+                      user_id,
+                      event_id,
+                      role,
+                      content,
+                      session_id,
+                      knowledge_basis
+                    )
+                    values (
+                      :user_id,
+                      :event_id,
+                      :role,
+                      :content,
+                      cast(:session_id as uuid),
+                      :knowledge_basis
+                    )
+                    returning id
                     """
                 ),
-                {"user_id": user_id, "event_id": event_id, "role": role, "content": content},
-            )
+                {
+                    "user_id": user_id,
+                    "event_id": event_id,
+                    "role": role,
+                    "content": content,
+                    "session_id": session_id,
+                    "knowledge_basis": knowledge_basis,
+                },
+            ).scalar_one()
+            if session_id:
+                session.execute(
+                    text(
+                        """
+                        update chat_sessions
+                        set last_message_at = now(),
+                            updated_at = now()
+                        where id = cast(:session_id as uuid)
+                          and user_id = cast(:user_id as uuid)
+                          and deleted_at is null
+                        """
+                    ),
+                    {"session_id": session_id, "user_id": user_id},
+                )
     except SQLAlchemyError:
         return False
-    return True
+    return int(message_id)
 
 
 def chat_history(user_id: str, event_id: int | None = None) -> list[dict[str, Any]]:
@@ -2389,6 +2435,178 @@ def chat_history(user_id: str, event_id: int | None = None) -> list[dict[str, An
             {"user_id": user_id, "event_id": event_id},
         ).mappings()
         return [dict(row) for row in rows]
+
+
+def list_chat_conversations(user_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
+    with session_scope() as session:
+        rows = session.execute(
+            text(
+                """
+                select
+                  s.id::text as id,
+                  coalesce(
+                    case
+                      when s.title ilike 'Legacy Ask history%' then null
+                      else nullif(trim(s.title), '')
+                    end,
+                    nullif(trim(first_user.content), ''),
+                    'Untitled chat'
+                  ) as title,
+                  s.created_at,
+                  s.updated_at,
+                  s.last_message_at
+                from chat_sessions s
+                left join lateral (
+                  select m.content
+                  from chat_messages m
+                  where m.session_id = s.id
+                    and m.user_id = cast(:user_id as uuid)
+                    and m.role = 'user'
+                  order by m.created_at asc, m.id asc
+                  limit 1
+                ) first_user on true
+                where s.user_id = cast(:user_id as uuid)
+                  and s.deleted_at is null
+                  and s.archived_at is null
+                order by coalesce(s.last_message_at, s.updated_at) desc, s.id desc
+                limit :limit
+                """
+            ),
+            {"user_id": user_id, "limit": limit},
+        ).mappings()
+        return [
+            {
+                **dict(row),
+                "title": _friendly_conversation_title(str(row["title"] or "")),
+            }
+            for row in rows
+        ]
+
+
+def _friendly_conversation_title(raw: str) -> str:
+    cleaned = " ".join(str(raw or "").split())
+    if not cleaned or cleaned.lower().startswith("legacy ask history"):
+        return "Untitled chat"
+    lowered = cleaned.lower()
+    for prefix in (
+        "what are the ",
+        "what are ",
+        "what is the ",
+        "what is ",
+        "how does ",
+        "how do ",
+        "explain ",
+        "tell me ",
+    ):
+        if lowered.startswith(prefix):
+            cleaned = cleaned[len(prefix) :].lstrip()
+            break
+    cleaned = cleaned.rstrip("?").strip()
+    if not cleaned:
+        return "Untitled chat"
+    titled = cleaned[0].upper() + cleaned[1:]
+    return titled if len(titled) <= 72 else f"{titled[:69].rstrip()}..."
+
+
+def get_chat_conversation_messages(
+    user_id: str,
+    session_id: str,
+) -> list[dict[str, Any]] | None:
+    with session_scope() as session:
+        owned = session.execute(
+            text(
+                """
+                select id::text as id
+                from chat_sessions
+                where id = cast(:session_id as uuid)
+                  and user_id = cast(:user_id as uuid)
+                  and deleted_at is null
+                """
+            ),
+            {"session_id": session_id, "user_id": user_id},
+        ).first()
+        if owned is None:
+            return None
+        rows = session.execute(
+            text(
+                """
+                select
+                  id,
+                  role,
+                  content,
+                  created_at,
+                  knowledge_basis,
+                  session_id::text as session_id
+                from chat_messages
+                where user_id = cast(:user_id as uuid)
+                  and session_id = cast(:session_id as uuid)
+                order by created_at asc, id asc
+                """
+            ),
+            {"user_id": user_id, "session_id": session_id},
+        ).mappings()
+        return [dict(row) for row in rows]
+
+
+def citations_for_assistant_messages(
+    user_id: str,
+    assistant_message_ids: Sequence[int],
+) -> dict[int, list[dict[str, Any]]]:
+    """Load citations bound to specific assistant messages in one query."""
+
+    ids = [int(item) for item in assistant_message_ids]
+    if not ids:
+        return {}
+    with session_scope() as session:
+        rows = session.execute(
+            text(
+                """
+                select distinct on (assistant_message_id)
+                  assistant_message_id,
+                  citations
+                from chat_retrieval_audit
+                where user_id = cast(:user_id as uuid)
+                  and assistant_message_id = any(cast(:ids as bigint[]))
+                order by assistant_message_id, created_at desc, id desc
+                """
+            ),
+            {"user_id": user_id, "ids": ids},
+        ).mappings()
+        return {
+            int(row["assistant_message_id"]): (
+                row["citations"] if isinstance(row["citations"], list) else []
+            )
+            for row in rows
+        }
+
+
+def citations_for_question(user_id: str, question: str) -> list[dict[str, Any]]:
+    """Legacy restoration path for audits recorded before message binding.
+
+    Rows that carry an ``assistant_message_id`` are deliberately excluded so a
+    message-bound answer can never inherit another answer's citations through
+    question-text matching.
+    """
+
+    with session_scope() as session:
+        row = session.execute(
+            text(
+                """
+                select citations
+                from chat_retrieval_audit
+                where user_id = cast(:user_id as uuid)
+                  and question = :question
+                  and assistant_message_id is null
+                order by created_at desc
+                limit 1
+                """
+            ),
+            {"user_id": user_id, "question": question},
+        ).first()
+        if row is None or row.citations is None:
+            return []
+        payload = row.citations
+        return payload if isinstance(payload, list) else []
 
 
 def record_export(user_id: str, export_type: str, export_format: str, row_count: int) -> None:

@@ -1,20 +1,5 @@
-import {
-  ResearchWorkspaceDataProvider,
-} from "@/lib/ask-ai-data";
+import { AskConversationWorkspace } from "./ask-ai/AskConversationWorkspace";
 
-import {
-  type ResearchSubmitCapability,
-} from "./ask-ai/ResearchWorkspaceShell";
-import { ResearchWorkspace } from "./ask-ai/ResearchWorkspace";
-
-export function AskRoute({
-  onResearchSubmit,
-}: {
-  onResearchSubmit?: ResearchSubmitCapability;
-}) {
-  return (
-    <ResearchWorkspaceDataProvider enabled>
-      <ResearchWorkspace onSubmit={onResearchSubmit} />
-    </ResearchWorkspaceDataProvider>
-  );
+export function AskRoute() {
+  return <AskConversationWorkspace />;
 }

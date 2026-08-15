@@ -25,6 +25,7 @@ def record_chat_retrieval_audit(
     response_latency_ms: int,
     retrieval_latency_ms: int,
     context_tokens: int,
+    assistant_message_id: int | None = None,
 ) -> None:
     try:
         with session_scope() as session:
@@ -35,6 +36,7 @@ def record_chat_retrieval_audit(
                       user_id,
                       event_id,
                       question,
+                      assistant_message_id,
                       detected_intent,
                       retrieval_provider,
                       embedding_provider,
@@ -52,6 +54,7 @@ def record_chat_retrieval_audit(
                       :user_id,
                       :event_id,
                       :question,
+                      :assistant_message_id,
                       :detected_intent,
                       :retrieval_provider,
                       :embedding_provider,
@@ -71,6 +74,7 @@ def record_chat_retrieval_audit(
                     "user_id": user_id,
                     "event_id": event_id,
                     "question": question,
+                    "assistant_message_id": assistant_message_id,
                     "detected_intent": detected_intent,
                     "retrieval_provider": retrieval_provider,
                     "embedding_provider": settings.embedding_provider,

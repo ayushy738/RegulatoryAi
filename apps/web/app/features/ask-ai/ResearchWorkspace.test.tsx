@@ -328,7 +328,7 @@ describe("Research Workspace entity lookup route", () => {
     lookupFixture.state.generalAsync.mockResolvedValueOnce({
       question: "DSM",
       reply:
-        "DSM may refer to Demand-Side Management.\n\nThis explanation is generated from general AI knowledge because no official regulatory documents were found.",
+        "DSM may refer to Demand-Side Management.\n\nThis explanation is generated from general AI knowledge because no sufficiently relevant official corpus evidence was selected for this question.",
       citations: 0,
     });
     render(<ResearchWorkspace />);
@@ -344,7 +344,7 @@ describe("Research Workspace entity lookup route", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This explanation is generated from general AI knowledge because no official regulatory documents were found.",
+        "This explanation is generated from general AI knowledge because no sufficiently relevant official corpus evidence was selected for this question.",
       ),
     ).toBeInTheDocument();
     expect(

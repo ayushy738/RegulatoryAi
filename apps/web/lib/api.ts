@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 import { supabase } from "./supabase";
 import {
@@ -43,6 +43,8 @@ import {
   adminFamilyListSchema,
   adminUserListSchema,
   adminUserSchema,
+  chatConversationDetailSchema,
+  chatConversationSummarySchema,
   chatHistorySchema,
   chatResponseSchema,
   crawlRunListSchema,
@@ -311,16 +313,41 @@ export function getEvent(eventId: number, token?: string) {
   return validatedFetch(`/events/${eventId}`, digestEventSchema, token);
 }
 
-export function sendChat(message: string, eventId: number | null, token?: string) {
+export function sendChat(
+  message: string,
+  eventId: number | null,
+  token?: string,
+  sessionId?: string | null,
+) {
   return validatedFetch("/chat", chatResponseSchema, token, {
     method: "POST",
-    body: JSON.stringify({ message, event_id: eventId }),
+    body: JSON.stringify({
+      message,
+      event_id: eventId,
+      session_id: sessionId ?? null,
+    }),
   });
 }
 
 export function getChatHistory(token?: string, eventId?: number | null) {
   const suffix = eventId ? `?event_id=${eventId}` : "";
   return validatedFetch(`/chat/history${suffix}`, chatHistorySchema, token);
+}
+
+export function listChatConversations(token?: string) {
+  return validatedFetch(
+    "/chat/conversations",
+    z.array(chatConversationSummarySchema),
+    token,
+  );
+}
+
+export function getChatConversation(sessionId: string, token?: string) {
+  return validatedFetch(
+    `/chat/conversations/${sessionId}`,
+    chatConversationDetailSchema,
+    token,
+  );
 }
 
 export function getAskSessions(

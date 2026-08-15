@@ -10,7 +10,7 @@ import {
 import type { ReactNode } from "react";
 
 export const NO_OFFICIAL_DOCUMENTS_DISCLOSURE =
-  "This explanation is generated from general AI knowledge because no official regulatory documents were found.";
+  "This explanation is generated from general AI knowledge because no sufficiently relevant official corpus evidence was selected for this question.";
 export const OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE =
   "Official document search is temporarily unavailable. You can still view previously retrieved sources or search documents manually. Any explanation generated now will be labeled as general AI knowledge.";
 export const NO_VERIFIED_LIVE_UPDATES_NOTICE =
@@ -129,7 +129,8 @@ function bannerMetadata(props: KnowledgeModeBannerProps) {
     ].join(" · ");
   }
   const reason = {
-    healthy_official_no_match: "No official corpus evidence found",
+    healthy_official_no_match:
+      "No sufficiently relevant official corpus evidence selected",
     official_retrieval_unavailable: "Official verification unavailable",
     explicit_general_question: "General educational explanation",
     optional_general_background: "Background explanation",

@@ -93,9 +93,36 @@ export const chatResponseSchema = z.object({
   reply: z.string(),
   model: z.string(),
   event_id: z.number().nullable(),
+  session_id: z.string().nullable().optional(),
   intent: z.string().nullable().optional(),
+  knowledge_basis: z.enum(["official", "general", "none"]).optional(),
   citations: z.array(ragCitationSchema).default([]),
   related_questions: z.array(z.string()).default([]),
+});
+
+export const chatConversationSummarySchema = z.object({
+  id: z.string(),
+  title: z.string().nullable().optional(),
+  created_at: z.union([z.string(), z.number()]).nullable().optional(),
+  updated_at: z.union([z.string(), z.number()]).nullable().optional(),
+  last_message_at: z.union([z.string(), z.number()]).nullable().optional(),
+});
+
+export const chatConversationMessageSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  created_at: z.union([z.string(), z.number()]).nullable().optional(),
+  knowledge_basis: z
+    .enum(["official", "general", "none"])
+    .nullable()
+    .optional(),
+  citations: z.array(ragCitationSchema).default([]),
+});
+
+export const chatConversationDetailSchema = z.object({
+  id: z.string(),
+  messages: z.array(chatConversationMessageSchema),
 });
 
 export const chatHistoryItemSchema = z.looseObject({

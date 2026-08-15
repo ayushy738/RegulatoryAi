@@ -67,6 +67,22 @@ def general_ai_capability_off(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+SESSION_ID = "22222222-2222-4222-8222-222222222222"
+
+
+def _accept_session_id(*args: Any, **_kwargs: Any) -> Any:
+    """Compatibility shim for save_chat_message(..., session_id=...)."""
+    return True
+
+
+@pytest.fixture(autouse=True)
+def conversation_persistence_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat, "_resolve_session_id", lambda *_a, **_k: SESSION_ID)
+    monkeypatch.setattr(chat, "get_chat_conversation_messages", lambda *_a, **_k: [])
+    monkeypatch.setattr(chat, "list_chat_conversations", lambda *_a, **_k: [])
+    monkeypatch.setattr(chat, "citations_for_question", lambda *_a, **_k: [])
+
+
 @pytest.fixture
 def metric_events(
     monkeypatch: pytest.MonkeyPatch,
@@ -189,7 +205,8 @@ def test_chat_success_freezes_response_citations_history_and_persistence(
         user_id: str,
         role: str,
         content: str,
-        event_id: int | None,
+        event_id: int | None = None,
+        **_kwargs: Any,
     ) -> None:
         saved.append((user_id, role, content, event_id))
 
@@ -264,7 +281,7 @@ def test_chat_no_citations_freezes_fallback_without_model_call(
     monkeypatch.setattr(
         chat,
         "save_chat_message",
-        lambda *args: saved.append(args),
+        lambda *args, **_kwargs: saved.append(args),
     )
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(
@@ -311,7 +328,7 @@ def test_chat_healthy_no_match_answers_from_general_ai_without_citations(
     monkeypatch.setattr(
         chat,
         "save_chat_message",
-        lambda *args: saved.append(args),
+        lambda *args, **_kwargs: saved.append(args),
     )
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(chat, "execute_general_ai", execute)
@@ -327,6 +344,7 @@ def test_chat_healthy_no_match_answers_from_general_ai_without_citations(
     assert response.status_code == 200
     body = response.json()
     assert body["citations"] == []
+    assert body.get("knowledge_basis") == "general"
     assert NO_OFFICIAL_DOCUMENTS_DISCLOSURE in body["reply"]
     assert body["reply"] != contracts["no_citations"]["reply"]
     assert body["model"] == "general-ai-model"
@@ -361,7 +379,7 @@ def test_chat_keeps_frozen_fallback_when_general_ai_cannot_answer(
     monkeypatch.setattr(chat.settings, "ask_ai_general_mode_enabled", True)
     monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *_: None)
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_a, **_k: None)
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(chat, "execute_general_ai", execute)
     monkeypatch.setattr(chat, "record_chat_retrieval_audit", lambda **_: None)
@@ -396,7 +414,7 @@ def test_chat_retrieval_outage_answers_with_qualified_general_ai_fallback(
     monkeypatch.setattr(chat.settings, "ask_ai_general_mode_enabled", True)
     monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *_: True)
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_a, **_k: True)
     monkeypatch.setattr(
         chat.RetrievalProviderFactory,
         "get_provider",
@@ -409,6 +427,7 @@ def test_chat_retrieval_outage_answers_with_qualified_general_ai_fallback(
     assert response.status_code == 200
     body = response.json()
     assert body["citations"] == []
+    assert body.get("knowledge_basis") == "general"
     assert OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE in body["reply"]
     assert NO_OFFICIAL_DOCUMENTS_DISCLOSURE not in body["reply"]
     assert [section.trigger for section in requests[0].mode_decision.sections] == [
@@ -431,7 +450,7 @@ def test_chat_retrieval_outage_keeps_safe_500_when_general_ai_is_off(
         )
 
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *_: True)
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_a, **_k: True)
     monkeypatch.setattr(
         chat.RetrievalProviderFactory,
         "get_provider",
@@ -457,7 +476,7 @@ def test_chat_metrics_observe_suppressed_persistence_without_changing_response(
 
     monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *_: False)
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_a, **_k: False)
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(chat, "record_chat_retrieval_audit", lambda **_: None)
 
@@ -491,7 +510,7 @@ def test_chat_model_failure_freezes_legacy_502_and_partial_persistence(
 
     monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *args: saved.append(args))
+    monkeypatch.setattr(chat, "save_chat_message", lambda *args, **_kwargs: saved.append(args))
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(
         chat,
@@ -546,7 +565,7 @@ def test_chat_retrieval_exception_freezes_unhandled_500_and_partial_persistence(
         hybrid_search=fail_retrieval,
     )
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *args: saved.append(args))
+    monkeypatch.setattr(chat, "save_chat_message", lambda *args, **_kwargs: saved.append(args))
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(
         chat,
@@ -668,7 +687,7 @@ def test_decision_shadow_flag_and_background_work_never_change_legacy_response(
 
     monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *_: True)
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_a, **_k: True)
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(chat, "record_chat_retrieval_audit", lambda **_: None)
     monkeypatch.setattr(
@@ -706,7 +725,7 @@ def test_decision_shadow_factory_failure_is_suppressed(
     monkeypatch.setattr(chat.settings, "llm_model_chat", "contract-model")
     monkeypatch.setattr(chat.settings, "ask_ai_decision_engine_enabled", True)
     monkeypatch.setattr(chat, "get_chat_history", lambda *_: [])
-    monkeypatch.setattr(chat, "save_chat_message", lambda *_: True)
+    monkeypatch.setattr(chat, "save_chat_message", lambda *_a, **_k: True)
     monkeypatch.setattr(chat.RetrievalProviderFactory, "get_provider", lambda: provider)
     monkeypatch.setattr(chat, "record_chat_retrieval_audit", lambda **_: None)
     monkeypatch.setattr(

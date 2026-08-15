@@ -322,6 +322,27 @@ verifier JSON remains readable. Rollback disables the v2 API/writer and retains
 all additive columns and audit records. Destructive removal requires a later
 approved contract migration after the compatibility window.
 
+Migration `0049_ask_chat_answer_provenance.sql` makes Ask conversation
+restoration exact. `chat_retrieval_audit` gains a nullable
+`assistant_message_id` foreign key to `public.chat_messages`, so each retrieval
+audit is bound to the one answer it explains instead of being matched by user
+question text. `chat_messages` gains a checked nullable `knowledge_basis`
+(`official`, `general`, `none`) so a refreshed conversation reproduces the
+original answer semantics rather than inferring them from citation counts.
+
+Both columns are additive and nullable. Historical audits keep
+`assistant_message_id` null and historical answers keep `knowledge_basis` null;
+the pre-`0049` schema never recorded which answer an audit belonged to, so those
+rows cannot always be associated exactly after the fact. Restoration therefore
+uses the question-text fallback only for answers that predate this migration,
+and the fallback query excludes message-bound audit rows so a bound answer can
+never inherit another answer's citations.
+
+Rollback is non-destructive: stop writing the new columns and keep them in
+place. A failed migration transaction rolls back automatically. Physical removal
+requires a separately approved contraction after no deployed API reads the
+message binding or persisted knowledge basis.
+
 ## Repair manually applied 0021/0022 history
 
 Use this only when migrations `0021` and/or `0022` were executed manually and

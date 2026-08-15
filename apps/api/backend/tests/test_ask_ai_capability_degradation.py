@@ -202,7 +202,7 @@ def test_official_no_match_and_failure_use_different_exact_copy() -> None:
 
     assert no_match.body == NO_OFFICIAL_DOCUMENTS_DISCLOSURE
     assert unavailable.body == OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE
-    assert "no official regulatory documents were found" not in unavailable.body
+    assert "no sufficiently relevant official corpus evidence was selected" not in unavailable.body
     assert tuple(item.action for item in no_match.actions) == (
         DegradationActionType.SEARCH_OFFICIAL_DOCUMENTS_MANUALLY,
     )

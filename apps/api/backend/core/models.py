@@ -230,13 +230,16 @@ class DigestResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     event_id: int | None = None
+    session_id: str | None = None
 
 
 class ChatResponse(BaseModel):
     reply: str
     event_id: int | None = None
+    session_id: str | None = None
     model: str
     intent: str | None = None
+    knowledge_basis: Literal["official", "general", "none"] = "official"
     citations: list[dict[str, Any]] = Field(default_factory=list)
     related_questions: list[str] = Field(default_factory=list)
 

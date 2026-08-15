@@ -21,7 +21,7 @@ afterEach(() => {
 describe("Ask AI knowledge-mode primitives", () => {
   it("freezes the E6.1 disclosure and live-state copy", () => {
     expect(NO_OFFICIAL_DOCUMENTS_DISCLOSURE).toBe(
-      "This explanation is generated from general AI knowledge because no official regulatory documents were found.",
+      "This explanation is generated from general AI knowledge because no sufficiently relevant official corpus evidence was selected for this question.",
     );
     expect(OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE).toBe(
       "Official document search is temporarily unavailable. You can still view previously retrieved sources or search documents manually. Any explanation generated now will be labeled as general AI knowledge.",
@@ -89,7 +89,7 @@ describe("Ask AI knowledge-mode primitives", () => {
     expect(paragraphs[1]).toHaveTextContent("General orientation.");
     expect(
       within(section).getByText(
-        "Medium confidence · No official corpus evidence found",
+        "Medium confidence · No sufficiently relevant official corpus evidence selected",
       ),
     ).toBeInTheDocument();
     expect(
@@ -279,7 +279,7 @@ describe("Ask AI knowledge-mode primitives", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent(OFFICIAL_SEARCH_UNAVAILABLE_DISCLOSURE);
     expect(status).not.toHaveTextContent(
-      "no official regulatory documents were found",
+      "no sufficiently relevant official corpus evidence was selected",
     );
     expect(
       screen.getByRole("link", {
