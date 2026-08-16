@@ -7,16 +7,9 @@ services:
       - regai-secrets
     healthCheckPath: /health
 
-  - type: cron
-    name: regai-pipeline
-    runtime: docker
-    dockerfilePath: apps/api/Dockerfile.pipeline
-    schedule: "30 1 * * *"
-    envVarGroups:
-      - regai-secrets
-
-  # RAG indexing is scheduled via GitHub Actions (.github/workflows/rag-index.yml)
-  # calling POST /admin/rag/process — Render Cron is paid and not used.
+  # Crawl execution: GitHub Actions (.github/workflows/crawl-worker.yml)
+  # RAG indexing: GitHub Actions (.github/workflows/rag-index.yml) → POST /admin/rag/process
+  # Do not add a Render Background Worker or Render Cron for crawl/RAG (paid).
 
   - type: web
     name: regai-frontend

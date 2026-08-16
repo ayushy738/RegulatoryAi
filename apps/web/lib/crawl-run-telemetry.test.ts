@@ -32,6 +32,36 @@ describe("crawl run telemetry schema", () => {
     expect(parsed.versions_created).toBeNull();
   });
 
+  it("accepts authoritative linked-document telemetry without fabricating values", () => {
+    const parsed = crawlRunSchema.parse({
+      id: 58,
+      started_at: "2026-08-15T20:41:51Z",
+      finished_at: "2026-08-16T00:00:00Z",
+      status: "failed",
+      sources_attempted: 1,
+      sources_succeeded: 1,
+      docs_found: 2,
+      new_events: 1,
+      errors: [],
+      documents_discovered: 2,
+      documents_persisted: 2,
+      versions_created: 2,
+      graph_extractions: 1,
+      entities_extracted: 18,
+      obligations_extracted: 12,
+      stakeholders_extracted: 2,
+      rag_jobs_enqueued: 1,
+      rag_jobs_completed: 1,
+      rag_ready_documents: 1,
+      chunks_indexed: 25,
+      rag_indexed: 1,
+    });
+    expect(parsed.graph_extractions).toBe(1);
+    expect(parsed.entities_extracted).toBe(18);
+    expect(parsed.chunks_indexed).toBe(25);
+    expect(parsed.rag_indexed).toBe(1);
+  });
+
   it("does not invent global totals for missing unavailable fields", () => {
     const parsed = crawlRunSchema.parse({
       id: 2,

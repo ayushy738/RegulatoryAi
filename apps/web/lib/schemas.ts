@@ -226,7 +226,15 @@ export const crawlRunSchema = z.looseObject({
   versions_created: z.number().nullable().optional(),
   families_touched: z.number().nullable().optional(),
   graph_extractions: z.number().nullable().optional(),
+  entities_extracted: z.number().nullable().optional(),
+  obligations_extracted: z.number().nullable().optional(),
+  stakeholders_extracted: z.number().nullable().optional(),
+  documents_persisted: z.number().nullable().optional(),
   rag_jobs_enqueued: z.number().nullable().optional(),
+  rag_jobs_completed: z.number().nullable().optional(),
+  rag_jobs_failed: z.number().nullable().optional(),
+  rag_ready_documents: z.number().nullable().optional(),
+  chunks_indexed: z.number().nullable().optional(),
   rag_indexed: z.number().nullable().optional(),
 });
 

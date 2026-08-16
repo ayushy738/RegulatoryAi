@@ -678,21 +678,50 @@ export function AdminRunsView() {
                     <strong>Versions created</strong> {formatRunMetric(run.versions_created)}
                   </span>
                   <span>
+                    <strong>Documents persisted</strong>{" "}
+                    {formatRunMetric(run.documents_persisted)}
+                  </span>
+                  <span>
                     <strong>Families touched</strong> {formatRunMetric(run.families_touched)}
                   </span>
                   <span>
                     <strong>Graph extractions</strong> {formatRunMetric(run.graph_extractions)}
                   </span>
                   <span>
+                    <strong>Entities extracted</strong>{" "}
+                    {formatRunMetric(run.entities_extracted)}
+                  </span>
+                  <span>
+                    <strong>Obligations extracted</strong>{" "}
+                    {formatRunMetric(run.obligations_extracted)}
+                  </span>
+                  <span>
+                    <strong>Stakeholders extracted</strong>{" "}
+                    {formatRunMetric(run.stakeholders_extracted)}
+                  </span>
+                  <span>
                     <strong>RAG jobs enqueued</strong> {formatRunMetric(run.rag_jobs_enqueued)}
+                  </span>
+                  <span>
+                    <strong>RAG jobs completed</strong>{" "}
+                    {formatRunMetric(run.rag_jobs_completed)}
+                  </span>
+                  <span>
+                    <strong>RAG jobs failed</strong> {formatRunMetric(run.rag_jobs_failed)}
                   </span>
                   <span>
                     <strong>RAG indexed</strong> {formatRunMetric(run.rag_indexed)}
                   </span>
+                  <span>
+                    <strong>Chunks indexed</strong> {formatRunMetric(run.chunks_indexed)}
+                  </span>
                 </div>
                 <div className="admin-run-timeline">
                   <span>Started {formatRelativeDate(run.started_at)}</span>
-                  <span>Finished {formatRelativeDate(run.finished_at)}</span>
+                  <span>
+                    Finished{" "}
+                    {run.finished_at ? formatRelativeDate(run.finished_at) : "Not finished"}
+                  </span>
                   <span>Status {run.status}</span>
                 </div>
                 {run.errors.length ? (

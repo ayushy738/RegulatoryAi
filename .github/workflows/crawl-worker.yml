@@ -1,0 +1,86 @@
+name: Crawl Worker
+
+# Executes queued crawl_runs out-of-process from Render.
+# Admin API only inserts status=queued and workflow_dispatch-es this workflow.
+# The runner claims the row and runs backend.tools.crawl_worker (NOT the API).
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "crawl_runs.id to claim and execute"
+        required: true
+        type: string
+      source_id:
+        description: "Optional sources.id scope (mutually exclusive with page_id)"
+        required: false
+        type: string
+        default: ""
+      page_id:
+        description: "Optional source_pages.id scope (mutually exclusive with source_id)"
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: crawl-worker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install OCR system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr
+        working-directory: .
+
+      - name: Install Python dependencies
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Claim and execute crawl run
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PARALLEL_API_KEY: ${{ secrets.PARALLEL_API_KEY }}
+          PARALLEL_BASE_URL: ${{ secrets.PARALLEL_BASE_URL }}
+          LLM_MODEL_AGENT: ${{ secrets.LLM_MODEL_AGENT }}
+          LLM_MODEL_SUMMARY: ${{ secrets.LLM_MODEL_SUMMARY }}
+          EMBEDDING_PROVIDER: ${{ secrets.EMBEDDING_PROVIDER }}
+          VECTOR_PROVIDER: ${{ secrets.VECTOR_PROVIDER }}
+          CRAWL_USER_AGENT: ${{ secrets.CRAWL_USER_AGENT }}
+          CRAWL_DRAIN_RAG_AFTER_PERSIST: "false"
+          CRAWL_WORKER: "1"
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "Missing GitHub Actions secret: DATABASE_URL"
+            exit 1
+          fi
+          python -m backend.tools.crawl_worker \
+            --run-id "${{ inputs.run_id }}" \
+            --source-id "${{ inputs.source_id }}" \
+            --page-id "${{ inputs.page_id }}"
