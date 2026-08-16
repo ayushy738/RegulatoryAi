@@ -34,6 +34,7 @@ from backend.core.repository import (
     update_source,
     update_source_page,
 )
+from backend.core.source_page_policy import SourcePagePolicyError
 from backend.pipeline.github_dispatch import CrawlDispatchError, dispatch_crawl_workflow
 from backend.pipeline.run_once import queue_crawl_run
 from backend.rag.admin import (
@@ -82,7 +83,10 @@ async def edit_user(user_id: str, payload: UserUpdatePayload, user: AdminUserDep
 @router.post("/sources")
 async def add_source(payload: SourcePayload, user: AdminUserDep) -> dict:
     del user
-    return create_source(payload)
+    try:
+        return create_source(payload)
+    except SourcePagePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/sources/{source_id}")
@@ -92,7 +96,10 @@ async def edit_source(
     user: AdminUserDep,
 ) -> dict:
     del user
-    source = update_source(source_id, payload)
+    try:
+        source = update_source(source_id, payload)
+    except SourcePagePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if source:
         return source
     raise HTTPException(status_code=404, detail="Source not found")
@@ -120,7 +127,10 @@ async def add_source_page(
     user: AdminUserDep,
 ) -> dict:
     del user
-    return create_source_page(source_id, payload)
+    try:
+        return create_source_page(source_id, payload)
+    except SourcePagePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/pages/{page_id}")
@@ -130,7 +140,10 @@ async def edit_source_page(
     user: AdminUserDep,
 ) -> dict:
     del user
-    page = update_source_page(page_id, payload)
+    try:
+        page = update_source_page(page_id, payload)
+    except SourcePagePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if page:
         return page
     raise HTTPException(status_code=404, detail="Source page not found")

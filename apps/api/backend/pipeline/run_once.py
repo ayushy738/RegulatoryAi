@@ -8,6 +8,7 @@ from backend.core.logging import configure_logging, log_event
 from backend.core.models import DiscoveryAuditRecord
 from backend.core.repository import (
     create_crawl_run,
+    explain_empty_source_page_selection,
     finalize_crawl_run,
     list_enabled_source_pages,
     load_checkpoint,
@@ -256,7 +257,15 @@ async def _run_crawl_stages(
         source_page_id=page_id,
     )
     if not source_pages:
-        errors.append({"source": "pipeline", "error": "No enabled source pages configured"})
+        diagnosis = explain_empty_source_page_selection(
+            source_id=source_id, page_id=page_id
+        )
+        error_payload = {
+            "source": diagnosis.get("source") or "pipeline",
+            "error": "No crawlable source pages for selection scope",
+            **diagnosis,
+        }
+        errors.append(error_payload)
         finalize_crawl_run(
             run_id,
             status="failed",
@@ -272,6 +281,7 @@ async def _run_crawl_stages(
             status="failed",
             docs_found=0,
             new_events=0,
+            **{k: v for k, v in diagnosis.items() if k != "source"},
         )
         return {
             "run_id": run_id,
@@ -286,6 +296,7 @@ async def _run_crawl_stages(
             "checkpoints_advanced": 0,
             "notification_message_id": None,
             "errors": errors,
+            "source_selection": diagnosis,
         }
     successful_pages = 0
     successful_source_ids: set[int] = set()

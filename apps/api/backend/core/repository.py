@@ -29,6 +29,13 @@ from backend.core.models import (
     UserUpdatePayload,
 )
 from backend.core.system_docs import SYSTEM_DOCUMENTS
+from backend.core.source_page_policy import (
+    SourcePagePolicyError,
+    diagnose_source_page_selection,
+    page_url_permitted_for_source,
+    validate_public_http_url,
+    validate_source_page_url,
+)
 from backend.core.utils import canonical_url, sha256_normalized_text
 from backend.pipeline.change_detector import (
     attach_change_to_summary,
@@ -65,41 +72,6 @@ TOPIC_KEYWORDS = {
     "thermal": ["thermal", "coal", "gas"],
     "tender": ["tender", "bid", "rfp"],
 }
-ALLOWED_SOURCE_PAGE_URLS = {
-    canonical_url(url)
-    for url in (
-        "https://mnre.gov.in/en/notice-category/current-notices/",
-        "https://mnre.gov.in/en/monthly-updates/",
-        "https://cercind.gov.in/public-notice.html",
-        "https://cercind.gov.in/SPN.html",
-        "https://cercind.gov.in/notice-letter.html",
-        "https://www.seci.co.in/tenders",
-        "https://www.powermin.gov.in/whats-new",
-        # KERC (source_id=6) — enabled production crawl pages
-        "https://kerc.karnataka.gov.in/events/en",
-        "https://kerc.karnataka.gov.in/27/regulations/en",
-        "https://kerc.karnataka.gov.in/28/draft-regulations/en",
-        "https://kerc.karnataka.gov.in/42/miscellaneous-orders/en",
-        "https://kerc.karnataka.gov.in/73/generic-tariff-orders/en",
-        "https://kerc.karnataka.gov.in/48/discussion-papers/en",
-        # Grid-India (source_id=9) — enabled production crawl pages
-        "https://grid-india.in/en/documents/iegc-procedures",
-        "https://grid-india.in/en/documents/notified-procedures",
-        "https://grid-india.in/en/documents/connectivity-and-gna-procedure",
-        "https://grid-india.in/en/documents/other-procedures",
-        "https://grid-india.in/en/documents/consultation-papers",
-        "https://grid-india.in/en/announcements/notices",
-        # CTUIL (source_id=13) — enabled production crawl pages
-        "https://ctuil.in/latestnews",
-        "https://ctuil.in/advisory",
-        "https://ctuil.in/regulation_procedures",
-        "https://ctuil.in/format_gna",
-        "https://ctuil.in/regenerators",
-        "https://ctuil.in/draft_procedures",
-    )
-}
-
-
 def _summary_payload(value: Any) -> SummaryPayload | None:
     if not value:
         return None
@@ -371,6 +343,15 @@ def update_admin_user(user_id: str, payload: UserUpdatePayload) -> dict[str, Any
 
 
 def create_source(payload: SourcePayload) -> dict[str, Any]:
+    values = payload.model_dump()
+    values["url"] = validate_public_http_url(values["url"], field="source url")
+    # Prefer explicit CDN/mirror domains from the admin; always keep website host
+    # available via crawl_domains_for_source (source.url) even if this list is empty.
+    values["allowed_domains"] = [
+        str(domain).strip().lower().lstrip(".")
+        for domain in (values.get("allowed_domains") or [])
+        if str(domain).strip()
+    ]
     with session_scope() as session:
         row = session.execute(
             text(
@@ -385,7 +366,7 @@ def create_source(payload: SourcePayload) -> dict[str, Any]:
                           last_checked_at, last_status, consecutive_failures
                 """
             ),
-            payload.model_dump(),
+            values,
         ).mappings().first()
     return dict(row) if row else {}
 
@@ -393,7 +374,53 @@ def create_source(payload: SourcePayload) -> dict[str, Any]:
 def update_source(source_id: int, payload: SourceUpdatePayload) -> dict[str, Any]:
     values = payload.model_dump()
     values["source_id"] = source_id
+    if values.get("url") is not None:
+        values["url"] = validate_public_http_url(values["url"], field="source url")
+    if values.get("allowed_domains") is not None:
+        values["allowed_domains"] = [
+            str(domain).strip().lower().lstrip(".")
+            for domain in values["allowed_domains"]
+            if str(domain).strip()
+        ]
     with session_scope() as session:
+        current = session.execute(
+            text(
+                """
+                select id, url, allowed_domains, enabled
+                from sources
+                where id = :source_id
+                """
+            ),
+            {"source_id": source_id},
+        ).mappings().first()
+        if not current:
+            return {}
+
+        next_url = values["url"] if values.get("url") is not None else current["url"]
+        next_domains = (
+            values["allowed_domains"]
+            if values.get("allowed_domains") is not None
+            else list(current["allowed_domains"] or [])
+        )
+        if values.get("url") is not None or values.get("allowed_domains") is not None:
+            enabled_pages = session.execute(
+                text(
+                    """
+                    select id, url
+                    from source_pages
+                    where source_id = :source_id and enabled = true
+                    order by id
+                    """
+                ),
+                {"source_id": source_id},
+            ).mappings()
+            for page in enabled_pages:
+                validate_source_page_url(
+                    page_url=str(page["url"]),
+                    source_url=str(next_url),
+                    allowed_domains=next_domains,
+                )
+
         row = session.execute(
             text(
                 """
@@ -453,6 +480,14 @@ def list_enabled_source_pages(
     source_id: int | None = None,
     page_id: int | None = None,
 ) -> list[dict[str, Any]]:
+    """Return crawlable pages from DB configuration (single source of truth).
+
+    A page is crawlable when ``sources.enabled`` and ``source_pages.enabled`` are
+    both true. Domain safety is enforced at Admin create/update time via
+    ``source_page_policy``; this function does not apply a second hardcoded URL
+    allowlist.
+    """
+
     clauses = ["s.enabled = true", "sp.enabled = true"]
     params: dict[str, Any] = {}
     if source_id is not None:
@@ -490,14 +525,141 @@ def list_enabled_source_pages(
                 ),
                 params,
             ).mappings()
-            return [
-                dict(row)
-                for row in rows
-                if canonical_url(str(row["url"])) in ALLOWED_SOURCE_PAGE_URLS
-            ]
+            return [dict(row) for row in rows]
     except SQLAlchemyError as exc:
         logger.warning("list_enabled_source_pages failed: %s", exc)
         return []
+
+
+def explain_empty_source_page_selection(
+    *,
+    source_id: int | None = None,
+    page_id: int | None = None,
+) -> dict[str, Any]:
+    """Diagnostics when crawl selection returns zero pages for a scope."""
+
+    configured: list[dict[str, Any]] = []
+    enabled: list[dict[str, Any]] = []
+    try:
+        with session_scope() as session:
+            clauses = ["1=1"]
+            params: dict[str, Any] = {}
+            if source_id is not None:
+                clauses.append("s.id = :source_id")
+                params["source_id"] = source_id
+            if page_id is not None:
+                clauses.append("sp.id = :page_id")
+                params["page_id"] = page_id
+            rows = session.execute(
+                text(
+                    f"""
+                    select
+                      sp.id,
+                      sp.source_id,
+                      sp.url,
+                      sp.enabled as page_enabled,
+                      s.code as source_code,
+                      s.enabled as source_enabled,
+                      s.url as source_url,
+                      s.allowed_domains
+                    from source_pages sp
+                    join sources s on s.id = sp.source_id
+                    where {" and ".join(clauses)}
+                    order by sp.id
+                    """
+                ),
+                params,
+            ).mappings()
+            configured = [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("explain_empty_source_page_selection failed: %s", exc)
+        return diagnose_source_page_selection(
+            source_id=source_id,
+            page_id=page_id,
+            configured_pages=[],
+            enabled_pages=[],
+            crawlable_pages=[],
+        )
+
+    if source_id is not None and not configured and page_id is None:
+        # Source may exist with zero pages, or source may be missing.
+        try:
+            with session_scope() as session:
+                source = session.execute(
+                    text(
+                        """
+                        select id, code, enabled, url, allowed_domains
+                        from sources
+                        where id = :source_id
+                        """
+                    ),
+                    {"source_id": source_id},
+                ).mappings().first()
+            if source:
+                configured = [
+                    {
+                        "source_id": source["id"],
+                        "source_code": source["code"],
+                        "source_enabled": source["enabled"],
+                        "source_url": source["url"],
+                        "allowed_domains": source["allowed_domains"],
+                        "page_enabled": False,
+                    }
+                ]
+                # Fake zero pages: configured_pages length should reflect pages.
+                # Use empty configured for page count but preserve source metadata.
+                diagnosis = diagnose_source_page_selection(
+                    source_id=source_id,
+                    page_id=page_id,
+                    configured_pages=[],
+                    enabled_pages=[],
+                    crawlable_pages=[],
+                )
+                diagnosis["source"] = source["code"]
+                diagnosis["source_enabled"] = bool(source["enabled"])
+                if not source["enabled"]:
+                    diagnosis["reason"] = "source_disabled"
+                else:
+                    diagnosis["reason"] = "no_source_pages_configured"
+                return diagnosis
+        except SQLAlchemyError as exc:
+            logger.warning("explain_empty_source_page_selection source lookup failed: %s", exc)
+
+    enabled = [
+        row
+        for row in configured
+        if row.get("page_enabled") and row.get("source_enabled")
+    ]
+    crawlable = [
+        row
+        for row in enabled
+        if page_url_permitted_for_source(
+            page_url=str(row["url"]),
+            source_url=str(row["source_url"]),
+            allowed_domains=row.get("allowed_domains") or [],
+        )
+    ]
+    # For diagnose counts, configured = all joined page rows (not the synthetic).
+    page_rows = [row for row in configured if row.get("id") is not None]
+    diagnosis = diagnose_source_page_selection(
+        source_id=source_id,
+        page_id=page_id,
+        configured_pages=page_rows,
+        enabled_pages=enabled,
+        crawlable_pages=crawlable if crawlable else [],
+    )
+    # Prefer crawl selection truth: if enabled pages exist they are crawlable under
+    # the new policy (domain was write-time). If somehow domain-invalid, say so.
+    if enabled and not crawlable:
+        diagnosis["reason"] = "invalid_source_domain_configuration"
+        diagnosis["crawlable_pages"] = 0
+    elif enabled:
+        diagnosis["crawlable_pages"] = len(enabled)
+        diagnosis["reason"] = None
+    if page_rows:
+        diagnosis["source"] = page_rows[0].get("source_code")
+        diagnosis["source_enabled"] = page_rows[0].get("source_enabled")
+    return diagnosis
 
 
 def get_source_page(page_id: int) -> dict[str, Any] | None:
@@ -509,6 +671,23 @@ def create_source_page(source_id: int, payload: SourcePagePayload) -> dict[str, 
     values = payload.model_dump()
     values["source_id"] = source_id
     with session_scope() as session:
+        source = session.execute(
+            text(
+                """
+                select id, url, allowed_domains
+                from sources
+                where id = :source_id
+                """
+            ),
+            {"source_id": source_id},
+        ).mappings().first()
+        if not source:
+            raise SourcePagePolicyError(f"source_id {source_id} not found")
+        values["url"] = validate_source_page_url(
+            page_url=str(values["url"]),
+            source_url=str(source["url"]),
+            allowed_domains=list(source["allowed_domains"] or []),
+        )
         row = session.execute(
             text(
                 """
@@ -527,6 +706,39 @@ def update_source_page(page_id: int, payload: SourcePageUpdatePayload) -> dict[s
     values = payload.model_dump()
     values["page_id"] = page_id
     with session_scope() as session:
+        current = session.execute(
+            text(
+                """
+                select
+                  sp.id,
+                  sp.source_id,
+                  sp.url,
+                  sp.enabled,
+                  s.url as source_url,
+                  s.allowed_domains
+                from source_pages sp
+                join sources s on s.id = sp.source_id
+                where sp.id = :page_id
+                """
+            ),
+            {"page_id": page_id},
+        ).mappings().first()
+        if not current:
+            return {}
+
+        next_url = values["url"] if values.get("url") is not None else current["url"]
+        next_enabled = (
+            values["enabled"] if values.get("enabled") is not None else current["enabled"]
+        )
+        if values.get("url") is not None or bool(next_enabled):
+            canonical = validate_source_page_url(
+                page_url=str(next_url),
+                source_url=str(current["source_url"]),
+                allowed_domains=list(current["allowed_domains"] or []),
+            )
+            if values.get("url") is not None:
+                values["url"] = canonical
+
         row = session.execute(
             text(
                 """

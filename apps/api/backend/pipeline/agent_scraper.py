@@ -17,6 +17,7 @@ from backend.core.config import settings
 from backend.core.logging import log_event
 from backend.core.models import DiscoveredDoc
 from backend.core.utils import canonical_url, sha256_normalized_text
+from backend.core.source_page_policy import crawl_domains_for_source, host_permitted
 
 DOCUMENT_KEYWORDS = (
     "regulation",
@@ -929,16 +930,17 @@ def _best_candidate_title(text: str, parent_text: str, url: str) -> str:
 
 
 def _is_allowed_url(url: str, source: dict) -> bool:
-    host = urlparse(url).netloc.lower()
-    if not host:
+    hostname = urlparse(url).hostname
+    if not hostname:
         return False
-    return any(host == domain or host.endswith(f".{domain}") for domain in _allowed_domains(source))
+    return host_permitted(hostname, _allowed_domains(source))
 
 
 def _allowed_domains(source: dict) -> list[str]:
-    domains = {urlparse(source["url"]).netloc.lower()}
-    domains.update(str(domain).lower() for domain in source.get("allowed_domains") or [])
-    return sorted(domain for domain in domains if domain)
+    return crawl_domains_for_source(
+        source_url=str(source.get("url") or ""),
+        allowed_domains=source.get("allowed_domains") or [],
+    )
 
 
 def _dedupe(docs: list[DiscoveredDoc]) -> list[DiscoveredDoc]:
