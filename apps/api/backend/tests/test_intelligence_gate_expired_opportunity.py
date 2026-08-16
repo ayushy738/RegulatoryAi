@@ -203,3 +203,45 @@ def test_actionable_tender_with_future_deadline_remains_allowed() -> None:
     assert intelligence.actionability == "ACTIONABLE"
     assert intelligence.rejection_reason is None
     assert intelligence.event_allowed is True
+
+
+def test_cerc_actionable_expired_opportunity_behavior_unchanged() -> None:
+    """CERC ACTIONABLE consultation with a closed comment window stays rejected."""
+
+    reason = _rejection_reason(
+        "CONSULTATION_DOCUMENT",
+        False,
+        "CURRENT",
+        "ACTIONABLE",
+        [
+            _deadline(
+                raw="01.06.2026",
+                normalized=date(2026, 6, 1),
+                deadline_type="CONSULTATION_DEADLINE",
+            )
+        ],
+        quality_score=90,
+        today=TODAY,
+    )
+    assert reason == "EXPIRED_OPPORTUNITY"
+
+    extracted = _extracted(
+        title="CERC Draft Grid Connectivity Procedure — Stakeholder Comments",
+        text=(
+            "Central Electricity Regulatory Commission invites stakeholder comments "
+            "on the draft grid connectivity procedure. The consultation deadline for "
+            "comments and objections was 01.06.2026. Transmission licensees and "
+            "renewable developers were required to submit responses before that "
+            "deadline. Tariff and open access impacts are described in the draft. "
+            + ("Annex and background material. " * 40)
+            + "A public hearing remains scheduled on 30.09.2026 for related petition "
+            "proceedings. Parties should track or attend that hearing."
+        ),
+        classification="CONSULTATION_DOCUMENT",
+        issue_date=date(2026, 7, 10),
+        url="https://cercind.gov.in/consultations/grid-connectivity-closed.pdf",
+    )
+    intelligence = assess_event_intelligence(extracted, today=TODAY)
+    assert intelligence.actionability == "ACTIONABLE"
+    assert intelligence.rejection_reason == "EXPIRED_OPPORTUNITY"
+    assert intelligence.event_allowed is False
