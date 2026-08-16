@@ -491,7 +491,13 @@ def _rejection_reason(
         return "ARCHIVAL_REFERENCE"
     if freshness == "HISTORICAL":
         return "HISTORICAL_DOCUMENT"
-    if classification in {"TENDER_DOCUMENT", "CONSULTATION_DOCUMENT"}:
+    # Only reject expired tender/consultation windows when the document is
+    # actually ACTIONABLE. INFORMATIONAL listings (e.g. CTUIL HTML index pages)
+    # often scrape unrelated historical dates that must not alone suppress events.
+    if (
+        classification in {"TENDER_DOCUMENT", "CONSULTATION_DOCUMENT"}
+        and actionability == "ACTIONABLE"
+    ):
         action_deadlines = [
             item.normalized_date
             for item in deadlines
