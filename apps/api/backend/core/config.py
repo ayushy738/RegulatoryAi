@@ -100,7 +100,7 @@ class Settings(BaseSettings):
     ask_ai_streaming_enabled: bool = False
     ask_ai_v2_ui_enabled: bool = False
 
-    email_provider: Literal["resend", "postmark", "ses", "offline"] = "offline"
+    email_provider: Literal["brevo", "resend", "postmark", "ses", "offline"] = "offline"
     email_api_key: str | None = None
     email_from: str = "Resolven Regulatory AI <updates@example.com>"
 

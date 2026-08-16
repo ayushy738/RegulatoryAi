@@ -20,7 +20,7 @@ from backend.core.repository import (
 )
 from backend.pipeline.agent_scraper import scrape_source_page
 from backend.pipeline.digest_builder import build_digest
-from backend.pipeline.notifier import enqueue_notifications, send_pending_notifications
+from backend.pipeline.notifier import enqueue_notifications
 from backend.pipeline.primary_document import acquire_primary_documents
 from backend.rag.indexing import drain_rag_jobs_after_crawl
 
@@ -521,19 +521,13 @@ async def _run_crawl_stages(
     digest = build_digest(date.today(), new_event_ids)
     log_event("digest_build_finished", run_id=run_id, digest_events=len(digest.events))
     log_event("notification_enqueue_started", run_id=run_id, new_events=len(new_event_ids))
-    enqueue_notifications(new_event_ids)
-    log_event("notification_enqueue_finished", run_id=run_id, new_events=len(new_event_ids))
+    # Durable pending rows only — email delivery is owned by notification_worker.
+    queued_notifications = enqueue_notifications(new_event_ids)
     log_event(
-        "notification_delivery_started",
+        "notification_enqueue_finished",
         run_id=run_id,
-        digest_events=len(digest.events),
-    )
-    email_result = send_pending_notifications(digest.events)
-    log_event(
-        "notification_delivery_finished",
-        run_id=run_id,
-        digest_events=len(digest.events),
-        notification_message_id=email_result.message_id,
+        new_events=len(new_event_ids),
+        notifications_queued=queued_notifications,
     )
     log_event(
         "crawl_stage_finished",
@@ -542,6 +536,7 @@ async def _run_crawl_stages(
         page_id=page_id,
         crawl_stage="notifications",
         digest_events=len(digest.events),
+        notifications_queued=queued_notifications,
     )
     status = "success" if not errors else "partial"
     _crawl_worker_log("finalize_started", run_id=run_id, status=status)
@@ -573,7 +568,7 @@ async def _run_crawl_stages(
         "primary_docs_found": primary_docs_found,
         "new_events": len(new_event_ids),
         "checkpoints_advanced": checkpoints_advanced,
-        "notification_message_id": email_result.message_id,
+        "notifications_queued": queued_notifications,
         "errors": errors,
     }
 

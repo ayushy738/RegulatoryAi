@@ -536,12 +536,7 @@ def test_run_crawl_stages_skips_rag_drain_by_default(
     monkeypatch.setattr(run_once, "mark_source_page_crawled", lambda *_a, **_k: None)
     monkeypatch.setattr(run_once, "save_checkpoint", lambda *_a, **_k: None)
     monkeypatch.setattr(run_once, "build_digest", lambda *_a, **_k: MagicMock(events=[]))
-    monkeypatch.setattr(run_once, "enqueue_notifications", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        run_once,
-        "send_pending_notifications",
-        lambda *_a, **_k: MagicMock(message_id=None),
-    )
+    monkeypatch.setattr(run_once, "enqueue_notifications", lambda *_a, **_k: 0)
     monkeypatch.setattr(run_once, "finalize_crawl_run", lambda *_a, **_k: None)
 
     import asyncio
@@ -604,12 +599,7 @@ def test_run_crawl_stages_optional_rag_drain_when_enabled(
     monkeypatch.setattr(run_once, "mark_source_page_crawled", lambda *_a, **_k: None)
     monkeypatch.setattr(run_once, "save_checkpoint", lambda *_a, **_k: None)
     monkeypatch.setattr(run_once, "build_digest", lambda *_a, **_k: MagicMock(events=[]))
-    monkeypatch.setattr(run_once, "enqueue_notifications", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        run_once,
-        "send_pending_notifications",
-        lambda *_a, **_k: MagicMock(message_id=None),
-    )
+    monkeypatch.setattr(run_once, "enqueue_notifications", lambda *_a, **_k: 0)
     monkeypatch.setattr(run_once, "finalize_crawl_run", lambda *_a, **_k: None)
 
     import asyncio

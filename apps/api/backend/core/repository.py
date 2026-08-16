@@ -1895,7 +1895,24 @@ def _process_document_downstream(state: _DurableDocumentState) -> int | None:
             title=discovered.title,
             intelligence=state.intelligence,
         )
-        return int(event.id)
+        event_id = int(event.id)
+        try:
+            from backend.notifications.service import enqueue_notifications_for_event
+
+            enqueue_notifications_for_event(event_id=event_id, session=session)
+        except Exception as notify_exc:  # noqa: BLE001 — never roll back event commit path
+            logger.warning(
+                "notification enqueue failed after event insert event_id=%s: %s: %s",
+                event_id,
+                type(notify_exc).__name__,
+                notify_exc,
+            )
+            log_event(
+                "notification_enqueue_failed",
+                event_id=event_id,
+                error=f"{type(notify_exc).__name__}: {notify_exc}",
+            )
+        return event_id
 
 
 
@@ -2383,12 +2400,35 @@ def mark_event_state(user_id: str, event_id: int, *, is_read: bool | None = None
     }
 
 
+# Returned only when no subscriptions row exists. Must NOT imply email consent.
 DEFAULT_SUBSCRIPTION = SubscriptionSettings(
-    jurisdictions=["central"],
-    topics=["solar", "tariff", "open access", "RPO/REC", "storage", "transmission"],
-    email_enabled=True,
-    frequency="daily",
+    jurisdictions=[],
+    source_ids=[],
+    topics=[],
+    email_enabled=False,
+    frequency="instant",
 )
+
+
+def list_enabled_source_catalog() -> list[dict[str, Any]]:
+    """Enabled sources for user-facing subscription pickers (non-admin)."""
+
+    try:
+        with session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    select id, code, name, jurisdiction::text as jurisdiction, enabled
+                    from sources
+                    where enabled = true
+                    order by name asc, id asc
+                    """
+                )
+            ).mappings()
+            return [dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        logger.warning("list_enabled_source_catalog failed: %s", exc)
+        return []
 
 
 def get_subscription(user_id: str) -> SubscriptionSettings:

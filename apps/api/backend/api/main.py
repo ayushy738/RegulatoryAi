@@ -20,6 +20,7 @@ from backend.api.routes import (
     identity_auth,
     intelligence,
     meta,
+    sources,
     subscriptions,
 )
 from backend.core.config import settings
@@ -74,6 +75,7 @@ app.include_router(chat_runs.router)
 app.include_router(chat_evidence.router)
 app.include_router(chat_evidence.saved_items_router)
 app.include_router(subscriptions.router)
+app.include_router(sources.router)
 app.include_router(admin.router)
 app.include_router(exports.router)
 app.include_router(meta.router)
