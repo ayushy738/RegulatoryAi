@@ -75,6 +75,27 @@ ALLOWED_SOURCE_PAGE_URLS = {
         "https://cercind.gov.in/notice-letter.html",
         "https://www.seci.co.in/tenders",
         "https://www.powermin.gov.in/whats-new",
+        # KERC (source_id=6) — enabled production crawl pages
+        "https://kerc.karnataka.gov.in/events/en",
+        "https://kerc.karnataka.gov.in/27/regulations/en",
+        "https://kerc.karnataka.gov.in/28/draft-regulations/en",
+        "https://kerc.karnataka.gov.in/42/miscellaneous-orders/en",
+        "https://kerc.karnataka.gov.in/73/generic-tariff-orders/en",
+        "https://kerc.karnataka.gov.in/48/discussion-papers/en",
+        # Grid-India (source_id=9) — enabled production crawl pages
+        "https://grid-india.in/en/documents/iegc-procedures",
+        "https://grid-india.in/en/documents/notified-procedures",
+        "https://grid-india.in/en/documents/connectivity-and-gna-procedure",
+        "https://grid-india.in/en/documents/other-procedures",
+        "https://grid-india.in/en/documents/consultation-papers",
+        "https://grid-india.in/en/announcements/notices",
+        # CTUIL (source_id=13) — enabled production crawl pages
+        "https://ctuil.in/latestnews",
+        "https://ctuil.in/advisory",
+        "https://ctuil.in/regulation_procedures",
+        "https://ctuil.in/format_gna",
+        "https://ctuil.in/regenerators",
+        "https://ctuil.in/draft_procedures",
     )
 }
 
