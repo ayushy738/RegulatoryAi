@@ -480,9 +480,11 @@ def test_drain_failure_is_isolated(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_run_crawl_stages_calls_rag_drain_after_persist(
+def test_run_crawl_stages_skips_rag_drain_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Crawl enqueues RAG in Session B; drain belongs to the independent RAG Action."""
+
     order: list[str] = []
 
     monkeypatch.setattr(
@@ -524,6 +526,81 @@ def test_run_crawl_stages_calls_rag_drain_after_persist(
         return {"processed": 0, "ready": 0, "failed": 0, "skipped": 0, "results": []}
 
     monkeypatch.setattr(run_once, "drain_rag_jobs_after_crawl", fake_drain)
+
+    class FakeSettings:
+        crawl_drain_rag_after_persist = False
+
+    import backend.core.config as config_mod
+
+    monkeypatch.setattr(config_mod, "settings", FakeSettings())
+    monkeypatch.setattr(run_once, "mark_source_page_crawled", lambda *_a, **_k: None)
+    monkeypatch.setattr(run_once, "save_checkpoint", lambda *_a, **_k: None)
+    monkeypatch.setattr(run_once, "build_digest", lambda *_a, **_k: MagicMock(events=[]))
+    monkeypatch.setattr(run_once, "enqueue_notifications", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        run_once,
+        "send_pending_notifications",
+        lambda *_a, **_k: MagicMock(message_id=None),
+    )
+    monkeypatch.setattr(run_once, "finalize_crawl_run", lambda *_a, **_k: None)
+
+    import asyncio
+
+    result = asyncio.run(run_once._run_crawl_stages(55))
+    assert "persist:0" in order
+    assert not any(item.startswith("rag_drain:") for item in order)
+    assert result["status"] in {"success", "partial", "failed"}
+
+
+def test_run_crawl_stages_optional_rag_drain_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order: list[str] = []
+
+    monkeypatch.setattr(
+        run_once,
+        "list_enabled_source_pages",
+        lambda **_: [
+            {
+                "id": 1,
+                "source_id": 2,
+                "source_code": "CERC",
+                "name": "Orders",
+                "url": "https://example.gov.in/orders",
+            }
+        ],
+    )
+    monkeypatch.setattr(run_once, "load_checkpoint", lambda *_a, **_k: None)
+
+    async def fake_scrape(_page: Any) -> list[Any]:
+        return []
+
+    monkeypatch.setattr(run_once, "scrape_source_page", fake_scrape)
+    monkeypatch.setattr(run_once, "record_discovery_audits", lambda *_a, **_k: None)
+    monkeypatch.setattr(run_once, "record_source_check", lambda *_a, **_k: None)
+
+    async def fake_acquire(docs: list[Any], **_k: Any) -> Any:
+        return MagicMock(accepted=[], extracted=[], audits=[], errors=[])
+
+    monkeypatch.setattr(run_once, "acquire_primary_documents", fake_acquire)
+    monkeypatch.setattr(
+        run_once,
+        "persist_extracted_documents",
+        lambda docs: order.append(f"persist:{len(docs)}") or [],
+    )
+
+    def fake_drain(*, extracted_document_count: int, run_id: int | None = None):
+        order.append(f"rag_drain:{extracted_document_count}:{run_id}")
+        return {"processed": 0, "ready": 0, "failed": 0, "skipped": 0, "results": []}
+
+    monkeypatch.setattr(run_once, "drain_rag_jobs_after_crawl", fake_drain)
+
+    class FakeSettings:
+        crawl_drain_rag_after_persist = True
+
+    import backend.core.config as config_mod
+
+    monkeypatch.setattr(config_mod, "settings", FakeSettings())
     monkeypatch.setattr(run_once, "mark_source_page_crawled", lambda *_a, **_k: None)
     monkeypatch.setattr(run_once, "save_checkpoint", lambda *_a, **_k: None)
     monkeypatch.setattr(run_once, "build_digest", lambda *_a, **_k: MagicMock(events=[]))

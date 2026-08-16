@@ -76,18 +76,36 @@ def retry_failed_graph_extractions(
 
 
 def _failed_document_ids(*, limit: int) -> list[int]:
+    """Include FAILED/PENDING/PROCESSING and documents with no extraction row."""
+
     with session_scope() as session:
         rows = session.execute(
             text(
                 """
-                select document_id
-                from regulatory_graph_extractions
-                where status = :status
-                order by updated_at nulls first, document_id
+                select d.id as document_id
+                from documents d
+                join lateral (
+                  select id
+                  from document_versions
+                  where document_id = d.id
+                  order by fetched_at desc
+                  limit 1
+                ) dv on true
+                left join regulatory_graph_extractions g on g.document_id = d.id
+                where g.document_id is null
+                   or g.status = any(:incomplete_statuses)
+                order by coalesce(g.updated_at, d.first_seen_at) nulls first, d.id
                 limit :limit
                 """
             ),
-            {"status": GRAPH_STATUS_FAILED, "limit": limit},
+            {
+                "incomplete_statuses": [
+                    GRAPH_STATUS_FAILED,
+                    GRAPH_STATUS_PENDING,
+                    GRAPH_STATUS_PROCESSING,
+                ],
+                "limit": limit,
+            },
         ).mappings()
         return [int(row["document_id"]) for row in rows]
 

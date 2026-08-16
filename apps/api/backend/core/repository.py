@@ -698,7 +698,20 @@ select
   coalesce(audit.audit_accepted, 0) as audit_accepted,
   coalesce(audit.audit_with_content, 0) as audit_with_content,
   coalesce(audit.audit_pages, 0) as audit_pages,
-  coalesce(pages.pages_attempted, 0) as derived_pages_attempted
+  coalesce(pages.pages_attempted, 0) as derived_pages_attempted,
+  linked.documents_persisted,
+  linked.versions_created,
+  linked.families_touched,
+  linked.graph_extractions,
+  linked.entities_extracted,
+  linked.obligations_extracted,
+  linked.stakeholders_extracted,
+  linked.events_linked,
+  linked.rag_jobs_enqueued,
+  linked.rag_jobs_completed,
+  linked.rag_jobs_failed,
+  linked.rag_ready_documents,
+  linked.chunks_indexed
 from crawl_runs cr
 left join lateral (
   select
@@ -723,6 +736,45 @@ left join lateral (
   ) page_ids
   where page_id is not null
 ) pages on true
+left join lateral (
+  select
+    count(distinct dv.document_id)::int as documents_persisted,
+    count(distinct dv.id)::int as versions_created,
+    count(distinct a.family_id)::int as families_touched,
+    count(distinct g.document_id) filter (
+      where g.status = 'COMPLETED'
+    )::int as graph_extractions,
+    count(distinct gde.entity_id)::int as entities_extracted,
+    count(distinct go.obligation_id)::int as obligations_extracted,
+    count(distinct gs.stakeholder_id)::int as stakeholders_extracted,
+    count(distinct e.id)::int as events_linked,
+    count(distinct rj.job_id)::int as rag_jobs_enqueued,
+    count(distinct rj.job_id) filter (
+      where rj.status = 'COMPLETED'
+    )::int as rag_jobs_completed,
+    count(distinct rj.job_id) filter (
+      where rj.status = 'FAILED'
+    )::int as rag_jobs_failed,
+    count(distinct drs.document_id) filter (
+      where drs.status = 'RAG_READY'
+    )::int as rag_ready_documents,
+    coalesce(sum(drs.chunk_count) filter (
+      where drs.status = 'RAG_READY'
+    ), 0)::int as chunks_indexed
+  from discovery_audit da
+  join document_versions dv on dv.content_hash = da.content_hash
+  left join document_family_assignments a on a.document_id = dv.document_id
+  left join regulatory_graph_extractions g on g.document_id = dv.document_id
+  left join regulatory_graph_document_entities gde
+    on gde.document_id = dv.document_id
+  left join regulatory_graph_obligations go on go.document_id = dv.document_id
+  left join regulatory_graph_stakeholders gs on gs.document_id = dv.document_id
+  left join events e on e.document_id = dv.document_id
+  left join rag_index_jobs rj on rj.document_id = dv.document_id
+  left join document_rag_status drs on drs.document_id = dv.document_id
+  where da.run_id = cr.id
+    and da.content_hash is not null
+) linked on true
 """
 
 
@@ -800,6 +852,7 @@ def assemble_crawl_run_telemetry(row: dict[str, Any]) -> dict[str, Any]:
     new_events = int(row.get("new_events") or 0)
     audit_pages = int(row.get("audit_pages") or 0)
     audit_with_content = int(row.get("audit_with_content") or 0)
+    audit_candidates = int(row.get("audit_candidates") or 0)
     if "derived_pages_attempted" in row:
         pages_attempted = int(row.get("derived_pages_attempted") or 0)
     else:
@@ -821,6 +874,22 @@ def assemble_crawl_run_telemetry(row: dict[str, Any]) -> dict[str, Any]:
         pages_attempted_value = pages_attempted
         pages_succeeded_value = audit_pages
 
+    # Prefer authoritative discovery_audit / linked-document counts when the
+    # crawl_runs counters were never finalized (abandoned running rows).
+    documents_discovered = max(docs_found, audit_candidates)
+    events_linked = row.get("events_linked")
+    events_created = max(
+        new_events,
+        int(events_linked) if events_linked is not None else 0,
+    )
+
+    def _linked_int(key: str) -> int | None:
+        if key not in row:
+            # Unit-test fixtures without linked lateral → unavailable.
+            return None
+        value = row.get(key)
+        return int(value or 0)
+
     return {
         "id": row["id"],
         "started_at": row.get("started_at"),
@@ -829,21 +898,28 @@ def assemble_crawl_run_telemetry(row: dict[str, Any]) -> dict[str, Any]:
         "sources_attempted": sources_attempted,
         "sources_succeeded": int(row.get("sources_succeeded") or 0),
         # Legacy field names retained for compatibility; values are run-scoped.
-        "docs_found": docs_found,
-        "new_events": new_events,
+        "docs_found": documents_discovered,
+        "new_events": events_created,
         "errors": errors,
         # Explicit run-scoped metrics for admin run cards.
         "pages_attempted": pages_attempted_value,
         "pages_succeeded": pages_succeeded_value,
-        "documents_discovered": docs_found,
+        "documents_discovered": documents_discovered,
         "documents_with_content": audit_with_content,
-        "events_created": new_events,
-        # Cannot attribute these tables to crawl_runs.id with current schema.
-        "versions_created": None,
-        "families_touched": None,
-        "graph_extractions": None,
-        "rag_jobs_enqueued": None,
-        "rag_indexed": None,
+        "documents_persisted": _linked_int("documents_persisted"),
+        "events_created": events_created,
+        "versions_created": _linked_int("versions_created"),
+        "families_touched": _linked_int("families_touched"),
+        "graph_extractions": _linked_int("graph_extractions"),
+        "entities_extracted": _linked_int("entities_extracted"),
+        "obligations_extracted": _linked_int("obligations_extracted"),
+        "stakeholders_extracted": _linked_int("stakeholders_extracted"),
+        "rag_jobs_enqueued": _linked_int("rag_jobs_enqueued"),
+        "rag_jobs_completed": _linked_int("rag_jobs_completed"),
+        "rag_jobs_failed": _linked_int("rag_jobs_failed"),
+        "rag_ready_documents": _linked_int("rag_ready_documents"),
+        "chunks_indexed": _linked_int("chunks_indexed"),
+        "rag_indexed": _linked_int("rag_ready_documents"),
     }
 
 
@@ -1202,22 +1278,43 @@ def create_crawl_run() -> int | None:
 
 
 def mark_crawl_run_running(run_id: int) -> None:
-    """Transition a queued crawl run to running when background execution starts."""
+    """Transition a queued crawl run to running (CLI / non-claim path).
+
+    Prefer ``claim_queued_crawl_run`` for workers: it uses FOR UPDATE SKIP LOCKED
+    so concurrent workers cannot both own the same queued row.
+    """
+
+    claim_queued_crawl_run(run_id)
+
+
+def claim_queued_crawl_run(run_id: int) -> bool:
+    """Atomically claim one queued crawl_run (queued → running).
+
+    Returns True if this caller won the claim. Uses FOR UPDATE SKIP LOCKED so a
+    second concurrent claimer gets False without blocking.
+    """
 
     with session_scope() as session:
-        session.execute(
+        row = session.execute(
             text(
                 """
                 update crawl_runs
                 set status = cast('running' as run_status_t),
                     started_at = now(),
                     finished_at = null
-                where id = :run_id
-                  and status = cast('queued' as run_status_t)
+                where id = (
+                  select id
+                  from crawl_runs
+                  where id = cast(:run_id as bigint)
+                    and status = cast('queued' as run_status_t)
+                  for update skip locked
+                )
+                returning id
                 """
             ),
             {"run_id": run_id},
-        )
+        ).first()
+        return row is not None
 
 
 def finalize_crawl_run(

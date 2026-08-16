@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,13 +24,34 @@ from backend.api.routes import (
 )
 from backend.core.config import settings
 from backend.core.db import database_healthcheck
-from backend.core.logging import configure_logging
+from backend.core.logging import configure_logging, log_event
 from backend.core.repository import seed_system_documents
+from backend.pipeline.crawl_recovery import reclaim_stale_crawl_runs
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Age-gated reclaim of crawl_runs left RUNNING after process death.
+    # Safe for multi-instance: only rows older than crawl_running_stale_seconds.
+    try:
+        result = await asyncio.to_thread(reclaim_stale_crawl_runs)
+        log_event(
+            "crawl_recovery_startup",
+            reclaimed=result.get("reclaimed", 0),
+            stale_seconds=result.get("stale_seconds"),
+        )
+    except Exception as exc:
+        log_event(
+            "crawl_recovery_startup_failed",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+    yield
+
 
 configure_logging()
 seed_system_documents()
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(AskCorrelationMiddleware)
 app.add_middleware(

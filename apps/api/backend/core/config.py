@@ -75,6 +75,20 @@ class Settings(BaseSettings):
     # Shared secret for GitHub Actions / ops to call POST /admin/rag/process
     # without a short-lived admin JWT. Leave unset to require admin JWT only.
     rag_worker_token: SecretStr | None = None
+    # Age gate for reclaiming crawl_runs stuck in running after process death.
+    # No heartbeat exists on crawl_runs; see pipeline.crawl_recovery.
+    crawl_running_stale_seconds: int = Field(default=7_200, ge=60, le=86_400)
+    # When true, crawl may best-effort drain rag_index_jobs after persist.
+    # Default false: GitHub RAG Action owns drain; crawl only enqueues.
+    crawl_drain_rag_after_persist: bool = False
+
+    # GitHub Actions crawl-worker dispatch (Render API → workflow_dispatch).
+    # Token needs Actions write (workflow_dispatch) on github_repository only.
+    github_actions_token: SecretStr | None = None
+    github_repository: str | None = None  # "owner/repo"
+    github_crawl_workflow_id: str = "crawl-worker.yml"
+    github_workflow_ref: str = "main"
+    github_api_url: str = "https://api.github.com"
 
     ask_ai_v2_write_enabled: bool = False
     ask_ai_v2_api_enabled: bool = False

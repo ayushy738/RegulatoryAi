@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.api.auth import CurrentUser, admin_user, rag_process_user
 from backend.core.logging import log_event
@@ -34,7 +34,8 @@ from backend.core.repository import (
     update_source,
     update_source_page,
 )
-from backend.pipeline.run_once import execute_crawl_run, queue_crawl_run
+from backend.pipeline.github_dispatch import CrawlDispatchError, dispatch_crawl_workflow
+from backend.pipeline.run_once import queue_crawl_run
 from backend.rag.admin import (
     chunk_count,
     chunk_inspector,
@@ -148,22 +149,33 @@ async def remove_source_page(page_id: int, user: AdminUserDep) -> dict:
 async def crawl_source_page(
     page_id: int,
     user: AdminUserDep,
-    background_tasks: BackgroundTasks,
 ) -> dict:
     del user
     try:
         payload = queue_crawl_run(page_id=page_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    background_tasks.add_task(
-        execute_crawl_run,
-        int(payload["run_id"]),
-        source_id=None,
-        page_id=page_id,
-    )
+    run_id = int(payload["run_id"])
+    try:
+        dispatch_crawl_workflow(run_id=run_id, source_id=None, page_id=page_id)
+    except CrawlDispatchError as exc:
+        log_event(
+            "crawl_workflow_dispatch_failed",
+            run_id=run_id,
+            page_id=page_id,
+            status="queued",
+            error=str(exc),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Crawl run {run_id} is queued but GitHub Actions dispatch failed: {exc}. "
+                "The run remains queued and was not executed in the API process."
+            ),
+        ) from exc
     log_event(
-        "crawl_background_scheduled",
-        run_id=payload["run_id"],
+        "crawl_workflow_dispatched",
+        run_id=run_id,
         page_id=page_id,
         status="queued",
     )
@@ -174,22 +186,33 @@ async def crawl_source_page(
 async def crawl_source(
     source_id: int,
     user: AdminUserDep,
-    background_tasks: BackgroundTasks,
 ) -> dict:
     del user
     try:
         payload = queue_crawl_run(source_id=source_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    background_tasks.add_task(
-        execute_crawl_run,
-        int(payload["run_id"]),
-        source_id=source_id,
-        page_id=None,
-    )
+    run_id = int(payload["run_id"])
+    try:
+        dispatch_crawl_workflow(run_id=run_id, source_id=source_id, page_id=None)
+    except CrawlDispatchError as exc:
+        log_event(
+            "crawl_workflow_dispatch_failed",
+            run_id=run_id,
+            source_id=source_id,
+            status="queued",
+            error=str(exc),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Crawl run {run_id} is queued but GitHub Actions dispatch failed: {exc}. "
+                "The run remains queued and was not executed in the API process."
+            ),
+        ) from exc
     log_event(
-        "crawl_background_scheduled",
-        run_id=payload["run_id"],
+        "crawl_workflow_dispatched",
+        run_id=run_id,
         source_id=source_id,
         status="queued",
     )

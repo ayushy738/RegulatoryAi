@@ -34,7 +34,21 @@ def test_assemble_keeps_run_a_and_run_b_metrics_isolated() -> None:
             "errors": [],
             "audit_pages": 1,
             "audit_with_content": 2,
+            "audit_candidates": 2,
             "derived_pages_attempted": 1,
+            "documents_persisted": 2,
+            "versions_created": 2,
+            "families_touched": 2,
+            "graph_extractions": 1,
+            "entities_extracted": 5,
+            "obligations_extracted": 3,
+            "stakeholders_extracted": 1,
+            "events_linked": 1,
+            "rag_jobs_enqueued": 2,
+            "rag_jobs_completed": 1,
+            "rag_jobs_failed": 0,
+            "rag_ready_documents": 1,
+            "chunks_indexed": 25,
         }
     )
     run_b = assemble_crawl_run_telemetry(
@@ -50,24 +64,73 @@ def test_assemble_keeps_run_a_and_run_b_metrics_isolated() -> None:
             "errors": [],
             "audit_pages": 2,
             "audit_with_content": 0,
+            "audit_candidates": 0,
             "derived_pages_attempted": 2,
+            "documents_persisted": 0,
+            "versions_created": 0,
+            "families_touched": 0,
+            "graph_extractions": 0,
+            "entities_extracted": 0,
+            "obligations_extracted": 0,
+            "stakeholders_extracted": 0,
+            "events_linked": 0,
+            "rag_jobs_enqueued": 0,
+            "rag_jobs_completed": 0,
+            "rag_jobs_failed": 0,
+            "rag_ready_documents": 0,
+            "chunks_indexed": 0,
         }
     )
 
     assert run_a["documents_discovered"] == 2
     assert run_a["events_created"] == 1
     assert run_a["pages_attempted"] == 1
+    assert run_a["versions_created"] == 2
+    assert run_a["graph_extractions"] == 1
+    assert run_a["rag_jobs_enqueued"] == 2
+    assert run_a["rag_indexed"] == 1
+    assert run_a["chunks_indexed"] == 25
     assert run_b["documents_discovered"] == 0
     assert run_b["events_created"] == 0
     assert run_b["pages_attempted"] == 2
-    # Global totals must not appear on either run.
-    assert run_a["versions_created"] is None
-    assert run_b["versions_created"] is None
-    assert run_a["rag_indexed"] is None
-    assert run_b["rag_indexed"] is None
-    assert run_a["families_touched"] is None
-    assert run_a["graph_extractions"] is None
-    assert run_a["rag_jobs_enqueued"] is None
+    assert run_b["versions_created"] == 0
+    assert run_b["rag_indexed"] == 0
+
+
+def test_abandoned_run_prefers_audit_counts_over_zero_counters() -> None:
+    payload = assemble_crawl_run_telemetry(
+        {
+            "id": 58,
+            "status": "failed",
+            "sources_attempted": 0,
+            "sources_succeeded": 0,
+            "docs_found": 0,
+            "new_events": 0,
+            "errors": [],
+            "audit_pages": 1,
+            "audit_with_content": 2,
+            "audit_candidates": 2,
+            "derived_pages_attempted": 1,
+            "events_linked": 1,
+            "documents_persisted": 2,
+            "versions_created": 2,
+            "families_touched": 2,
+            "graph_extractions": 1,
+            "entities_extracted": 18,
+            "obligations_extracted": 12,
+            "stakeholders_extracted": 2,
+            "rag_jobs_enqueued": 1,
+            "rag_jobs_completed": 1,
+            "rag_jobs_failed": 0,
+            "rag_ready_documents": 1,
+            "chunks_indexed": 25,
+        }
+    )
+    assert payload["documents_discovered"] == 2
+    assert payload["events_created"] == 1
+    assert payload["graph_extractions"] == 1
+    assert payload["entities_extracted"] == 18
+    assert payload["rag_indexed"] == 1
 
 
 def test_zero_document_run_stays_zero_not_global() -> None:
@@ -82,13 +145,27 @@ def test_zero_document_run_stays_zero_not_global() -> None:
             "errors": [],
             "audit_pages": 1,
             "audit_with_content": 0,
+            "audit_candidates": 0,
             "derived_pages_attempted": 1,
+            "documents_persisted": 0,
+            "versions_created": 0,
+            "families_touched": 0,
+            "graph_extractions": 0,
+            "entities_extracted": 0,
+            "obligations_extracted": 0,
+            "stakeholders_extracted": 0,
+            "events_linked": 0,
+            "rag_jobs_enqueued": 0,
+            "rag_jobs_completed": 0,
+            "rag_jobs_failed": 0,
+            "rag_ready_documents": 0,
+            "chunks_indexed": 0,
         }
     )
     assert payload["documents_discovered"] == 0
     assert payload["documents_with_content"] == 0
     assert payload["events_created"] == 0
-    assert payload["rag_indexed"] is None
+    assert payload["rag_indexed"] == 0
 
 
 def test_unavailable_metrics_are_null_not_zero() -> None:
@@ -109,12 +186,14 @@ def test_unavailable_metrics_are_null_not_zero() -> None:
     # sources attempted but no recoverable page ids => unavailable pages
     assert payload["pages_attempted"] is None
     assert payload["pages_succeeded"] is None
+    # Linked laterals absent in fixture => unavailable (not fabricated zeros)
     assert payload["versions_created"] is None
     assert payload["families_touched"] is None
     assert payload["graph_extractions"] is None
     assert payload["rag_jobs_enqueued"] is None
     assert payload["rag_indexed"] is None
-
+    assert payload["entities_extracted"] is None
+    assert payload["chunks_indexed"] is None
 
 def test_failed_page_errors_count_toward_pages_attempted() -> None:
     payload = assemble_crawl_run_telemetry(
@@ -149,7 +228,21 @@ def test_historical_run_shape_remains_readable() -> None:
             "errors": [],
             "audit_pages": 7,
             "audit_with_content": 39,
+            "audit_candidates": 45,
             "derived_pages_attempted": 7,
+            "documents_persisted": 40,
+            "versions_created": 40,
+            "families_touched": 12,
+            "graph_extractions": 30,
+            "entities_extracted": 100,
+            "obligations_extracted": 50,
+            "stakeholders_extracted": 20,
+            "events_linked": 20,
+            "rag_jobs_enqueued": 40,
+            "rag_jobs_completed": 38,
+            "rag_jobs_failed": 2,
+            "rag_ready_documents": 38,
+            "chunks_indexed": 900,
         }
     )
     assert payload["id"] == 100
@@ -157,8 +250,8 @@ def test_historical_run_shape_remains_readable() -> None:
     assert payload["documents_discovered"] == 45
     assert payload["events_created"] == 20
     assert payload["pages_attempted"] == 7
+    assert payload["rag_jobs_completed"] == 38
     assert "errors" in payload
-
 
 def test_crawl_run_select_scopes_discovery_audit_by_run_id() -> None:
     sql = " ".join(_CRAWL_RUN_SELECT.split())

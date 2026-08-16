@@ -1,4 +1,4 @@
-"""Phase 1 crawl lifecycle: HTTP trigger queues a run; background executor owns it."""
+"""Crawl lifecycle: HTTP trigger queues + dispatches; executor owns the run out-of-process."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.api.auth import CurrentUser, admin_user
@@ -22,15 +22,6 @@ ADMIN = CurrentUser(
 )
 
 
-class RecordingBackgroundTasks(BackgroundTasks):
-    def __init__(self) -> None:
-        super().__init__()
-        self.recorded: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
-
-    def add_task(self, func: Any, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
-        self.recorded.append((func, args, kwargs))
-
-
 @pytest.fixture
 def crawl_app() -> FastAPI:
     app = FastAPI()
@@ -39,54 +30,54 @@ def crawl_app() -> FastAPI:
     return app
 
 
-def test_admin_source_crawl_creates_one_queued_run_and_schedules_background(
+def test_admin_source_crawl_creates_one_queued_run_and_dispatches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     create_calls: list[str] = []
-    recorded = RecordingBackgroundTasks()
+    dispatched: list[dict[str, Any]] = []
 
     def fake_create() -> int:
         create_calls.append("create")
         return 101
 
     monkeypatch.setattr(run_once, "create_crawl_run", fake_create)
-
-    payload = asyncio.run(
-        admin.crawl_source(
-            source_id=2,
-            user=ADMIN,
-            background_tasks=recorded,
-        )
+    monkeypatch.setattr(
+        admin,
+        "dispatch_crawl_workflow",
+        lambda **kwargs: dispatched.append(kwargs) or {"dispatched": True},
     )
+
+    payload = asyncio.run(admin.crawl_source(source_id=2, user=ADMIN))
 
     assert payload["run_id"] == 101
     assert payload["status"] == "queued"
     assert create_calls == ["create"]
-    assert len(recorded.recorded) == 1
-    func, args, kwargs = recorded.recorded[0]
-    assert func is run_once.execute_crawl_run
-    assert args == (101,)
-    assert kwargs == {"source_id": 2, "page_id": None}
+    assert dispatched == [{"run_id": 101, "source_id": 2, "page_id": None}]
 
 
-def test_admin_page_crawl_http_returns_queued_without_awaiting_executor(
+def test_admin_page_crawl_http_returns_queued_without_executing_crawler(
     crawl_app: FastAPI,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Intercept BackgroundTasks.add_task so TestClient cannot await the crawl."""
-
     create_calls: list[int] = []
-    scheduled: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
+    dispatched: list[dict[str, Any]] = []
+    executed: list[Any] = []
 
     def fake_create() -> int:
         create_calls.append(1)
         return 55
 
-    def capture_add_task(self: BackgroundTasks, func: Any, *args: Any, **kwargs: Any) -> None:
-        scheduled.append((func, args, kwargs))
+    async def fake_execute(*_a: Any, **_k: Any) -> dict[str, Any]:
+        executed.append(1)
+        return {"status": "success"}
 
     monkeypatch.setattr(run_once, "create_crawl_run", fake_create)
-    monkeypatch.setattr(BackgroundTasks, "add_task", capture_add_task)
+    monkeypatch.setattr(
+        admin,
+        "dispatch_crawl_workflow",
+        lambda **kwargs: dispatched.append(kwargs) or {"dispatched": True},
+    )
+    monkeypatch.setattr(run_once, "execute_crawl_run", fake_execute)
 
     with TestClient(crawl_app) as client:
         response = client.post("/admin/sources/7/crawl")
@@ -97,10 +88,8 @@ def test_admin_page_crawl_http_returns_queued_without_awaiting_executor(
     assert body["status"] == "queued"
     assert body["docs_found"] == 0
     assert create_calls == [1]
-    assert len(scheduled) == 1
-    assert scheduled[0][0] is run_once.execute_crawl_run
-    assert scheduled[0][1] == (55,)
-    assert scheduled[0][2] == {"source_id": 7, "page_id": None}
+    assert dispatched == [{"run_id": 55, "source_id": 7, "page_id": None}]
+    assert executed == []
 
 
 def test_execute_crawl_run_transitions_queued_running_success(
@@ -207,10 +196,10 @@ def test_cancelled_error_finalizes_failed_and_reraises(monkeypatch: pytest.Monke
     assert "CancelledError" in finalized[0]["errors"][0]["error"]
 
 
-def test_http_cancellation_does_not_cancel_background_executor(
+def test_http_trigger_independent_of_executor_completion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Caller task cancel must not prevent an independent executor from finishing."""
+    """Admin returns queued after dispatch; executor may finish later out-of-process."""
 
     states: list[str] = []
     monkeypatch.setattr(
