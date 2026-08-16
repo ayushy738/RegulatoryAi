@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import socket
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -12,6 +14,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 
 from backend.core.config import settings
+from backend.core.logging import log_event
 from backend.core.models import DiscoveredDoc
 from backend.core.utils import canonical_url, sha256_normalized_text
 
@@ -600,7 +603,9 @@ async def _fetch_response(
 ) -> httpx.Response:
     request_headers = {"User-Agent": settings.crawl_user_agent, **(headers or {})}
     last_error: Exception | None = None
+    hostname = urlparse(url).hostname
     for attempt in range(3):
+        started = time.perf_counter()
         try:
             async with httpx.AsyncClient(
                 headers=request_headers,
@@ -613,10 +618,65 @@ async def _fetch_response(
                 return response
         except Exception as exc:
             last_error = exc
+            _log_http_fetch_failure(
+                url=url,
+                hostname=hostname,
+                attempt=attempt + 1,
+                max_attempts=3,
+                timeout_seconds=timeout,
+                verify=verify,
+                elapsed_ms=int((time.perf_counter() - started) * 1000),
+                exc=exc,
+            )
             if attempt == 2:
                 raise
     assert last_error is not None
     raise last_error
+
+
+def _log_http_fetch_failure(
+    *,
+    url: str,
+    hostname: str | None,
+    attempt: int,
+    max_attempts: int,
+    timeout_seconds: int,
+    verify: bool,
+    elapsed_ms: int,
+    exc: Exception,
+) -> None:
+    """Structured reachability diagnostics for failed GET attempts (no secrets)."""
+
+    dns_resolved: bool | None = None
+    dns_addresses: list[str] | None = None
+    if hostname:
+        try:
+            resolved = {
+                item[4][0]
+                for item in socket.getaddrinfo(hostname, None)
+                if item and item[4]
+            }
+            dns_resolved = True
+            dns_addresses = sorted(resolved)[:8]
+        except OSError:
+            dns_resolved = False
+            dns_addresses = None
+    log_event(
+        "http_fetch_failed",
+        url=url,
+        hostname=hostname,
+        http_method="GET",
+        attempt=attempt,
+        max_attempts=max_attempts,
+        timeout_seconds=timeout_seconds,
+        tls_verify=verify,
+        elapsed_ms=elapsed_ms,
+        error_type=type(exc).__name__,
+        error_message=str(exc),
+        error_repr=repr(exc),
+        dns_resolved=dns_resolved,
+        dns_addresses=dns_addresses,
+    )
 
 
 async def _fetch_cerc_response(url: str) -> httpx.Response:

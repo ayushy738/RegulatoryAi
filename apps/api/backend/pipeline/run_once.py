@@ -19,6 +19,7 @@ from backend.core.repository import (
     save_checkpoint,
 )
 from backend.pipeline.agent_scraper import scrape_source_page
+from backend.pipeline.crawl_exception import serialize_crawl_exception
 from backend.pipeline.digest_builder import build_digest
 from backend.pipeline.notifier import enqueue_notifications
 from backend.pipeline.primary_document import acquire_primary_documents
@@ -380,12 +381,13 @@ async def _run_crawl_stages(
             )
         except Exception as exc:
             record_source_check(source_code, status=None, ok=False)
+            error_fields = serialize_crawl_exception(exc)
             errors.append(
                 {
                     "source": source_code,
                     "source_page_id": page["id"],
                     "source_page": page["name"],
-                    "error": str(exc),
+                    **error_fields,
                 }
             )
             log_event(
@@ -393,7 +395,7 @@ async def _run_crawl_stages(
                 run_id=run_id,
                 source_code=source_code,
                 source_page_id=page["id"],
-                error=str(exc),
+                **error_fields,
             )
 
     log_event(

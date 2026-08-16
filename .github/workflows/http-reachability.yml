@@ -1,0 +1,50 @@
+name: HTTP Reachability Check
+
+# Temporary operator diagnostic: compare DNS/TCP/HTTP reachability from the
+# same GitHub Actions runner class used by crawl-worker (ubuntu-latest).
+# Does not crawl, claim crawl_runs, or change production TLS policy.
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "Hostname to probe"
+        required: true
+        type: string
+        default: "grid-india.in"
+      path:
+        description: "URL path for HTTP/HTTPS GETs"
+        required: true
+        type: string
+        default: "/en/documents/iegc-procedures"
+
+permissions:
+  contents: read
+
+jobs:
+  reachability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Run reachability diagnostic
+        env:
+          CRAWL_WORKER: "0"
+        run: |
+          python -m backend.tools.http_reachability_check \
+            --host "${{ inputs.host }}" \
+            --path "${{ inputs.path }}"
