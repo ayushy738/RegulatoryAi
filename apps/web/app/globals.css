@@ -6508,6 +6508,38 @@ textarea:focus {
   gap: 6px;
 }
 
+.source-subscriptions {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.source-subscription-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.notification-preferences-subtitle {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #522b91;
+}
+
+.notification-preference-summary {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(82, 43, 145, 0.06);
+  color: #4a3f63;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
 .intelligence-timeline .timeline-deadline-row {
   display: grid;
   grid-template-columns: 18px minmax(240px, 360px) minmax(0, 1fr);

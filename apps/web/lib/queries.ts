@@ -20,6 +20,7 @@ import {
   getRuns,
   getSourcePageCheckpoints,
   getSourcePages,
+  getSourceCatalog,
   getSources,
   getStakeholderIntelligence,
   getSubscriptions,
@@ -30,6 +31,7 @@ export const queryKeys = {
   digest: ["digest", "latest"] as const,
   events: (filters: Record<string, unknown>) => ["events", filters] as const,
   subscriptions: ["subscriptions"] as const,
+  sourceCatalog: ["sources", "catalog"] as const,
   event: (eventId: number) => ["event", eventId] as const,
   chatHistory: (eventId?: number | null) => ["chat", "history", eventId ?? null] as const,
   intelligence: {
@@ -86,6 +88,15 @@ export function useSubscriptionsQuery(token: string | undefined, enabled: boolea
   return useQuery({
     queryKey: queryKeys.subscriptions,
     queryFn: () => getSubscriptions(token),
+    enabled,
+  });
+}
+
+/** Enabled sources for notification preference pickers (any authenticated user). */
+export function useSourceCatalogQuery(token: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.sourceCatalog,
+    queryFn: () => getSourceCatalog(token),
     enabled,
   });
 }

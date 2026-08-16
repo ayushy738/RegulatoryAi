@@ -46,6 +46,7 @@ import {
   useRagStatusQuery,
   useRunsQuery,
   useSourcePagesQuery,
+  useSourceCatalogQuery,
   useSourcesQuery,
   useStakeholdersQuery,
   useSubscriptionsQuery,
@@ -179,6 +180,10 @@ function useWorkspaceController(
     token,
     isAuthenticated && !isolatedV2Surface,
   );
+  const sourceCatalogQuery = useSourceCatalogQuery(
+    token,
+    isAuthenticated && !isolatedV2Surface,
+  );
   const sourcesQuery = useSourcesQuery(token, legacyBaseEnabled);
   const runsQuery = useRunsQuery(token, legacyBaseEnabled);
 
@@ -225,6 +230,10 @@ function useWorkspaceController(
   const events = useMemo(() => digestData?.events ?? [], [digestData]);
   const digestDate = digestData?.digest_date ?? "";
   const sources = useMemo(() => sourcesQuery.data ?? [], [sourcesQuery.data]);
+  const catalogSources = useMemo(
+    () => sourceCatalogQuery.data ?? [],
+    [sourceCatalogQuery.data],
+  );
   const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const deadlines = useMemo(() => deadlinesQuery.data ?? [], [deadlinesQuery.data]);
   const obligationGroups = useMemo(() => obligationsQuery.data ?? [], [obligationsQuery.data]);
@@ -376,7 +385,13 @@ function useWorkspaceController(
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
       const authSession = await ensureAuthenticated();
-      return saveSubscriptions(settings, authSession.access_token);
+      const payload = {
+        ...settings,
+        frequency: "instant" as const,
+        jurisdictions: settings.jurisdictions ?? [],
+        topics: settings.topics ?? [],
+      };
+      return saveSubscriptions(payload, authSession.access_token);
     },
     onMutate: () => setBusyAction("settings"),
     onSuccess: (saved) => {
@@ -632,6 +647,7 @@ function useWorkspaceController(
     events,
     selectedEvent,
     sources,
+    catalogSources,
     runs,
     settings,
     isAdmin,

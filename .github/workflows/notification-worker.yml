@@ -1,0 +1,59 @@
+name: Notification Worker
+
+# Drains pending regulatory update emails from notifications_log.
+# Completely decoupled from crawl-worker and rag-index workflows.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: notification-worker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  send-pending-notifications:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Process pending notification emails
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "Missing GitHub Actions secret: DATABASE_URL"
+            exit 1
+          fi
+          if [ -z "${EMAIL_PROVIDER:-}" ]; then
+            echo "EMAIL_PROVIDER secret unset; defaulting to offline"
+            export EMAIL_PROVIDER=offline
+          fi
+          if [ -z "${APP_BASE_URL:-}" ]; then
+            echo "Missing GitHub Actions secret: APP_BASE_URL"
+            exit 1
+          fi
+          python -m backend.tools.notification_worker --limit 50

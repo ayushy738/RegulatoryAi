@@ -64,6 +64,7 @@ import {
   ragRetrievalPreviewSchema,
   ragStatusSchema,
   ragVectorSearchSchema,
+  sourceCatalogListSchema,
   sourceHealthListSchema,
   sourceHealthSchema,
   sourcePageCheckpointListSchema,
@@ -99,6 +100,7 @@ export type {
   RagRetrievalHit,
   RagRetrievalPreview,
   RagStatus,
+  SourceCatalogItem,
   SourceHealth,
   SourcePage,
   SourcePageCheckpoint,
@@ -561,6 +563,10 @@ export function saveSubscriptions(payload: SubscriptionSettings, token?: string)
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export function getSourceCatalog(token?: string) {
+  return validatedFetch("/sources/catalog", sourceCatalogListSchema, token);
 }
 
 export function getSources(token?: string) {

@@ -10,7 +10,7 @@ export function NotificationsView() {
   const {
     settings,
     setSettings,
-    sources,
+    catalogSources,
     events,
     digestDate,
     busyAction,
@@ -25,73 +25,94 @@ export function NotificationsView() {
     );
   }
 
+  const allSourcesSelected = settings.source_ids.length === 0;
+  const selectedNames = allSourcesSelected
+    ? "All sources"
+    : catalogSources
+        .filter((source) => settings.source_ids.includes(source.id))
+        .map((source) => source.name)
+        .join(", ") || "No sources selected";
+
+  function toggleSource(sourceId: number) {
+    if (allSourcesSelected) {
+      const next = catalogSources.map((source) => source.id).filter((id) => id !== sourceId);
+      setSettings({ ...settings, source_ids: next, frequency: "instant" });
+      return;
+    }
+    const current = new Set(settings.source_ids);
+    if (current.has(sourceId)) current.delete(sourceId);
+    else current.add(sourceId);
+    setSettings({
+      ...settings,
+      source_ids: Array.from(current),
+      frequency: "instant",
+    });
+  }
+
   return (
     <div className="two-column ops-page">
       <Panel title="Notification Preferences" icon={Bell}>
         <div className="settings-grid">
-          <label>
-            Sources
-            <select
-              value={settings.source_ids[0] ?? ""}
-              onChange={(event) =>
-                setSettings({
-                  ...settings,
-                  source_ids: event.target.value ? [Number(event.target.value)] : [],
-                })
-              }
-            >
-              <option value="">All sources</option>
-              {sources.map((source) => (
-                <option key={source.id} value={source.id}>
-                  {source.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Topics
-            <input
-              value={settings.topics.join(", ")}
-              onChange={(event) =>
-                setSettings({
-                  ...settings,
-                  topics: event.target.value
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
-          </label>
-          <label>
-            Frequency
-            <select
-              value={settings.frequency}
-              onChange={(event) => setSettings({ ...settings, frequency: event.target.value as "daily" | "instant" })}
-            >
-              <option value="daily">Daily digest</option>
-              <option value="instant">Instant alerts</option>
-            </select>
-          </label>
           <label className="toggle-line">
             <input
               type="checkbox"
               checked={settings.email_enabled}
-              onChange={(event) => setSettings({ ...settings, email_enabled: event.target.checked })}
+              onChange={(event) =>
+                setSettings({
+                  ...settings,
+                  email_enabled: event.target.checked,
+                  frequency: "instant",
+                })
+              }
             />
-            Email alerts enabled
+            Email me regulatory updates
           </label>
-          <div className="topic-chip-row">
-            {settings.topics.map((topic) => (
-              <button
-                key={topic}
-                type="button"
-                onClick={() => setSettings({ ...settings, topics: settings.topics.filter((item) => item !== topic) })}
-              >
-                {topic}
-              </button>
+
+          <div>
+            <strong>Frequency</strong>
+            <p className="muted">Instant — one email per new or changed regulatory update.</p>
+          </div>
+
+          <div className="source-subscriptions">
+            <strong>Sources</strong>
+            <label className="source-subscription-option">
+              <input
+                type="checkbox"
+                checked={allSourcesSelected}
+                onChange={(event) => {
+                  if (event.target.checked) {
+                    setSettings({ ...settings, source_ids: [], frequency: "instant" });
+                    return;
+                  }
+                  setSettings({
+                    ...settings,
+                    source_ids: catalogSources.map((source) => source.id),
+                    frequency: "instant",
+                  });
+                }}
+              />
+              All sources
+            </label>
+            {catalogSources.map((source) => (
+              <label key={source.id} className="source-subscription-option">
+                <input
+                  type="checkbox"
+                  checked={allSourcesSelected || settings.source_ids.includes(source.id)}
+                  onChange={() => toggleSource(source.id)}
+                />
+                {source.name}
+              </label>
             ))}
           </div>
+
+          <p className="notification-preference-summary">
+            Email notifications: {settings.email_enabled ? "ON" : "OFF"}
+            <br />
+            Sources: {selectedNames}
+            <br />
+            Frequency: Instant
+          </p>
+
           <button
             className="primary-button"
             type="button"
@@ -104,10 +125,10 @@ export function NotificationsView() {
         </div>
       </Panel>
 
-      <Panel title="Digest Preview" icon={Mail}>
+      <Panel title="Recent updates preview" icon={Mail}>
         <div className="digest-preview">
           <span>{formatDate(digestDate)}</span>
-          <h3>{settings.frequency === "instant" ? "Instant regulatory alert" : "Daily regulatory digest"}</h3>
+          <h3>Instant regulatory alert</h3>
           <p>{settings.email_enabled ? "Email delivery enabled" : "Email delivery paused"}</p>
           {events.slice(0, 5).map((event) => (
             <article key={event.id}>

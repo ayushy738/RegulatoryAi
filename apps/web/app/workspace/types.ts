@@ -83,11 +83,11 @@ export type EvidenceItem = {
 };
 
 export const defaultSettings: SubscriptionSettings = {
-  jurisdictions: ["central"],
+  jurisdictions: [],
   source_ids: [],
-  topics: ["solar", "tariff", "open access", "RPO/REC", "storage", "transmission"],
-  email_enabled: true,
-  frequency: "daily",
+  topics: [],
+  email_enabled: false,
+  frequency: "instant",
 };
 
 export function normalizeRoute(

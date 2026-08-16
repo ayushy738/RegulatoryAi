@@ -59,7 +59,7 @@ function responseFor(path: string) {
       source_ids: [],
       topics: [],
       email_enabled: false,
-      frequency: "daily",
+      frequency: "instant",
     };
   }
   if (path === "/intelligence/readiness") {

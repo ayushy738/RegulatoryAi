@@ -58,6 +58,16 @@ export const subscriptionSettingsSchema = z.object({
   frequency: z.enum(["daily", "instant"]),
 });
 
+export const sourceCatalogItemSchema = z.object({
+  id: z.number(),
+  code: z.string(),
+  name: z.string(),
+  jurisdiction: jurisdictionSchema.optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const sourceCatalogListSchema = z.array(sourceCatalogItemSchema);
+
 export const healthResponseSchema = z.object({
   status: z.enum(["ok", "degraded"]),
   database_configured: z.boolean(),
@@ -496,6 +506,7 @@ export type SummaryPayload = z.infer<typeof summaryPayloadSchema>;
 export type DigestEvent = z.infer<typeof digestEventSchema>;
 export type DigestResponse = z.infer<typeof digestResponseSchema>;
 export type SubscriptionSettings = z.infer<typeof subscriptionSettingsSchema>;
+export type SourceCatalogItem = z.infer<typeof sourceCatalogItemSchema>;
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export type ChatHistoryItem = z.infer<typeof chatHistoryItemSchema>;
 export type ChatResponse = z.infer<typeof chatResponseSchema>;

@@ -87,6 +87,7 @@ export function TopBar() {
     activeDeadlines,
     settings,
     setSettings,
+    catalogSources,
     handleSaveSettings,
     busyAction,
     userEmail,
@@ -100,7 +101,6 @@ export function TopBar() {
   const [filter, setFilter] = useState<NotificationFilter>("unread");
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [clearedReadIds, setClearedReadIds] = useState<Set<string>>(new Set());
-  const [priorityAlerts, setPriorityAlerts] = useState(true);
 
   const userName = userNameFromEmail(userEmail);
   const notifications = useMemo<NotificationItem[]>(() => {
@@ -164,12 +164,46 @@ export function TopBar() {
     setClearedReadIds(new Set(notifications.filter((item) => item.isRead).map((item) => item.id)));
   }
 
-  function toggleTopic(topic: string) {
-    const current = new Set(settings.topics);
-    if (current.has(topic)) current.delete(topic);
-    else current.add(topic);
-    setSettings({ ...settings, topics: Array.from(current) });
+  const allSourcesSelected = settings.source_ids.length === 0;
+
+  function toggleSourcePreference(sourceId: number) {
+    if (allSourcesSelected) {
+      const next = catalogSources.map((source) => source.id).filter((id) => id !== sourceId);
+      setSettings({ ...settings, source_ids: next, frequency: "instant" });
+      return;
+    }
+    const current = new Set(settings.source_ids);
+    if (current.has(sourceId)) current.delete(sourceId);
+    else current.add(sourceId);
+    setSettings({
+      ...settings,
+      source_ids: Array.from(current),
+      frequency: "instant",
+    });
   }
+
+  function selectAllSources() {
+    setSettings({ ...settings, source_ids: [], frequency: "instant" });
+  }
+
+  function onAllSourcesChange(checked: boolean) {
+    if (checked) {
+      selectAllSources();
+      return;
+    }
+    setSettings({
+      ...settings,
+      source_ids: catalogSources.map((source) => source.id),
+      frequency: "instant",
+    });
+  }
+
+  const selectedSourceSummary = allSourcesSelected
+    ? "All sources"
+    : catalogSources
+        .filter((source) => settings.source_ids.includes(source.id))
+        .map((source) => source.name)
+        .join(", ") || "No sources selected";
 
   return (
     <>
@@ -321,53 +355,59 @@ export function TopBar() {
             <div className="notification-preferences">
               <div className="notification-preferences-title">
                 <Settings2 size={16} />
-                Preferences
+                Email notifications
               </div>
               <label>
                 <input
                   type="checkbox"
                   checked={settings.email_enabled}
-                  onChange={(event) => setSettings({ ...settings, email_enabled: event.target.checked })}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      email_enabled: event.target.checked,
+                      frequency: "instant",
+                    })
+                  }
                 />
-                Email alerts
-              </label>
-              <label>
-                <input type="checkbox" checked readOnly />
-                In-app alerts
-              </label>
-              <label>
-                <input type="checkbox" checked={priorityAlerts} onChange={(event) => setPriorityAlerts(event.target.checked)} />
-                Priority alerts
+                Email me regulatory updates
               </label>
               <div className="frequency-control">
                 <span>Frequency</span>
-                <button
-                  type="button"
-                  className={settings.frequency === "daily" ? "active" : ""}
-                  onClick={() => setSettings({ ...settings, frequency: "daily" })}
-                >
-                  Daily
-                </button>
-                <button
-                  type="button"
-                  className={settings.frequency === "instant" ? "active" : ""}
-                  onClick={() => setSettings({ ...settings, frequency: "instant" })}
-                >
+                <button type="button" className="active" disabled>
                   Instant
                 </button>
               </div>
-              <div className="topic-subscriptions">
-                {["solar", "tariff", "open access", "RPO/REC", "storage", "transmission"].map((topic) => (
-                  <button
-                    key={topic}
-                    type="button"
-                    className={settings.topics.includes(topic) ? "active" : ""}
-                    onClick={() => toggleTopic(topic)}
-                  >
-                    {topic}
-                  </button>
+              <div className="source-subscriptions">
+                <span className="notification-preferences-subtitle">Sources</span>
+                <label className="source-subscription-option">
+                  <input
+                    type="checkbox"
+                    checked={allSourcesSelected}
+                    onChange={(event) => onAllSourcesChange(event.target.checked)}
+                  />
+                  All sources
+                </label>
+                {catalogSources.map((source) => (
+                  <label key={source.id} className="source-subscription-option">
+                    <input
+                      type="checkbox"
+                      checked={allSourcesSelected || settings.source_ids.includes(source.id)}
+                      onChange={() => toggleSourcePreference(source.id)}
+                    />
+                    {source.name}
+                  </label>
                 ))}
+                {!catalogSources.length ? (
+                  <p className="muted">No active sources are available yet.</p>
+                ) : null}
               </div>
+              <p className="notification-preference-summary">
+                Email notifications: {settings.email_enabled ? "ON" : "OFF"}
+                <br />
+                Sources: {selectedSourceSummary}
+                <br />
+                Frequency: Instant
+              </p>
               <button className="primary-button full" type="button" onClick={handleSaveSettings} disabled={busyAction === "settings"}>
                 {busyAction === "settings" ? "Saving..." : "Save preferences"}
               </button>
