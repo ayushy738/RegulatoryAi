@@ -2,78 +2,87 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import {
-  Bell,
-  Check,
-  ExternalLink,
-  LogOut,
-  Menu,
-  Search,
-  Settings2,
-  UserCircle,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bell, LogOut, Menu, Search, Settings2, UserCircle, X } from "lucide-react";
 
+import { IconButton } from "@/app/components/ui/Button";
+import { buildNotificationFeed, unreadCount } from "@/app/features/notifications/notification-feed";
 import { adminNav, userNav } from "@/app/workspace/nav";
-import { clampText, eventSummary, formatDate } from "@/app/workspace/format";
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 
-type NotificationFilter =
-  | "unread"
-  | "read"
-  | "mentioned"
-  | "deadline"
-  | "consultation"
-  | "amendment"
-  | "tender"
-  | "saved";
-
-type NotificationItem = {
-  id: string;
-  title: string;
-  body: string;
-  href?: string;
-  source?: string | null;
-  date?: string | null;
-  category: NotificationFilter;
-  priority: "normal" | "high";
-  isRead: boolean;
-};
-
-const notificationFilters: Array<{ value: NotificationFilter; label: string }> = [
-  { value: "unread", label: "Unread" },
-  { value: "read", label: "Read" },
-  { value: "mentioned", label: "Mentioned" },
-  { value: "deadline", label: "Deadline alerts" },
-  { value: "consultation", label: "Consultations" },
-  { value: "amendment", label: "Amendments" },
-  { value: "tender", label: "Tenders" },
-  { value: "saved", label: "Saved topics" },
-];
-
-function statusLabel(status: string) {
-  if (status === "online") return "Online";
-  if (status === "degraded") return "Degraded";
-  return "Offline";
-}
+import { NotificationDrawer } from "./NotificationDrawer";
 
 function userNameFromEmail(email: string) {
   if (!email) return "Regulatory Analyst";
   const [name] = email.split("@");
-  return name
-    .split(/[._-]/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ") || "Regulatory Analyst";
+  return (
+    name
+      .split(/[._-]/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ") || "Regulatory Analyst"
+  );
 }
 
-function classifyEvent(title: string, tags: string[], summary: string): NotificationFilter {
-  const text = `${title} ${tags.join(" ")} ${summary}`.toLowerCase();
-  if (text.includes("tender") || text.includes("bid") || text.includes("auction")) return "tender";
-  if (text.includes("amendment") || text.includes("changed") || text.includes("revision")) return "amendment";
-  if (text.includes("consultation") || text.includes("comment") || text.includes("draft")) return "consultation";
-  return "saved";
+/** Profile menu: closes on outside click and on Escape, like every other menu. */
+function ProfileMenu() {
+  const { userEmail, isAuthenticated, handleSignOut } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!shellRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="rv-profile" ref={shellRef}>
+      <IconButton
+        label="Account menu"
+        Icon={UserCircle}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((current) => !current)}
+      />
+      {open ? (
+        <div className="rv-profile__panel" role="menu">
+          <span className="rv-profile__name">{userNameFromEmail(userEmail)}</span>
+          <span className="rv-profile__email">{userEmail || "Public reader"}</span>
+          <Link
+            className="rv-menu__item"
+            role="menuitem"
+            href="/notifications"
+            onClick={() => setOpen(false)}
+          >
+            <Settings2 size={15} aria-hidden />
+            Notification preferences
+          </Link>
+          {isAuthenticated ? (
+            <button
+              className="rv-menu__item"
+              role="menuitem"
+              type="button"
+              onClick={handleSignOut}
+            >
+              <LogOut size={15} aria-hidden />
+              Sign out
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function TopBar() {
@@ -82,72 +91,44 @@ export function TopBar() {
     v2AskEnabled,
     query,
     setQuery,
-    pipelineStatus,
     events,
     activeDeadlines,
     settings,
-    setSettings,
-    catalogSources,
-    handleSaveSettings,
-    busyAction,
-    userEmail,
-    isAuthenticated,
-    handleSignOut,
   } = useWorkspace();
   const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [filter, setFilter] = useState<NotificationFilter>("unread");
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [clearedReadIds, setClearedReadIds] = useState<Set<string>>(new Set());
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [readIds, setReadIds] = useState<ReadonlySet<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(new Set());
 
-  const userName = userNameFromEmail(userEmail);
-  const notifications = useMemo<NotificationItem[]>(() => {
-    const topicText = settings.topics.join(" ").toLowerCase();
-    const eventItems = events.slice(0, 24).map((event) => {
-      const summary = eventSummary(event);
-      const category = classifyEvent(event.title, event.topic_tags, summary);
-      const isMentioned =
-        topicText.length > 0 &&
-        event.topic_tags.some((tag) => topicText.includes(tag.toLowerCase()));
-      return {
-        id: `event-${event.id}`,
-        title: event.title,
-        body: clampText(summary, 150),
-        href: `/events/${event.id}`,
-        source: event.issuing_body,
-        date: event.issue_date ?? event.detected_at,
-        category: isMentioned ? "mentioned" : category,
-        priority: event.event_type === "CHANGED" || category === "deadline" ? "high" : "normal",
-        isRead: event.is_read || readIds.has(`event-${event.id}`),
-      } satisfies NotificationItem;
-    });
-    const deadlineItems = activeDeadlines.slice(0, 12).map((deadline) => {
-      const id = `deadline-${deadline.document_id}-${deadline.deadline_type}-${deadline.deadline_date ?? deadline.raw_date ?? "unknown"}`;
-      const priority: NotificationItem["priority"] =
-        deadline.days_remaining !== null && deadline.days_remaining <= 7 ? "high" : "normal";
-      return {
-        id,
-        title: deadline.title,
-        body: `${deadline.deadline_type.replace(/_/g, " ")} due ${formatDate(deadline.deadline_date ?? deadline.raw_date)}`,
-        href: deadline.source_url,
-        source: deadline.issuer,
-        date: deadline.deadline_date ?? deadline.raw_date,
-        category: "deadline",
-        priority,
-        isRead: readIds.has(id),
-      } satisfies NotificationItem;
-    });
-    return [...deadlineItems, ...eventItems].filter((item) => !clearedReadIds.has(item.id));
-  }, [activeDeadlines, clearedReadIds, events, readIds, settings.topics]);
+  const notifications = useMemo(
+    () =>
+      buildNotificationFeed({
+        events,
+        deadlines: activeDeadlines,
+        topics: settings.topics,
+        readIds,
+        dismissedIds,
+      }),
+    [activeDeadlines, dismissedIds, events, readIds, settings.topics],
+  );
+  const unread = unreadCount(notifications);
 
-  const unreadCount = notifications.filter((item) => !item.isRead).length;
-  const filteredNotifications = notifications.filter((item) => {
-    if (filter === "unread") return !item.isRead;
-    if (filter === "read") return item.isRead;
-    return item.category === filter;
-  });
+  const links = useMemo(
+    () =>
+      v2AskEnabled
+        ? [
+            ...userNav,
+            {
+              href: "/browse",
+              label: "Documents",
+              route: "browse" as const,
+              Icon: Search,
+            },
+          ]
+        : userNav,
+    [v2AskEnabled],
+  );
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -156,317 +137,215 @@ export function TopBar() {
     setNavOpen(false);
   }
 
-  function markAllRead() {
-    setReadIds(new Set(notifications.map((item) => item.id)));
-  }
-
-  function clearRead() {
-    setClearedReadIds(new Set(notifications.filter((item) => item.isRead).map((item) => item.id)));
-  }
-
-  const allSourcesSelected = settings.source_ids.length === 0;
-
-  function toggleSourcePreference(sourceId: number) {
-    if (allSourcesSelected) {
-      const next = catalogSources.map((source) => source.id).filter((id) => id !== sourceId);
-      setSettings({ ...settings, source_ids: next, frequency: "instant" });
-      return;
-    }
-    const current = new Set(settings.source_ids);
-    if (current.has(sourceId)) current.delete(sourceId);
-    else current.add(sourceId);
-    setSettings({
-      ...settings,
-      source_ids: Array.from(current),
-      frequency: "instant",
-    });
-  }
-
-  function selectAllSources() {
-    setSettings({ ...settings, source_ids: [], frequency: "instant" });
-  }
-
-  function onAllSourcesChange(checked: boolean) {
-    if (checked) {
-      selectAllSources();
-      return;
-    }
-    setSettings({
-      ...settings,
-      source_ids: catalogSources.map((source) => source.id),
-      frequency: "instant",
-    });
-  }
-
-  const selectedSourceSummary = allSourcesSelected
-    ? "All sources"
-    : catalogSources
-        .filter((source) => settings.source_ids.includes(source.id))
-        .map((source) => source.name)
-        .join(", ") || "No sources selected";
-
   return (
     <>
-      <header className="product-topnav">
-        <div className="product-topnav-left">
-          <button
-            className="topnav-menu-button"
-            type="button"
-            aria-label="Open navigation"
-            onClick={() => setNavOpen((open) => !open)}
-          >
-            {navOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
-          <Link className="product-brand" href="/latest" aria-label="Resolven latest updates">
-            <img src="/logo_mark.png" alt="" />
-            <span className="product-brand-text">
-              <strong>Resolven</strong>
-              <small>RegulatoryAi</small>
-            </span>
-          </Link>
-        </div>
+      <header className="rv-topbar">
+        <IconButton
+          className="rv-topbar__menu-button"
+          label={navOpen ? "Close navigation" : "Open navigation"}
+          Icon={navOpen ? X : Menu}
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen((open) => !open)}
+        />
 
-        <nav className={`product-nav-center ${navOpen ? "open" : ""}`} aria-label="Primary navigation">
-          {userNav.map((item) => (
+        <Link className="rv-topbar__brand" href="/latest">
+          <img src="/logo_mark.png" alt="" />
+          <span>
+            <strong>Resolven</strong>
+            <small>Regulatory AI</small>
+          </span>
+        </Link>
+
+        <nav
+          className="rv-topbar__nav rv-topbar__nav--inline"
+          aria-label="Primary navigation"
+        >
+          {links.map((item) => (
             <Link
               key={item.href}
-              className={route === item.route ? "active" : ""}
+              className="rv-topbar__link"
               href={item.href}
-              onClick={() => setNavOpen(false)}
+              aria-current={route === item.route ? "page" : undefined}
             >
               {item.label}
             </Link>
           ))}
-          {v2AskEnabled ? (
-            <Link
-              className={route === "browse" ? "active" : ""}
-              href="/browse"
-              onClick={() => setNavOpen(false)}
-            >
-              Documents
-            </Link>
-          ) : null}
         </nav>
 
-        <div className="product-topnav-right">
-          <form className="global-search" role="search" onSubmit={submitSearch}>
-            <Search size={16} />
+        <div className="rv-topbar__actions">
+          <form className="rv-topbar__search" role="search" onSubmit={submitSearch}>
+            <Search size={15} aria-hidden />
             <input
-              aria-label="Global search"
-              placeholder="Search"
+              aria-label="Search regulatory updates"
+              placeholder="Search updates"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-            <kbd>/</kbd>
           </form>
-          <button
-            className="topnav-icon-button"
-            type="button"
-            aria-label={`${unreadCount} unread notifications`}
-            onClick={() => setNotificationsOpen(true)}
-          >
-            <Bell size={18} />
-            {unreadCount ? <span>{unreadCount > 9 ? "9+" : unreadCount}</span> : null}
-          </button>
-          <div className="profile-menu-shell">
-            <button className="profile-trigger" type="button" onClick={() => setProfileOpen((open) => !open)}>
-              <UserCircle size={19} />
-            </button>
-            {profileOpen ? (
-              <div className="profile-menu">
-                <strong>{userName}</strong>
-                <span>{userEmail || "Public reader"}</span>
-                {isAuthenticated ? (
-                  <button type="button" onClick={handleSignOut}>
-                    <LogOut size={16} />
-                    Sign Out
-                  </button>
-                ) : null}
-              </div>
+          <span className="rv-topbar__bell">
+            <IconButton
+              label={
+                unread
+                  ? `Notifications, ${unread} unread`
+                  : "Notifications, none unread"
+              }
+              Icon={Bell}
+              onClick={() => setDrawerOpen(true)}
+            />
+            {unread ? (
+              <span className="rv-topbar__bell-count" aria-hidden>
+                {unread > 9 ? "9+" : unread}
+              </span>
             ) : null}
-          </div>
+          </span>
+          <ProfileMenu />
         </div>
       </header>
 
-      {notificationsOpen ? (
-        <div className="notification-backdrop" onClick={() => setNotificationsOpen(false)}>
-          <aside className="notification-drawer" aria-label="Notifications" onClick={(event) => event.stopPropagation()}>
-            <div className="notification-drawer-header">
-              <div>
-                <p>Notifications</p>
-                <h2>Regulatory alerts</h2>
-              </div>
-              <button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="notification-actions">
-              <button type="button" onClick={markAllRead}>
-                <Check size={15} />
-                Mark all read
-              </button>
-              <button type="button" onClick={clearRead}>Clear read</button>
-            </div>
-
-            <div className="notification-filter-row" role="tablist" aria-label="Notification filters">
-              {notificationFilters.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  className={filter === item.value ? "active" : ""}
-                  onClick={() => setFilter(item.value)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="notification-list">
-              {filteredNotifications.length ? (
-                filteredNotifications.map((item) => (
-                  <a
-                    key={item.id}
-                    className={`notification-item ${item.isRead ? "read" : "unread"} ${item.priority}`}
-                    href={item.href ?? "#"}
-                    target={item.href?.startsWith("http") ? "_blank" : undefined}
-                    rel={item.href?.startsWith("http") ? "noreferrer" : undefined}
-                    onClick={() => setReadIds((current) => new Set([...current, item.id]))}
-                  >
-                    <span className="notification-dot" />
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>{item.body}</p>
-                      <small>
-                        {item.source ?? "Resolven"} {item.date ? `- ${formatDate(item.date)}` : ""}
-                      </small>
-                    </div>
-                    {item.href?.startsWith("http") ? <ExternalLink size={15} /> : null}
-                  </a>
-                ))
-              ) : (
-                <div className="notification-empty">
-                  <strong>No alerts in this view</strong>
-                  <p>New consultations, amendments, tenders, deadline alerts, and saved topic alerts appear here.</p>
-                </div>
-              )}
-            </div>
-
-            <div className="notification-preferences">
-              <div className="notification-preferences-title">
-                <Settings2 size={16} />
-                Email notifications
-              </div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={settings.email_enabled}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      email_enabled: event.target.checked,
-                      frequency: "instant",
-                    })
-                  }
-                />
-                Email me regulatory updates
-              </label>
-              <div className="frequency-control">
-                <span>Frequency</span>
-                <button type="button" className="active" disabled>
-                  Instant
-                </button>
-              </div>
-              <div className="source-subscriptions">
-                <span className="notification-preferences-subtitle">Sources</span>
-                <label className="source-subscription-option">
-                  <input
-                    type="checkbox"
-                    checked={allSourcesSelected}
-                    onChange={(event) => onAllSourcesChange(event.target.checked)}
-                  />
-                  All sources
-                </label>
-                {catalogSources.map((source) => (
-                  <label key={source.id} className="source-subscription-option">
-                    <input
-                      type="checkbox"
-                      checked={allSourcesSelected || settings.source_ids.includes(source.id)}
-                      onChange={() => toggleSourcePreference(source.id)}
-                    />
-                    {source.name}
-                  </label>
-                ))}
-                {!catalogSources.length ? (
-                  <p className="muted">No active sources are available yet.</p>
-                ) : null}
-              </div>
-              <p className="notification-preference-summary">
-                Email notifications: {settings.email_enabled ? "ON" : "OFF"}
-                <br />
-                Sources: {selectedSourceSummary}
-                <br />
-                Frequency: Instant
-              </p>
-              <button className="primary-button full" type="button" onClick={handleSaveSettings} disabled={busyAction === "settings"}>
-                {busyAction === "settings" ? "Saving..." : "Save preferences"}
-              </button>
-            </div>
-          </aside>
-        </div>
+      {navOpen ? (
+        <nav className="rv-mobile-nav" aria-label="Primary navigation">
+          <form className="rv-search" role="search" onSubmit={submitSearch}>
+            <Search size={15} aria-hidden />
+            <input
+              aria-label="Search regulatory updates"
+              placeholder="Search updates"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </form>
+          {links.map((item) => (
+            <Link
+              key={item.href}
+              className="rv-topbar__link"
+              href={item.href}
+              aria-current={route === item.route ? "page" : undefined}
+              onClick={() => setNavOpen(false)}
+            >
+              <item.Icon size={16} aria-hidden />
+              {item.label}
+            </Link>
+          ))}
+          <div className="rv-mobile-nav__footer">
+            <Link
+              className="rv-topbar__link"
+              href="/notifications"
+              onClick={() => setNavOpen(false)}
+            >
+              <Settings2 size={16} aria-hidden />
+              Notification preferences
+            </Link>
+          </div>
+        </nav>
       ) : null}
+
+      <NotificationDrawer
+        open={drawerOpen}
+        items={notifications}
+        onClose={() => setDrawerOpen(false)}
+        onRead={(id) => setReadIds((current) => new Set([...current, id]))}
+        onMarkAllRead={() =>
+          setReadIds(new Set(notifications.map((item) => item.id)))
+        }
+        onClearRead={() =>
+          setDismissedIds(
+            new Set(
+              notifications.filter((item) => item.isRead).map((item) => item.id),
+            ),
+          )
+        }
+      />
     </>
   );
 }
 
 export function AdminTopBar() {
-  const { route, pipelineStatus, userEmail, isAuthenticated, handleSignOut } = useWorkspace();
-  const [profileOpen, setProfileOpen] = useState(false);
-  const status = statusLabel(pipelineStatus);
+  const { route, pipelineStatus } = useWorkspace();
+  const [navOpen, setNavOpen] = useState(false);
+
+  const statusLabel =
+    pipelineStatus === "online"
+      ? "Pipeline online"
+      : pipelineStatus === "degraded"
+        ? "Pipeline degraded"
+        : "Pipeline offline";
+
   return (
-    <header className="admin-topnav">
-      <div className="admin-topnav-left">
-        <Link className="product-brand" href="/admin">
+    <>
+      <header className="rv-topbar rv-topbar--admin">
+        <IconButton
+          className="rv-topbar__menu-button"
+          label={navOpen ? "Close navigation" : "Open navigation"}
+          Icon={navOpen ? X : Menu}
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen((open) => !open)}
+        />
+
+        <Link className="rv-topbar__brand" href="/admin">
           <img src="/logo_mark.png" alt="" />
-          <span className="product-brand-text">
+          <span>
             <strong>Resolven</strong>
-            <small>Admin</small>
+            <small>Operations</small>
           </span>
         </Link>
-        <span className={`status-pill ${pipelineStatus}`}>
-          <span />
-          {status}
-        </span>
-      </div>
-      <nav className="admin-nav-center" aria-label="Admin navigation">
-        {adminNav.map((item) => (
-          <Link key={item.href} className={route === item.route ? "active" : ""} href={item.href}>
-            {item.label}
+
+        <nav
+          className="rv-topbar__nav rv-topbar__nav--inline"
+          aria-label="Admin navigation"
+        >
+          {adminNav.map((item) => (
+            <Link
+              key={item.href}
+              className="rv-topbar__link"
+              href={item.href}
+              aria-current={
+                route === item.route ||
+                (item.route === "admin-runs" && route === "admin-run")
+                  ? "page"
+                  : undefined
+              }
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="rv-topbar__actions">
+          <span className={`status-pill ${pipelineStatus}`} title={statusLabel}>
+            <span aria-hidden />
+            {statusLabel}
+          </span>
+          <Link className="rv-btn rv-btn--secondary rv-btn--sm" href="/latest">
+            Main product
           </Link>
-        ))}
-      </nav>
-      <div className="admin-topnav-right">
-        <Link className="secondary-button compact" href="/latest">
-          Return to Main Product
-        </Link>
-        <div className="profile-menu-shell">
-          <button className="profile-trigger" type="button" onClick={() => setProfileOpen((open) => !open)}>
-            <UserCircle size={19} />
-          </button>
-          {profileOpen ? (
-            <div className="profile-menu">
-              <strong>{userNameFromEmail(userEmail)}</strong>
-              <span>{userEmail || "Public reader"}</span>
-              {isAuthenticated ? (
-                <button type="button" onClick={handleSignOut}>
-                  <LogOut size={16} />
-                  Sign Out
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          <ProfileMenu />
         </div>
-      </div>
-    </header>
+      </header>
+
+      {navOpen ? (
+        <nav className="rv-mobile-nav" aria-label="Admin navigation">
+          {adminNav.map((item) => (
+            <Link
+              key={item.href}
+              className="rv-topbar__link"
+              href={item.href}
+              aria-current={route === item.route ? "page" : undefined}
+              onClick={() => setNavOpen(false)}
+            >
+              <item.Icon size={16} aria-hidden />
+              {item.label}
+            </Link>
+          ))}
+          <div className="rv-mobile-nav__footer">
+            <Link
+              className="rv-topbar__link"
+              href="/latest"
+              onClick={() => setNavOpen(false)}
+            >
+              Return to main product
+            </Link>
+          </div>
+        </nav>
+      ) : null}
+    </>
   );
 }

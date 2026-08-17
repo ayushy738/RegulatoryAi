@@ -1,48 +1,22 @@
 import Link from "next/link";
-import { useState } from "react";
 import type { ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Activity,
-  AlertCircle,
-  Bell,
-  CheckCircle2,
-  ClipboardCheck,
-  Database,
-  ExternalLink,
-  FileSearch,
-  FileText,
-  Gauge,
-  History,
-  Layers3,
-  Loader2,
-  Network,
-  Play,
-  Plus,
-  RefreshCw,
-  Settings,
-  TableProperties,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { AlertCircle, Database, History, Play, RefreshCw, Users } from "lucide-react";
 
-import {
-  createSource,
-  createSourcePage,
-  deleteSource,
-  deleteSourcePage,
-  updateAdminUserRole,
-  updateSourcePage,
-} from "@/lib/api";
-import type { SourceCreatePayload, SourcePageCreatePayload } from "@/lib/api";
-import { queryKeys } from "@/lib/queries";
-import { AdminRows } from "@/app/components/ui/AdminRows";
+import { StatusBadge, normalizeRunStatus } from "@/app/components/ui/Badge";
+import { Button } from "@/app/components/ui/Button";
+import { DataTable } from "@/app/components/ui/DataTable";
 import { EmptyState } from "@/app/components/ui/EmptyState";
-import { ErrorState } from "@/app/components/ui/ErrorState";
-import { LoadingState } from "@/app/components/ui/LoadingState";
-import { MetricCard } from "@/app/components/ui/MetricCard";
-import { Panel } from "@/app/components/ui/Panel";
-import { compactNumber, formatDate, formatRelativeDate } from "@/app/workspace/format";
+import {
+  Fact,
+  FactList,
+  Metric,
+  MetricStrip,
+  PageHeader,
+  SectionHeader,
+} from "@/app/components/ui/PageHeader";
+import { SkeletonCards, SkeletonMetrics } from "@/app/components/ui/Skeleton";
+import { RefreshButton } from "@/app/components/ui/Toolbar";
+import { compactNumber, formatDateTime, formatDuration } from "@/app/workspace/format";
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 
 /** Run-card helper: null/undefined means unavailable, not zero. */
@@ -51,9 +25,13 @@ export function formatRunMetric(value: number | null | undefined): string {
   return compactNumber(value);
 }
 
+/**
+ * Admin routes share one soft gate: partial dataset failures degrade the page
+ * rather than blanking it, because an operator diagnosing an outage needs
+ * whatever telemetry did load.
+ */
 export function AdminGate({ children }: { children: ReactNode }) {
   const { adminStatus } = useWorkspace();
-  if (adminStatus.isLoading) return <LoadingState label="Loading admin data..." />;
   return (
     <>
       {adminStatus.isError ? (
@@ -70,1015 +48,239 @@ export function AdminGate({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Operational overview: system scale, pipeline health and the most recent runs.
+ * Deliberately shallow — every number here links to the console that owns it.
+ */
 export function AdminDashboardView() {
-  const { analytics, sources, sourcePages, adminDocs, adminEvents, families, runs, ragStatus, loadBaseData } =
-    useWorkspace();
-  const activeSources = sources.filter((source) => source.enabled).length;
-  const healthySources = sources.filter((source) => (source.consecutive_failures ?? 0) === 0).length;
-  const latestRun = runs[0];
-  return (
-    <div className="page-stack ops-page admin-dashboard-console">
-      <section className="ops-page-header premium-page-header">
-        <div>
-          <span>Operations Console</span>
-          <h1>Admin dashboard</h1>
-          <p>
-            {healthySources}/{sources.length || 0} sources healthy | latest run{" "}
-            {formatRelativeDate(latestRun?.started_at)}
-          </p>
-        </div>
-        <button type="button" onClick={() => void loadBaseData()}>
-          <RefreshCw size={16} />
-          Refresh
-        </button>
-      </section>
-
-      <section className="metric-grid">
-        <MetricCard title="Sources" value={activeSources || sources.length} Icon={Database} tone="green" />
-        <MetricCard title="Pages" value={analytics?.pages ?? sourcePages.length} Icon={Layers3} tone="purple" />
-        <MetricCard title="Documents" value={analytics?.documents ?? adminDocs.length} Icon={FileText} tone="amber" />
-        <MetricCard title="Events" value={analytics?.events ?? adminEvents.length} Icon={ClipboardCheck} tone="red" />
-        <MetricCard title="Families" value={analytics?.families ?? families.length} Icon={Network} tone="purple" />
-        <MetricCard title="RAG Ready" value={ragStatus?.ready ?? 0} Icon={TableProperties} tone="green" />
-        <MetricCard title="RAG Failed Jobs" value={ragStatus?.failed_jobs ?? 0} Icon={AlertCircle} tone="red" />
-        <MetricCard title="Runs" value={runs.length} Icon={History} tone="amber" />
-      </section>
-
-      <section className="admin-console-grid">
-        <Panel title="Recent Runs" icon={History} action={<Link href="/admin/runs">Open</Link>}>
-          <AdminRows
-            rows={runs.slice(0, 10)}
-            columns={[
-              ["Run", (row) => `#${row.id}`],
-              ["Status", (row) => row.status],
-              ["Started", (row) => formatRelativeDate(row.started_at)],
-              ["Docs discovered", (row) => compactNumber(row.documents_discovered ?? row.docs_found)],
-              ["Events", (row) => compactNumber(row.events_created ?? row.new_events)],
-            ]}
-          />
-        </Panel>
-        <Panel title="RAG Queue" icon={TableProperties} action={<Link href="/admin/runs">Open</Link>}>
-          <div className="ops-health-grid">
-            <span>
-              <strong>{compactNumber(ragStatus?.chunks ?? 0)}</strong>
-              chunks
-            </span>
-            <span>
-              <strong>{compactNumber(ragStatus?.embeddings ?? 0)}</strong>
-              embeddings
-            </span>
-            <span>
-              <strong>{compactNumber(ragStatus?.pending_jobs ?? 0)}</strong>
-              pending
-            </span>
-            <span>
-              <strong>{compactNumber(ragStatus?.failed_jobs ?? 0)}</strong>
-              failed
-            </span>
-          </div>
-        </Panel>
-      </section>
-    </div>
-  );
-}
-
-type SourcePageDraft = SourcePageCreatePayload;
-
-type SourceCreateForm = {
-  code: string;
-  name: string;
-  url: string;
-  jurisdiction: SourceCreatePayload["jurisdiction"];
-  crawler_type: SourceCreatePayload["crawler_type"];
-  allowed_domains: string;
-  hint: string;
-  enabled: boolean;
-  pages: SourcePageDraft[];
-};
-
-const emptyPageDraft: SourcePageDraft = {
-  name: "",
-  url: "",
-  page_type: "listing",
-  priority: 100,
-  enabled: true,
-};
-
-const emptySourceForm: SourceCreateForm = {
-  code: "",
-  name: "",
-  url: "",
-  jurisdiction: "central",
-  crawler_type: "agent",
-  allowed_domains: "",
-  hint: "",
-  enabled: true,
-  pages: [{ ...emptyPageDraft }],
-};
-
-function parseDomains(value: string) {
-  return value
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-export function AdminSourcesView() {
   const {
+    analytics,
     sources,
-    sourcePages,
-    busyAction,
-    token,
-    setStatusMessage,
-    handleToggleSource,
-    handleSourceCrawl,
-    handlePageCrawl,
-    loadBaseData,
-  } =
-    useWorkspace();
-  const queryClient = useQueryClient();
-  const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState<SourceCreateForm>(emptySourceForm);
-
-  const invalidateSources = () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.admin.sources });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.admin.pages });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.admin.analytics });
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const source = await createSource(
-        {
-          code: form.code.trim().toUpperCase(),
-          name: form.name.trim(),
-          url: form.url.trim(),
-          jurisdiction: form.jurisdiction,
-          crawler_type: form.crawler_type,
-          allowed_domains: parseDomains(form.allowed_domains),
-          hint: form.hint.trim() || null,
-          enabled: form.enabled,
-        },
-        token,
-      );
-      const pages = form.pages.filter((page) => page.name.trim() && page.url.trim());
-      await Promise.all(
-        pages.map((page) =>
-          createSourcePage(
-            source.id,
-            {
-              name: page.name.trim(),
-              url: page.url.trim(),
-              page_type: page.page_type.trim() || "listing",
-              priority: Number(page.priority) || 100,
-              enabled: page.enabled,
-            },
-            token,
-          ),
-        ),
-      );
-      return { source, pageCount: pages.length };
-    },
-    onSuccess: ({ source, pageCount }) => {
-      invalidateSources();
-      setForm(emptySourceForm);
-      setFormOpen(false);
-      setStatusMessage(`Created ${source.name} with ${pageCount} monitored page(s).`);
-    },
-    onError: (error) => setStatusMessage(error instanceof Error ? error.message : "Unable to create source."),
-  });
-
-  const pageMutation = useMutation({
-    mutationFn: ({ pageId, enabled }: { pageId: number; enabled: boolean }) =>
-      updateSourcePage(pageId, { enabled }, token),
-    onSuccess: invalidateSources,
-    onError: (error) => setStatusMessage(error instanceof Error ? error.message : "Unable to update page."),
-  });
-
-  const pageDeleteMutation = useMutation({
-    mutationFn: (pageId: number) => deleteSourcePage(pageId, token),
-    onSuccess: invalidateSources,
-    onError: (error) => setStatusMessage(error instanceof Error ? error.message : "Unable to delete page."),
-  });
-
-  const sourceDeleteMutation = useMutation({
-    mutationFn: (sourceId: number) => deleteSource(sourceId, token),
-    onSuccess: invalidateSources,
-    onError: (error) => setStatusMessage(error instanceof Error ? error.message : "Unable to delete source."),
-  });
-
-  function updatePageDraft(index: number, patch: Partial<SourcePageDraft>) {
-    setForm((current) => ({
-      ...current,
-      pages: current.pages.map((page, pageIndex) => (pageIndex === index ? { ...page, ...patch } : page)),
-    }));
-  }
-
-  function removePageDraft(index: number) {
-    setForm((current) => ({
-      ...current,
-      pages: current.pages.length === 1 ? [{ ...emptyPageDraft }] : current.pages.filter((_, pageIndex) => pageIndex !== index),
-    }));
-  }
-
-  return (
-    <div className="page-stack ops-page admin-sources-console">
-      <section className="ops-page-header premium-page-header">
-        <div>
-          <span>Operations Console</span>
-          <h1>Sources</h1>
-          <p>Manage monitored websites and their crawled pages from one place.</p>
-        </div>
-        <button type="button" onClick={() => void loadBaseData()}>
-          <RefreshCw size={16} />
-          Refresh
-        </button>
-      </section>
-
-      <section className="admin-create-source-panel">
-        <div>
-          <strong>Create Source</strong>
-          <p>Enter a website, add monitored pages, then save it into the production source registry.</p>
-        </div>
-        <button type="button" onClick={() => setFormOpen((open) => !open)}>
-          <Plus size={16} />
-          {formOpen ? "Close" : "Create Source"}
-        </button>
-      </section>
-
-      {formOpen ? (
-        <form
-          className="admin-source-create-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            createMutation.mutate();
-          }}
-        >
-          <div className="admin-form-grid">
-            <label>
-              Website
-              <input
-                required
-                value={form.url}
-                onChange={(event) => setForm({ ...form, url: event.target.value })}
-                placeholder="https://example.gov.in"
-              />
-            </label>
-            <label>
-              Source name
-              <input
-                required
-                value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
-                placeholder="Central Electricity Regulatory Commission"
-              />
-            </label>
-            <label>
-              Code
-              <input
-                required
-                value={form.code}
-                onChange={(event) => setForm({ ...form, code: event.target.value })}
-                placeholder="CERC"
-              />
-            </label>
-            <label>
-              Jurisdiction
-              <select
-                value={form.jurisdiction}
-                onChange={(event) => setForm({ ...form, jurisdiction: event.target.value as SourceCreateForm["jurisdiction"] })}
-              >
-                <option value="central">central</option>
-                <option value="state">state</option>
-              </select>
-            </label>
-            <label>
-              Crawler
-              <select
-                value={form.crawler_type}
-                onChange={(event) => setForm({ ...form, crawler_type: event.target.value as SourceCreateForm["crawler_type"] })}
-              >
-                <option value="agent">agent</option>
-                <option value="digest">digest</option>
-                <option value="static">static</option>
-              </select>
-            </label>
-            <label>
-              Allowed domains
-              <input
-                value={form.allowed_domains}
-                onChange={(event) => setForm({ ...form, allowed_domains: event.target.value })}
-                placeholder="example.gov.in, cdn.example.gov.in"
-              />
-            </label>
-          </div>
-          <label className="admin-form-wide">
-            Crawl hint
-            <textarea
-              value={form.hint}
-              onChange={(event) => setForm({ ...form, hint: event.target.value })}
-              placeholder="Prioritize current notices, tenders, public consultations, and amendment pages."
-              rows={2}
-            />
-          </label>
-          <label className="admin-checkbox-row">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
-            />
-            Enable immediately
-          </label>
-
-          <div className="admin-form-section-title">
-            <strong>Monitored pages</strong>
-            <button
-              type="button"
-              onClick={() => setForm((current) => ({ ...current, pages: [...current.pages, { ...emptyPageDraft }] }))}
-            >
-              <Plus size={15} />
-              Add page
-            </button>
-          </div>
-
-          <div className="admin-page-draft-list">
-            {form.pages.map((page, index) => (
-              <div className="admin-page-draft" key={`draft-${index}`}>
-                <label>
-                  Page name
-                  <input value={page.name} onChange={(event) => updatePageDraft(index, { name: event.target.value })} placeholder="Current Notices" />
-                </label>
-                <label>
-                  Page URL
-                  <input value={page.url} onChange={(event) => updatePageDraft(index, { url: event.target.value })} placeholder="https://example.gov.in/notices" />
-                </label>
-                <label>
-                  Type
-                  <input value={page.page_type} onChange={(event) => updatePageDraft(index, { page_type: event.target.value })} placeholder="notice_listing" />
-                </label>
-                <label>
-                  Priority
-                  <input
-                    type="number"
-                    value={page.priority}
-                    onChange={(event) => updatePageDraft(index, { priority: Number(event.target.value) })}
-                  />
-                </label>
-                <label className="admin-checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={page.enabled}
-                    onChange={(event) => updatePageDraft(index, { enabled: event.target.checked })}
-                  />
-                  Enabled
-                </label>
-                <button type="button" aria-label="Remove page draft" onClick={() => removePageDraft(index)}>
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="admin-form-actions">
-            <button type="button" onClick={() => setForm(emptySourceForm)}>
-              Reset
-            </button>
-            <button className="primary-button" type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
-              Create Source
-            </button>
-          </div>
-        </form>
-      ) : null}
-
-      <div className="admin-source-card-list">
-        {sources.map((source) => {
-          const pages = sourcePages.filter((page) => page.source_id === source.id || page.source_code === source.code);
-          return (
-            <details className="admin-source-card" key={source.id} open>
-              <summary>
-                <div>
-                  <strong>{source.name}</strong>
-                  <span>{source.code} | {source.jurisdiction} | {source.crawler_type}</span>
-                </div>
-                <div className="admin-source-status">
-                  <span className={source.enabled ? "enabled" : "disabled"}>{source.enabled ? "Enabled" : "Disabled"}</span>
-                  <span>{pages.length} pages</span>
-                  <span>{compactNumber(source.consecutive_failures)} failures</span>
-                </div>
-              </summary>
-              <div className="admin-source-body">
-                <div className="admin-source-meta">
-                  <a href={source.url} target="_blank" rel="noreferrer">
-                    <ExternalLink size={15} />
-                    Website
-                  </a>
-                  <span>Last checked {formatRelativeDate(source.last_checked_at)}</span>
-                  <span>Status {source.last_status ?? "unknown"}</span>
-                </div>
-                <div className="row-actions">
-                  <button type="button" onClick={() => void handleToggleSource(source)} disabled={busyAction === `source-${source.id}`}>
-                    {busyAction === `source-${source.id}` ? <Loader2 className="spin" size={15} /> : <Settings size={15} />}
-                    {source.enabled ? "Disable" : "Enable"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSourceCrawl(source)}
-                    disabled={busyAction === `crawl-source-${source.id}`}
-                  >
-                    {busyAction === `crawl-source-${source.id}` ? <Loader2 className="spin" size={15} /> : <Play size={15} />}
-                    Trigger Crawl
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => sourceDeleteMutation.mutate(source.id)}
-                    disabled={sourceDeleteMutation.isPending}
-                  >
-                    <Trash2 size={15} />
-                    Delete
-                  </button>
-                </div>
-                <div className="admin-page-list">
-                  {pages.map((page) => (
-                    <div className="admin-page-row" key={page.id}>
-                      <div>
-                        <strong>{page.name}</strong>
-                        <span>{page.page_type} | priority {page.priority} | last crawl {formatRelativeDate(page.last_crawled_at)}</span>
-                        <a href={page.url} target="_blank" rel="noreferrer">{page.url}</a>
-                      </div>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          onClick={() => pageMutation.mutate({ pageId: page.id, enabled: !page.enabled })}
-                          disabled={pageMutation.isPending}
-                        >
-                          <Settings size={15} />
-                          {page.enabled ? "Disable" : "Enable"}
-                        </button>
-                        <button type="button" onClick={() => void handlePageCrawl(page)} disabled={busyAction === `crawl-page-${page.id}`}>
-                          {busyAction === `crawl-page-${page.id}` ? <Loader2 className="spin" size={15} /> : <Play size={15} />}
-                          Test Page
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => pageDeleteMutation.mutate(page.id)}
-                          disabled={pageDeleteMutation.isPending}
-                        >
-                          <Trash2 size={15} />
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {!pages.length ? (
-                    <EmptyState title="No monitored pages" body="No source page rows are returned for this website." />
-                  ) : null}
-                </div>
-              </div>
-            </details>
-          );
-        })}
-        {!sources.length ? <EmptyState title="No sources" body="The sources API returned no configured websites." /> : null}
-      </div>
-    </div>
-  );
-}
-
-export function AdminPagesView() {
-  return <AdminSourcesView />;
-}
-
-export function AdminRunsView() {
-  const {
-    runs,
     sourcePages,
     adminDocs,
     adminEvents,
     families,
-    stakeholderViews,
-    obligationGroups,
-    activeDeadlines,
+    runs,
     ragStatus,
     ragQueue,
+    adminStatus,
     busyAction,
-    handleProcessRagJob,
-    handleRequeueRagJobs,
     loadBaseData,
-    loadRagData,
-  } = useWorkspace();
-  const versions = adminDocs.filter((doc) => doc.latest_version_id).length;
-  const graphObjects = stakeholderViews.length + obligationGroups.reduce((sum, group) => sum + group.obligations.length, 0) + activeDeadlines.length;
-  const latestRun = runs[0];
-  return (
-    <div className="page-stack ops-page admin-runs-console">
-      <section className="ops-page-header premium-page-header">
-        <div>
-          <span>Operations Console</span>
-          <h1>Crawl Runs</h1>
-          <p>
-            Latest run {latestRun ? `#${latestRun.id}` : "not available"}. Workspace totals:{" "}
-            documents {compactNumber(adminDocs.length)} | events {compactNumber(adminEvents.length)} |
-            RAG ready {compactNumber(ragStatus?.ready ?? 0)}.
-          </p>
-        </div>
-        <div className="ops-action-row">
-          <button type="button" onClick={() => void loadBaseData()}>
-            <RefreshCw size={16} />
-            Refresh
-          </button>
-          <button type="button" onClick={() => void loadRagData()}>
-            <TableProperties size={16} />
-            RAG status
-          </button>
-        </div>
-      </section>
-
-      <section className="admin-run-health-grid" aria-label="Workspace database totals">
-        <span className="muted" style={{ gridColumn: "1 / -1" }}>
-          Workspace totals (global database — not tied to a single crawl run)
-        </span>
-        <span><strong>{compactNumber(sourcePages.length)}</strong> monitored pages</span>
-        <span><strong>{compactNumber(adminDocs.length)}</strong> documents</span>
-        <span><strong>{compactNumber(adminEvents.length)}</strong> events</span>
-        <span><strong>{compactNumber(families.length)}</strong> families</span>
-        <span><strong>{compactNumber(versions)}</strong> versions</span>
-        <span><strong>{compactNumber(graphObjects)}</strong> graph objects</span>
-        <span><strong>{compactNumber(ragStatus?.ready ?? 0)}</strong> RAG indexed</span>
-        <span><strong>{compactNumber(ragQueue.length)}</strong> queued jobs</span>
-      </section>
-
-      <section className="admin-rag-inline-actions">
-        <div>
-          <strong>Hybrid RAG worker</strong>
-          <p>Process one queued job at a time and requeue interrupted jobs without leaving this operational view.</p>
-        </div>
-        <div className="row-actions">
-          <button type="button" onClick={() => void handleRequeueRagJobs()} disabled={busyAction === "rag-requeue"}>
-            {busyAction === "rag-requeue" ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
-            Requeue interrupted
-          </button>
-          <button type="button" onClick={() => void handleProcessRagJob()} disabled={busyAction === "rag-process"}>
-            {busyAction === "rag-process" ? <Loader2 className="spin" size={15} /> : <Play size={15} />}
-            Process next job
-          </button>
-        </div>
-      </section>
-
-      <div className="admin-run-list">
-        {runs.map((run) => {
-          const started = new Date(run.started_at).getTime();
-          const finished = run.finished_at ? new Date(run.finished_at).getTime() : Date.now();
-          const duration = Number.isFinite(started) && Number.isFinite(finished)
-            ? `${Math.max(1, Math.round((finished - started) / 1000))}s`
-            : "n/a";
-          const successRate = run.sources_attempted
-            ? Math.round((run.sources_succeeded / run.sources_attempted) * 100)
-            : 0;
-          return (
-            <details className="admin-run-card" key={run.id} open={run.id === latestRun?.id}>
-              <summary>
-                <div>
-                  <strong>Run #{run.id}</strong>
-                  <span>{formatRelativeDate(run.started_at)} | duration {duration}</span>
-                </div>
-                <div className="admin-run-status">
-                  <span className={run.status.toLowerCase()}>{run.status}</span>
-                  <span>{successRate}% success</span>
-                  <span>{compactNumber(run.errors.length)} failures</span>
-                </div>
-              </summary>
-              <div className="admin-run-body">
-                <div className="admin-run-progress" aria-label={`Run ${run.id} success ${successRate}%`}>
-                  <span style={{ width: `${successRate}%` }} />
-                </div>
-                <div className="admin-run-detail-grid">
-                  <span><strong>Website</strong> Curated source set</span>
-                  <span>
-                    <strong>Pages attempted</strong> {formatRunMetric(run.pages_attempted)}
-                  </span>
-                  <span>
-                    <strong>Pages succeeded</strong> {formatRunMetric(run.pages_succeeded)}
-                  </span>
-                  <span>
-                    <strong>Sources</strong> {run.sources_succeeded}/{run.sources_attempted}
-                  </span>
-                  <span>
-                    <strong>Documents discovered</strong>{" "}
-                    {formatRunMetric(run.documents_discovered ?? run.docs_found)}
-                  </span>
-                  <span>
-                    <strong>Documents with content</strong>{" "}
-                    {formatRunMetric(run.documents_with_content)}
-                  </span>
-                  <span>
-                    <strong>Events created</strong>{" "}
-                    {formatRunMetric(run.events_created ?? run.new_events)}
-                  </span>
-                  <span>
-                    <strong>Versions created</strong> {formatRunMetric(run.versions_created)}
-                  </span>
-                  <span>
-                    <strong>Documents persisted</strong>{" "}
-                    {formatRunMetric(run.documents_persisted)}
-                  </span>
-                  <span>
-                    <strong>Families touched</strong> {formatRunMetric(run.families_touched)}
-                  </span>
-                  <span>
-                    <strong>Graph extractions</strong> {formatRunMetric(run.graph_extractions)}
-                  </span>
-                  <span>
-                    <strong>Entities extracted</strong>{" "}
-                    {formatRunMetric(run.entities_extracted)}
-                  </span>
-                  <span>
-                    <strong>Obligations extracted</strong>{" "}
-                    {formatRunMetric(run.obligations_extracted)}
-                  </span>
-                  <span>
-                    <strong>Stakeholders extracted</strong>{" "}
-                    {formatRunMetric(run.stakeholders_extracted)}
-                  </span>
-                  <span>
-                    <strong>RAG jobs enqueued</strong> {formatRunMetric(run.rag_jobs_enqueued)}
-                  </span>
-                  <span>
-                    <strong>RAG jobs completed</strong>{" "}
-                    {formatRunMetric(run.rag_jobs_completed)}
-                  </span>
-                  <span>
-                    <strong>RAG jobs failed</strong> {formatRunMetric(run.rag_jobs_failed)}
-                  </span>
-                  <span>
-                    <strong>RAG indexed</strong> {formatRunMetric(run.rag_indexed)}
-                  </span>
-                  <span>
-                    <strong>Chunks indexed</strong> {formatRunMetric(run.chunks_indexed)}
-                  </span>
-                </div>
-                <div className="admin-run-timeline">
-                  <span>Started {formatRelativeDate(run.started_at)}</span>
-                  <span>
-                    Finished{" "}
-                    {run.finished_at ? formatRelativeDate(run.finished_at) : "Not finished"}
-                  </span>
-                  <span>Status {run.status}</span>
-                </div>
-                {run.errors.length ? (
-                  <div className="admin-run-errors">
-                    {run.errors.slice(0, 4).map((error, index) => (
-                      <code key={`${run.id}-error-${index}`}>{JSON.stringify(error)}</code>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted">No errors returned for this run.</p>
-                )}
-              </div>
-            </details>
-          );
-        })}
-        {!runs.length ? <EmptyState title="No crawl runs" body="No crawl run rows are available yet." /> : null}
-      </div>
-    </div>
-  );
-}
-
-export function AdminEventsView() {
-  const { adminEvents } = useWorkspace();
-  return (
-    <Panel title="Events" icon={ClipboardCheck}>
-      <AdminRows
-        rows={adminEvents}
-        columns={[
-          ["ID", (row) => `#${row.id}`],
-          ["Source", (row) => row.source_code ?? "unknown"],
-          ["Title", (row) => <span className="table-title">{row.title}</span>],
-          ["Quality", (row) => row.quality_score ?? "n/a"],
-          ["Significance", (row) => row.significance_score ?? "n/a"],
-          ["Actionability", (row) => row.actionability ?? "n/a"],
-          ["Status", (row) => (row.suppressed ? "Suppressed" : "Visible")],
-        ]}
-      />
-    </Panel>
-  );
-}
-
-export function AdminDocumentsView() {
-  const { adminDocs } = useWorkspace();
-  return (
-    <Panel title="Documents" icon={FileText}>
-      <AdminRows
-        rows={adminDocs}
-        columns={[
-          ["ID", (row) => `#${row.id}`],
-          ["Source", (row) => row.source_code ?? "unknown"],
-          ["Title", (row) => <span className="table-title">{row.title}</span>],
-          ["Type", (row) => row.doc_type ?? "unknown"],
-          ["Family", (row) => row.family_title ?? "unassigned"],
-          ["Version", (row) => row.latest_version_id ?? "n/a"],
-          ["Seen", (row) => formatRelativeDate(row.last_seen_at)],
-        ]}
-      />
-    </Panel>
-  );
-}
-
-export function AdminFamiliesView() {
-  const { families } = useWorkspace();
-  return (
-    <Panel title="Document Families" icon={Network}>
-      <AdminRows
-        rows={families}
-        columns={[
-          ["Family", (row) => <span className="table-title">{row.canonical_title}</span>],
-          ["Issuer", (row) => row.issuer ?? "unknown"],
-          ["Type", (row) => row.document_type ?? "unknown"],
-          ["Docs", (row) => compactNumber(row.document_count)],
-          ["Versions", (row) => compactNumber(row.version_count)],
-          ["Deadlines", (row) => compactNumber(row.deadline_count)],
-        ]}
-      />
-    </Panel>
-  );
-}
-
-export function AdminVersionsView() {
-  const { adminDocs, families } = useWorkspace();
-  return (
-    <Panel title="Document Versions" icon={Layers3}>
-      <AdminRows
-        rows={adminDocs.filter((doc) => doc.latest_version_id)}
-        columns={[
-          ["Document", (row) => `#${row.id}`],
-          ["Latest Version", (row) => row.latest_version_id ?? "n/a"],
-          ["Family", (row) => row.family_title ?? "unassigned"],
-          ["Family Docs", (row) => families.find((family) => String(family.family_id) === String(row.family_id))?.document_count ?? "n/a"],
-          ["Hash", (row) => row.content_hash?.slice(0, 12) ?? row.file_hash?.slice(0, 12) ?? "n/a"],
-          ["Fetched", (row) => formatRelativeDate(row.fetched_at)],
-        ]}
-      />
-    </Panel>
-  );
-}
-
-export function AdminGraphView() {
-  const { stakeholderViews, obligationGroups, activeDeadlines, readinessStatus } = useWorkspace();
-  if (readinessStatus.isLoading) return <LoadingState label="Loading graph intelligence..." />;
-  if (readinessStatus.isError) {
-    return <ErrorState title="Unable to load graph intelligence" error={readinessStatus.error} onRetry={readinessStatus.refetch} />;
-  }
-  const graphRows = [
-    ...stakeholderViews.map((view) => ({
-      type: "Stakeholder",
-      name: view.stakeholder,
-      count: view.counts.obligations ?? view.obligations.length,
-      status: view.counts.deadlines ? "Deadline linked" : "No active deadlines",
-    })),
-    ...obligationGroups.map((group) => ({
-      type: "Obligation Group",
-      name: group.stakeholder,
-      count: group.obligations.length,
-      status: "Obligations extracted",
-    })),
-    ...activeDeadlines.map((deadline) => ({
-      type: "Deadline",
-      name: deadline.title,
-      count: deadline.days_remaining ?? 0,
-      status: deadline.deadline_type,
-    })),
-  ];
-  return (
-    <Panel title="Knowledge Graph" icon={Network}>
-      <AdminRows
-        rows={graphRows}
-        columns={[
-          ["Type", (row) => row.type],
-          ["Name", (row) => <span className="table-title">{row.name}</span>],
-          ["Count", (row) => compactNumber(Number(row.count))],
-          ["Status", (row) => row.status],
-        ]}
-      />
-    </Panel>
-  );
-}
-
-export function AdminRagView() {
-  const {
-    ragStatus,
-    ragChunks,
-    ragSystemStatus,
-    busyAction,
-    loadRagData,
     handleProcessRagJob,
     handleRequeueRagJobs,
-    handleEnqueueRagDocuments,
   } = useWorkspace();
-  if (ragSystemStatus.isLoading) return <LoadingState label="Loading RAG status..." />;
-  return (
-    <div className="page-stack ops-page">
-      {ragSystemStatus.isError ? (
-        <ErrorState title="Unable to load RAG status" error={ragSystemStatus.error} onRetry={ragSystemStatus.refetch} />
-      ) : null}
-      <section className="ops-action-row">
-        <button type="button" onClick={() => void loadRagData()}>
-          <RefreshCw size={16} />
-          Refresh
-        </button>
-        <button type="button" onClick={() => void handleRequeueRagJobs()} disabled={busyAction === "rag-requeue"}>
-          {busyAction === "rag-requeue" ? <Loader2 className="spin" size={16} /> : <History size={16} />}
-          Requeue processing
-        </button>
-        <button type="button" onClick={() => void handleProcessRagJob()} disabled={busyAction === "rag-process"}>
-          {busyAction === "rag-process" ? <Loader2 className="spin" size={16} /> : <Play size={16} />}
-          Process one
-        </button>
-        <button type="button" onClick={() => void handleEnqueueRagDocuments()} disabled={busyAction === "rag-enqueue"}>
-          {busyAction === "rag-enqueue" ? <Loader2 className="spin" size={16} /> : <FileSearch size={16} />}
-          Enqueue existing
-        </button>
-      </section>
-      <section className="metric-grid">
-        <MetricCard title="Chunks" value={ragStatus?.chunks ?? 0} Icon={TableProperties} tone="purple" />
-        <MetricCard title="Embeddings" value={ragStatus?.embeddings ?? 0} Icon={CheckCircle2} tone="green" />
-        <MetricCard title="Ready" value={ragStatus?.ready ?? 0} Icon={Gauge} tone="green" />
-        <MetricCard title="Failed" value={ragStatus?.failed ?? 0} Icon={AlertCircle} tone="red" />
-      </section>
-      <Panel title="Document RAG Readiness" icon={TableProperties}>
-        <AdminRows
-          rows={ragChunks}
-          columns={[
-            ["Document", (row) => `#${row.document_id}`],
-            ["Title", (row) => <span className="table-title">{row.title}</span>],
-            ["Status", (row) => row.status],
-            ["Chunks", (row) => `${row.embedded_chunk_count}/${row.chunk_count}`],
-            ["Provider", (row) => row.provider ?? "n/a"],
-            ["Model", (row) => row.model ?? "n/a"],
-            ["Error", (row) => row.error ?? ""],
-          ]}
-        />
-      </Panel>
-    </div>
-  );
-}
 
-export function AdminQueuesView() {
-  const { ragQueue, ragSystemStatus, handleRequeueRagJobs, busyAction } = useWorkspace();
-  if (ragSystemStatus.isLoading) return <LoadingState label="Loading queues..." />;
+  const enabledSources = sources.filter((source) => source.enabled).length;
+  const degradedSources = sources.filter(
+    (source) => (source.consecutive_failures ?? 0) > 0,
+  ).length;
+  const latestRun = runs[0];
+  const failedRags = ragStatus?.failed_jobs ?? 0;
+
   return (
-    <Panel
-      title="Queues"
-      icon={History}
-      action={
-        <button type="button" onClick={() => void handleRequeueRagJobs()} disabled={busyAction === "rag-requeue"}>
-          {busyAction === "rag-requeue" ? <Loader2 className="spin" size={16} /> : <RefreshCw size={16} />}
-          Requeue
-        </button>
-      }
-    >
-      <AdminRows
-        rows={ragQueue}
-        columns={[
-          ["Job", (row) => `#${row.job_id}`],
-          ["Document", (row) => `#${row.document_id}`],
-          ["Version", (row) => row.version_id ?? "n/a"],
-          ["Status", (row) => row.status],
-          ["Attempts", (row) => row.attempts],
-          ["Updated", (row) => formatRelativeDate(row.updated_at)],
-          ["Last Error", (row) => row.last_error ?? ""],
-        ]}
+    <div className="rv-page">
+      <PageHeader
+        eyebrow="Operations"
+        title="Admin dashboard"
+        description={
+          latestRun
+            ? `Latest crawl #${latestRun.id} started ${formatDateTime(latestRun.started_at)}.`
+            : "No crawl has run yet."
+        }
+        actions={
+          <RefreshButton
+            onClick={() => void loadBaseData()}
+            loading={adminStatus.isFetching}
+            label="Refresh admin telemetry"
+          />
+        }
       />
-    </Panel>
-  );
-}
 
-export function AdminCheckpointsView() {
-  const { checkpoints } = useWorkspace();
-  return (
-    <Panel title="Incremental Crawl Checkpoints" icon={CheckCircle2}>
-      <AdminRows
-        rows={checkpoints}
-        columns={[
-          ["Source", (row) => row.source_code],
-          ["Page", (row) => row.source_page],
-          ["Checkpoint", (row) => <span className="table-title">{row.checkpoint_title ?? "not set"}</span>],
-          ["Issue Date", (row) => formatDate(row.checkpoint_issue_date)],
-          ["Lookback", (row) => row.lookback_count ?? 3],
-          ["Updated", (row) => formatRelativeDate(row.updated_at)],
-        ]}
-      />
-    </Panel>
-  );
-}
+      {adminStatus.isLoading ? (
+        <SkeletonMetrics count={6} />
+      ) : (
+        <MetricStrip ariaLabel="System scale">
+          <Metric
+            label="Sources"
+            value={enabledSources}
+            hint={`${sources.length} registered`}
+          />
+          <Metric
+            label="Degraded sources"
+            value={degradedSources}
+            tone={degradedSources ? "warning" : "neutral"}
+            hint="Consecutive failures"
+          />
+          <Metric label="Monitored pages" value={analytics?.pages ?? sourcePages.length} />
+          <Metric label="Documents" value={analytics?.documents ?? adminDocs.length} />
+          <Metric label="Events" value={analytics?.events ?? adminEvents.length} />
+          <Metric
+            label="RAG failures"
+            value={failedRags}
+            tone={failedRags ? "danger" : "neutral"}
+            hint={`${compactNumber(ragStatus?.ready ?? 0)} indexed`}
+          />
+        </MetricStrip>
+      )}
 
-export function AdminAnalyticsView() {
-  const { analytics } = useWorkspace();
-  return (
-    <div className="page-stack ops-page">
-      <section className="metric-grid">
-        <MetricCard title="Candidates" value={analytics?.candidates ?? 0} Icon={FileSearch} tone="purple" />
-        <MetricCard title="Accepted" value={analytics?.accepted_candidates ?? 0} Icon={CheckCircle2} tone="green" />
-        <MetricCard title="Rejected" value={analytics?.rejected_candidates ?? 0} Icon={AlertCircle} tone="red" />
-        <MetricCard title="Families" value={analytics?.families ?? 0} Icon={Network} tone="amber" />
-      </section>
-      <Panel title="Top Rejection Reasons" icon={Activity}>
-        <AdminRows
-          rows={analytics?.rejected_reasons ?? []}
-          columns={[
-            ["Reason", (row) => row.reason_code ?? "unknown"],
-            ["Count", (row) => compactNumber(row.count)],
-          ]}
+      <section className="rv-section">
+        <SectionHeader
+          title="Recent crawl runs"
+          actions={
+            <Link className="rv-btn rv-btn--secondary rv-btn--sm" href="/admin/runs">
+              Open crawl runs
+            </Link>
+          }
         />
-      </Panel>
-    </div>
-  );
-}
-
-export function AdminUsersView() {
-  const { adminUsers, token, userEmail, setStatusMessage } = useWorkspace();
-  const queryClient = useQueryClient();
-  const roleMutation = useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: "user" | "admin" }) =>
-      updateAdminUserRole(userId, role, token),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.users });
-      setStatusMessage("User role updated.");
-    },
-    onError: (error) => setStatusMessage(error instanceof Error ? error.message : "Unable to update user role."),
-  });
-  const admins = adminUsers.filter((user) => user.role === "admin").length;
-  return (
-    <div className="page-stack ops-page admin-users-console">
-      <section className="ops-page-header premium-page-header">
-        <div>
-          <span>Operations Console</span>
-          <h1>Users</h1>
-          <p>{adminUsers.length} profiles | {admins} admins | role changes are applied through the admin API.</p>
-        </div>
-      </section>
-      <Panel title="User Management" icon={Users}>
-        <AdminRows
-          rows={adminUsers}
-          columns={[
-            ["Email", (row) => <span className="table-title">{row.email ?? "No email"}</span>],
-            ["Name", (row) => row.full_name ?? "Not set"],
-            ["Role", (row) => <span className={`admin-role-pill ${row.role}`}>{row.role}</span>],
-            ["Alerts", (row) => (row.email_enabled ? `${row.frequency ?? "daily"} email` : "in-app only")],
-            ["Topics", (row) => row.topics?.slice(0, 3).join(", ") || "All"],
-            ["Created", (row) => formatRelativeDate(row.created_at)],
-            [
-              "Action",
-              (row) => (
-                <div className="row-actions">
-                  <select
-                    aria-label={`Role for ${row.email ?? row.id}`}
-                    value={row.role}
-                    onChange={(event) =>
-                      roleMutation.mutate({
-                        userId: row.id,
-                        role: event.target.value as "user" | "admin",
-                      })
-                    }
-                    disabled={roleMutation.isPending || row.email === userEmail}
+        {adminStatus.isLoading ? (
+          <SkeletonCards count={3} lines={1} label="Loading recent runs" />
+        ) : runs.length ? (
+          <DataTable
+            caption="Recent crawl runs"
+            rows={runs.slice(0, 8)}
+            rowKey={(run) => run.id}
+            columns={[
+              {
+                id: "run",
+                header: "Run",
+                mobilePrimary: true,
+                render: (run) => <span className="rv-cell-primary">#{run.id}</span>,
+              },
+              {
+                id: "started",
+                header: "Started",
+                render: (run) => (
+                  <span className="rv-cell-secondary">
+                    {formatDateTime(run.started_at)}
+                  </span>
+                ),
+              },
+              {
+                id: "duration",
+                header: "Duration",
+                numeric: true,
+                render: (run) => formatDuration(run.started_at, run.finished_at),
+              },
+              {
+                id: "documents",
+                header: "Documents",
+                numeric: true,
+                render: (run) =>
+                  compactNumber(run.documents_discovered ?? run.docs_found),
+              },
+              {
+                id: "events",
+                header: "Events",
+                numeric: true,
+                render: (run) => compactNumber(run.events_created ?? run.new_events),
+              },
+              {
+                id: "status",
+                header: "Status",
+                render: (run) => (
+                  <StatusBadge kind="run" status={normalizeRunStatus(run.status)} />
+                ),
+              },
+              {
+                id: "actions",
+                header: "Actions",
+                actions: true,
+                render: (run) => (
+                  <Link
+                    className="rv-btn rv-btn--secondary rv-btn--sm"
+                    href={`/admin/runs/${run.id}`}
                   >
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </select>
-                  {row.email === userEmail ? <span className="muted">Current user</span> : null}
-                </div>
-              ),
-            ],
-          ]}
-        />
-        {!adminUsers.length ? (
-          <EmptyState title="No users" body="No profiles were returned by the admin users endpoint." />
-        ) : null}
-      </Panel>
-    </div>
-  );
-}
+                    View
+                  </Link>
+                ),
+              },
+            ]}
+            mobileActions={(run) => (
+              <Link
+                className="rv-btn rv-btn--secondary rv-btn--sm rv-btn--block"
+                href={`/admin/runs/${run.id}`}
+              >
+                View run #{run.id}
+              </Link>
+            )}
+          />
+        ) : (
+          <EmptyState
+            compact
+            title="No crawl runs yet"
+            body="Trigger a crawl from the Sources console to produce the first run."
+            Icon={History}
+            action={
+              <Link className="rv-btn rv-btn--primary rv-btn--sm" href="/admin/sources">
+                Open sources
+              </Link>
+            }
+          />
+        )}
+      </section>
 
-export function AdminSubscriptionsView() {
-  const { settings } = useWorkspace();
-  return (
-    <Panel title="Subscriptions" icon={Bell}>
-      <div className="ops-summary-grid">
-        <div className="detail-fact">
-          <span>Email</span>
-          <strong>{settings.email_enabled ? "Enabled" : "Disabled"}</strong>
+      <section className="rv-section">
+        <SectionHeader
+          title="Retrieval index"
+          actions={
+            <div className="rv-btn-group">
+              <Button
+                variant="secondary"
+                size="sm"
+                Icon={RefreshCw}
+                loading={busyAction === "rag-requeue"}
+                onClick={() => void handleRequeueRagJobs()}
+              >
+                Requeue interrupted
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                Icon={Play}
+                loading={busyAction === "rag-process"}
+                onClick={() => void handleProcessRagJob()}
+              >
+                Process next job
+              </Button>
+            </div>
+          }
+        />
+        <div className="rv-card">
+          <FactList ariaLabel="Retrieval index state">
+            <Fact label="Chunks" value={compactNumber(ragStatus?.chunks ?? 0)} />
+            <Fact label="Embeddings" value={compactNumber(ragStatus?.embeddings ?? 0)} />
+            <Fact label="Documents ready" value={compactNumber(ragStatus?.ready ?? 0)} />
+            <Fact label="Queued jobs" value={compactNumber(ragQueue.length)} />
+            <Fact label="Failed jobs" value={compactNumber(failedRags)} />
+            <Fact label="Document families" value={compactNumber(families.length)} />
+          </FactList>
         </div>
-        <div className="detail-fact">
-          <span>Frequency</span>
-          <strong>{settings.frequency}</strong>
+      </section>
+
+      <section className="rv-section">
+        <SectionHeader title="Jump to" />
+        <div className="rv-quick-links">
+          <Link className="rv-quick-link" href="/admin/sources">
+            <Database size={16} aria-hidden />
+            <span className="rv-cell-primary">Sources</span>
+            <span className="rv-cell-secondary">
+              Registry, monitored pages and crawl triggers
+            </span>
+          </Link>
+          <Link className="rv-quick-link" href="/admin/runs">
+            <History size={16} aria-hidden />
+            <span className="rv-cell-primary">Crawl runs</span>
+            <span className="rv-cell-secondary">
+              Run history, page results and failure diagnostics
+            </span>
+          </Link>
+          <Link className="rv-quick-link" href="/admin/users">
+            <Users size={16} aria-hidden />
+            <span className="rv-cell-primary">Users</span>
+            <span className="rv-cell-secondary">Accounts, roles and alert delivery</span>
+          </Link>
         </div>
-        <div className="detail-fact">
-          <span>Topics</span>
-          <strong>{settings.topics.length}</strong>
-        </div>
-        <div className="detail-fact">
-          <span>Sources</span>
-          <strong>{settings.source_ids.length || "All"}</strong>
-        </div>
-      </div>
-    </Panel>
+      </section>
+    </div>
   );
 }

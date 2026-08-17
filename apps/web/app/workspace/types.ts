@@ -11,26 +11,15 @@ export type RouteKey =
   | "intelligence"
   | "deadlines"
   | "ask"
-  | "documents"
   | "saved"
   | "event"
   | "notifications"
-  | "account"
+  | "notification-preferences"
   | "admin-dashboard"
   | "admin-sources"
-  | "admin-pages"
   | "admin-runs"
-  | "admin-events"
-  | "admin-documents"
-  | "admin-families"
-  | "admin-versions"
-  | "admin-graph"
-  | "admin-rag"
-  | "admin-queues"
-  | "admin-checkpoints"
-  | "admin-analytics"
+  | "admin-run"
   | "admin-users"
-  | "admin-subscriptions"
   | "api-docs"
   | "flow";
 
@@ -65,7 +54,11 @@ export type ChatMessage = {
 
 export type PipelineStatus = "online" | "degraded" | "offline";
 
-export type IntelligenceTab = "deadlines" | "obligations" | "stakeholders" | "readiness" | "timeline";
+/**
+ * Obligations are deliberately absent: they remain a backend/graph concept but
+ * are not a user-facing destination in the product.
+ */
+export type IntelligenceTab = "deadlines" | "stakeholders" | "readiness" | "timeline";
 
 export type EvidenceItem = {
   title: string;

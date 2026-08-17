@@ -46,8 +46,17 @@ export function parseAskErrorResponse(
     typeof payload?.correlation_id === "string"
       ? payload.correlation_id
       : headerCorrelationId;
+  const detailValue = payload?.detail;
+  const fastapiDetail =
+    typeof detailValue === "string"
+      ? detailValue
+      : detailValue !== null &&
+          typeof detailValue === "object" &&
+          typeof (detailValue as { message?: unknown }).message === "string"
+        ? (detailValue as { message: string }).message
+        : undefined;
   return {
-    message: code ? safeAskErrorMessage(code) : detail,
+    message: code ? safeAskErrorMessage(code) : fastapiDetail || detail,
     code,
     correlationId,
   };

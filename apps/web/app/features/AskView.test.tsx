@@ -49,9 +49,9 @@ describe("legacy Ask view", () => {
 
     expect(screen.getByRole("heading", { name: "Ask AI" })).toBeInTheDocument();
     expect(
-      screen.getByText("Start with an evidence-backed regulatory question."),
+      screen.getByRole("heading", { name: /start with an evidence-backed question/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText("No conversation history yet.")).toBeInTheDocument();
+    expect(screen.getByText("No questions yet.")).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", { name: "What changed this week?" }),
@@ -96,8 +96,7 @@ describe("legacy Ask view", () => {
     render(<AskView />);
 
     expect(screen.getByText("Licensed entities must comply.")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText("citations in latest answer")).toBeInTheDocument();
+    expect(screen.getByText("1 citations in latest answer")).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", { name: /1\. Electricity Rules/i }),
@@ -132,9 +131,8 @@ describe("legacy Ask view", () => {
 
     render(<AskView />);
 
-    expect(
-      screen.getByText(/No structured citations were returned/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/no structured citations/i)).toBeInTheDocument();
+    expect(screen.getByText(/insufficient evidence/i)).toBeInTheDocument();
   });
 
   it("wires the controlled composer and submits on Enter", () => {
@@ -151,7 +149,7 @@ describe("legacy Ask view", () => {
     render(<AskView />);
 
     const composer = screen.getByPlaceholderText(
-      "Ask about deadlines, obligations, consultations, amendments, or stakeholder impact",
+      "Ask about deadlines, consultations, amendments or stakeholder impact",
     );
     fireEvent.change(composer, { target: { value: "Updated question" } });
     fireEvent.keyDown(composer, { key: "Enter" });
@@ -173,13 +171,13 @@ describe("legacy Ask view", () => {
     render(<AskView />);
 
     const composer = screen.getByPlaceholderText(
-      "Ask about deadlines, obligations, consultations, amendments, or stakeholder impact",
+      "Ask about deadlines, consultations, amendments or stakeholder impact",
     );
     fireEvent.keyDown(composer, { key: "Enter" });
 
     expect(handleAsk).not.toHaveBeenCalled();
     expect(
-      screen.getByText("Building an evidence-backed answer..."),
+      screen.getByText(/building an evidence-backed answer/i),
     ).toBeInTheDocument();
   });
 });

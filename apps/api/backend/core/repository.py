@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from backend.core.db import session_scope
 from backend.core.logging import log_event
@@ -30,6 +30,9 @@ from backend.core.models import (
 )
 from backend.core.system_docs import SYSTEM_DOCUMENTS
 from backend.core.source_page_policy import (
+    SourceDeleteBlockedError,
+    SourcePageConflictError,
+    SourcePagePermanentDeleteError,
     SourcePagePolicyError,
     diagnose_source_page_selection,
     page_url_permitted_for_source,
@@ -446,7 +449,34 @@ def update_source(source_id: int, payload: SourceUpdatePayload) -> dict[str, Any
 
 
 def delete_source(source_id: int) -> dict[str, Any]:
+    """Delete a source only when it has no source_pages rows.
+
+    FK is ON DELETE RESTRICT so cascades cannot hard-delete pages. Active pages
+    must be removed (soft) and permanently deleted through the page lifecycle
+    before a source can be deleted.
+    """
+
     with session_scope() as session:
+        counts = session.execute(
+            text(
+                """
+                select
+                  count(*) filter (where deleted_at is null)::int as active_pages,
+                  count(*) filter (where deleted_at is not null)::int as retired_pages
+                from source_pages
+                where source_id = :source_id
+                """
+            ),
+            {"source_id": source_id},
+        ).mappings().first()
+        active = int((counts or {}).get("active_pages") or 0)
+        retired = int((counts or {}).get("retired_pages") or 0)
+        if active or retired:
+            raise SourceDeleteBlockedError(
+                "Cannot delete source while source pages remain. "
+                "Remove pages from monitoring, then permanently delete retired "
+                f"page configurations first ({active} active, {retired} retired)."
+            )
         row = session.execute(
             text("delete from sources where id = :source_id returning id"),
             {"source_id": source_id},
@@ -454,17 +484,28 @@ def delete_source(source_id: int) -> dict[str, Any]:
     return {"source_id": source_id, "deleted": bool(row)}
 
 
-def list_source_pages(source_id: int) -> list[dict[str, Any]]:
+def list_source_pages(
+    source_id: int,
+    *,
+    include_retired: bool = False,
+) -> list[dict[str, Any]]:
     try:
         with session_scope() as session:
+            clauses = ["source_id = :source_id"]
+            if not include_retired:
+                clauses.append("deleted_at is null")
             rows = session.execute(
                 text(
-                    """
+                    f"""
                     select id, source_id, name, url, page_type, priority, enabled,
-                           last_crawled_at, created_at, updated_at
+                           last_crawled_at, created_at, updated_at,
+                           deleted_at, deleted_by
                     from source_pages
-                    where source_id = :source_id
-                    order by priority, id
+                    where {" and ".join(clauses)}
+                    order by
+                      case when deleted_at is null then 0 else 1 end,
+                      priority,
+                      id
                     """
                 ),
                 {"source_id": source_id},
@@ -483,12 +524,17 @@ def list_enabled_source_pages(
     """Return crawlable pages from DB configuration (single source of truth).
 
     A page is crawlable when ``sources.enabled`` and ``source_pages.enabled`` are
-    both true. Domain safety is enforced at Admin create/update time via
+    both true and ``source_pages.deleted_at`` is null. Soft-deleted/retired pages
+    are never crawlable. Domain safety is enforced at Admin create/update time via
     ``source_page_policy``; this function does not apply a second hardcoded URL
     allowlist.
     """
 
-    clauses = ["s.enabled = true", "sp.enabled = true"]
+    clauses = [
+        "s.enabled = true",
+        "sp.enabled = true",
+        "sp.deleted_at is null",
+    ]
     params: dict[str, Any] = {}
     if source_id is not None:
         clauses.append("s.id = :source_id")
@@ -510,6 +556,8 @@ def list_enabled_source_pages(
                       sp.priority,
                       sp.enabled,
                       sp.last_crawled_at,
+                      sp.deleted_at,
+                      sp.deleted_by,
                       s.code as source_code,
                       s.name as source_name,
                       s.url as source_url,
@@ -565,6 +613,7 @@ def explain_empty_source_page_selection(
                     from source_pages sp
                     join sources s on s.id = sp.source_id
                     where {" and ".join(clauses)}
+                      and sp.deleted_at is null
                     order by sp.id
                     """
                 ),
@@ -688,17 +737,44 @@ def create_source_page(source_id: int, payload: SourcePagePayload) -> dict[str, 
             source_url=str(source["url"]),
             allowed_domains=list(source["allowed_domains"] or []),
         )
-        row = session.execute(
+        existing = session.execute(
             text(
                 """
-                insert into source_pages (source_id, name, url, page_type, priority, enabled)
-                values (:source_id, :name, :url, :page_type, :priority, :enabled)
-                returning id, source_id, name, url, page_type, priority, enabled,
-                          last_crawled_at, created_at, updated_at
+                select id, url, deleted_at
+                from source_pages
+                where source_id = :source_id
                 """
             ),
-            values,
-        ).mappings().first()
+            {"source_id": source_id},
+        ).mappings()
+        for row in existing:
+            if canonical_url(str(row["url"])) != values["url"]:
+                continue
+            if row["deleted_at"] is not None:
+                raise SourcePageConflictError(
+                    "A removed page with this URL already exists; restore it instead.",
+                    page_id=int(row["id"]),
+                    retired=True,
+                )
+            raise SourcePageConflictError(
+                "Source page already exists",
+                page_id=int(row["id"]),
+                retired=False,
+            )
+        try:
+            row = session.execute(
+                text(
+                    """
+                    insert into source_pages (source_id, name, url, page_type, priority, enabled)
+                    values (:source_id, :name, :url, :page_type, :priority, :enabled)
+                    returning id, source_id, name, url, page_type, priority, enabled,
+                              last_crawled_at, created_at, updated_at, deleted_at, deleted_by
+                    """
+                ),
+                values,
+            ).mappings().first()
+        except IntegrityError as exc:
+            raise SourcePageConflictError("Source page already exists") from exc
     return dict(row) if row else {}
 
 
@@ -714,6 +790,7 @@ def update_source_page(page_id: int, payload: SourcePageUpdatePayload) -> dict[s
                   sp.source_id,
                   sp.url,
                   sp.enabled,
+                  sp.deleted_at,
                   s.url as source_url,
                   s.allowed_domains
                 from source_pages sp
@@ -725,6 +802,10 @@ def update_source_page(page_id: int, payload: SourcePageUpdatePayload) -> dict[s
         ).mappings().first()
         if not current:
             return {}
+        if current["deleted_at"] is not None:
+            raise SourcePagePolicyError(
+                "Cannot edit a removed page; restore it first."
+            )
 
         next_url = values["url"] if values.get("url") is not None else current["url"]
         next_enabled = (
@@ -739,6 +820,32 @@ def update_source_page(page_id: int, payload: SourcePageUpdatePayload) -> dict[s
             if values.get("url") is not None:
                 values["url"] = canonical
 
+        if values.get("url") is not None:
+            others = session.execute(
+                text(
+                    """
+                    select id, url, deleted_at
+                    from source_pages
+                    where source_id = :source_id and id <> :page_id
+                    """
+                ),
+                {"source_id": int(current["source_id"]), "page_id": page_id},
+            ).mappings()
+            for other in others:
+                if canonical_url(str(other["url"])) != values["url"]:
+                    continue
+                if other["deleted_at"] is not None:
+                    raise SourcePageConflictError(
+                        "A removed page with this URL already exists; restore it instead.",
+                        page_id=int(other["id"]),
+                        retired=True,
+                    )
+                raise SourcePageConflictError(
+                    "Source page already exists",
+                    page_id=int(other["id"]),
+                    retired=False,
+                )
+
         row = session.execute(
             text(
                 """
@@ -750,8 +857,9 @@ def update_source_page(page_id: int, payload: SourcePageUpdatePayload) -> dict[s
                     enabled = coalesce(:enabled, enabled),
                     updated_at = now()
                 where id = :page_id
+                  and deleted_at is null
                 returning id, source_id, name, url, page_type, priority, enabled,
-                          last_crawled_at, created_at, updated_at
+                          last_crawled_at, created_at, updated_at, deleted_at, deleted_by
                 """
             ),
             values,
@@ -759,16 +867,229 @@ def update_source_page(page_id: int, payload: SourcePageUpdatePayload) -> dict[s
     return dict(row) if row else {}
 
 
-def delete_source_page(page_id: int) -> dict[str, Any]:
+def retire_source_page(page_id: int, *, deleted_by: str) -> dict[str, Any]:
+    """Soft-delete a monitored page. Never hard-deletes or cascades regulatory data."""
+
     with session_scope() as session:
-        row = session.execute(
-            text("delete from source_pages where id = :page_id returning id, source_id"),
+        current = session.execute(
+            text(
+                """
+                select id, source_id, deleted_at
+                from source_pages
+                where id = :page_id
+                """
+            ),
             {"page_id": page_id},
-        ).first()
+        ).mappings().first()
+        if not current:
+            return {"page_id": page_id, "source_id": None, "retired": False, "page": None}
+        if current["deleted_at"] is not None:
+            page = session.execute(
+                text(
+                    """
+                    select id, source_id, name, url, page_type, priority, enabled,
+                           last_crawled_at, created_at, updated_at, deleted_at, deleted_by
+                    from source_pages
+                    where id = :page_id
+                    """
+                ),
+                {"page_id": page_id},
+            ).mappings().first()
+            return {
+                "page_id": page_id,
+                "source_id": int(current["source_id"]),
+                "retired": True,
+                "already_retired": True,
+                "page": dict(page) if page else None,
+            }
+
+        row = session.execute(
+            text(
+                """
+                update source_pages
+                set deleted_at = now(),
+                    deleted_by = cast(:deleted_by as uuid),
+                    updated_at = now()
+                where id = :page_id
+                  and deleted_at is null
+                returning id, source_id, name, url, page_type, priority, enabled,
+                          last_crawled_at, created_at, updated_at, deleted_at, deleted_by
+                """
+            ),
+            {"page_id": page_id, "deleted_by": deleted_by},
+        ).mappings().first()
+    page = dict(row) if row else None
+    if page:
+        log_event(
+            "source_page_retired",
+            source_id=page["source_id"],
+            source_page_id=page["id"],
+            deleted_by=deleted_by,
+            operation="retire",
+        )
     return {
         "page_id": page_id,
-        "source_id": int(row.source_id) if row else None,
-        "deleted": bool(row),
+        "source_id": int(page["source_id"]) if page else None,
+        "retired": bool(page),
+        "already_retired": False,
+        "page": page,
+    }
+
+
+def restore_source_page(page_id: int) -> dict[str, Any]:
+    """Clear soft-delete markers without changing ``enabled`` or creating a new row."""
+
+    with session_scope() as session:
+        current = session.execute(
+            text(
+                """
+                select id, source_id, deleted_at, enabled
+                from source_pages
+                where id = :page_id
+                """
+            ),
+            {"page_id": page_id},
+        ).mappings().first()
+        if not current:
+            return {"page_id": page_id, "source_id": None, "restored": False, "page": None}
+        if current["deleted_at"] is None:
+            page = session.execute(
+                text(
+                    """
+                    select id, source_id, name, url, page_type, priority, enabled,
+                           last_crawled_at, created_at, updated_at, deleted_at, deleted_by
+                    from source_pages
+                    where id = :page_id
+                    """
+                ),
+                {"page_id": page_id},
+            ).mappings().first()
+            return {
+                "page_id": page_id,
+                "source_id": int(current["source_id"]),
+                "restored": True,
+                "already_active": True,
+                "page": dict(page) if page else None,
+            }
+
+        row = session.execute(
+            text(
+                """
+                update source_pages
+                set deleted_at = null,
+                    deleted_by = null,
+                    updated_at = now()
+                where id = :page_id
+                  and deleted_at is not null
+                returning id, source_id, name, url, page_type, priority, enabled,
+                          last_crawled_at, created_at, updated_at, deleted_at, deleted_by
+                """
+            ),
+            {"page_id": page_id},
+        ).mappings().first()
+    page = dict(row) if row else None
+    if page:
+        log_event(
+            "source_page_restored",
+            source_id=page["source_id"],
+            source_page_id=page["id"],
+            enabled=page["enabled"],
+            operation="restore",
+        )
+    return {
+        "page_id": page_id,
+        "source_id": int(page["source_id"]) if page else None,
+        "restored": bool(page),
+        "already_active": False,
+        "page": page,
+    }
+
+
+def delete_source_page(page_id: int, *, deleted_by: str) -> dict[str, Any]:
+    """Compatibility wrapper: Admin 'remove' soft-deletes; never hard-deletes."""
+
+    result = retire_source_page(page_id, deleted_by=deleted_by)
+    return {
+        "page_id": result["page_id"],
+        "source_id": result["source_id"],
+        "deleted": bool(result.get("retired")),
+        "retired": bool(result.get("retired")),
+        "already_retired": bool(result.get("already_retired")),
+        "page": result.get("page"),
+    }
+
+
+def permanently_delete_source_page(page_id: int, *, actor_id: str) -> dict[str, Any]:
+    """Hard-delete a retired source_pages row only. Never touches regulatory data.
+
+    Preconditions:
+    - The page must exist.
+    - ``deleted_at`` must be set (retired). Active pages are rejected.
+
+    Checkpoints for this page may cascade (page-local crawl resume config).
+    Documents, events, RAG, crawl runs, and discovery history are preserved.
+    """
+
+    with session_scope() as session:
+        current = session.execute(
+            text(
+                """
+                select id, source_id, name, url, deleted_at
+                from source_pages
+                where id = :page_id
+                """
+            ),
+            {"page_id": page_id},
+        ).mappings().first()
+        if not current:
+            return {
+                "page_id": page_id,
+                "source_id": None,
+                "deleted": False,
+                "page": None,
+            }
+        if current["deleted_at"] is None:
+            raise SourcePagePermanentDeleteError(
+                "Only retired source pages can be permanently deleted."
+            )
+
+        row = session.execute(
+            text(
+                """
+                delete from source_pages
+                where id = :page_id
+                  and deleted_at is not null
+                returning id, source_id, name, url
+                """
+            ),
+            {"page_id": page_id},
+        ).mappings().first()
+
+    if not row:
+        return {
+            "page_id": page_id,
+            "source_id": int(current["source_id"]),
+            "deleted": False,
+            "page": None,
+        }
+
+    log_event(
+        "source_page_permanently_deleted",
+        source_id=int(row["source_id"]),
+        source_page_id=int(row["id"]),
+        actor_id=actor_id,
+        operation="permanent_delete",
+    )
+    return {
+        "page_id": int(row["id"]),
+        "source_id": int(row["source_id"]),
+        "deleted": True,
+        "page": {
+            "id": int(row["id"]),
+            "source_id": int(row["source_id"]),
+            "name": row["name"],
+            "url": row["url"],
+        },
     }
 
 
@@ -916,8 +1237,7 @@ def toggle_source(source_id: int) -> dict[str, Any]:
     return {"source_id": source_id, "enabled": bool(row.enabled) if row else False}
 
 
-_CRAWL_RUN_SELECT = """
-select
+_CRAWL_RUN_COLUMNS = """
   cr.id,
   cr.started_at,
   cr.finished_at,
@@ -945,6 +1265,9 @@ select
   linked.rag_jobs_failed,
   linked.rag_ready_documents,
   linked.chunks_indexed
+"""
+
+_CRAWL_RUN_FROM = """
 from crawl_runs cr
 left join lateral (
   select
@@ -1009,6 +1332,8 @@ left join lateral (
     and da.content_hash is not null
 ) linked on true
 """
+
+_CRAWL_RUN_SELECT = f"select {_CRAWL_RUN_COLUMNS} {_CRAWL_RUN_FROM}"
 
 
 def list_crawl_runs(limit: int = 25) -> list[dict[str, Any]]:
@@ -1180,9 +1505,12 @@ def get_source_analytics(source_id: int) -> dict[str, Any]:
                     select
                       (select count(*)
                        from source_pages
-                       where source_id = :source_id) as pages_total,
+                       where source_id = :source_id
+                         and deleted_at is null) as pages_total,
                       (select count(*) from source_pages
-                       where source_id = :source_id and enabled = true) as pages_enabled,
+                       where source_id = :source_id
+                         and enabled = true
+                         and deleted_at is null) as pages_enabled,
                       (select count(*)
                        from documents
                        where source_id = :source_id) as documents_total,
@@ -1264,18 +1592,24 @@ def get_source_analytics(source_id: int) -> dict[str, Any]:
         return {}
 
 
-def list_all_source_pages() -> list[dict[str, Any]]:
+def list_all_source_pages(*, include_retired: bool = False) -> list[dict[str, Any]]:
     try:
         with session_scope() as session:
+            retired_clause = "" if include_retired else "where sp.deleted_at is null"
             rows = session.execute(
                 text(
-                    """
+                    f"""
                     select sp.id, sp.source_id, s.code as source_code, s.name as source_name,
                            sp.name, sp.url, sp.page_type, sp.priority, sp.enabled,
-                           sp.last_crawled_at, sp.created_at, sp.updated_at
+                           sp.last_crawled_at, sp.created_at, sp.updated_at,
+                           sp.deleted_at, sp.deleted_by
                     from source_pages sp
                     join sources s on s.id = sp.source_id
-                    order by s.code, sp.priority, sp.id
+                    {retired_clause}
+                    order by s.code,
+                      case when sp.deleted_at is null then 0 else 1 end,
+                      sp.priority,
+                      sp.id
                     """
                 )
             ).mappings()
@@ -1414,7 +1748,7 @@ def get_admin_analytics() -> dict[str, Any]:
                     """
                     select
                       (select count(*) from sources) as sources,
-                      (select count(*) from source_pages) as pages,
+                      (select count(*) from source_pages where deleted_at is null) as pages,
                       (select count(*) from events) as events,
                       (select count(*) from documents) as documents,
                       (select count(*) from document_families) as families,

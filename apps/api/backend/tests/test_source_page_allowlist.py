@@ -242,6 +242,7 @@ def test_new_admin_source_page_is_selected_solely_from_db(monkeypatch) -> None:
     sql = str(session.execute.call_args.args[0])
     assert "s.enabled = true" in sql
     assert "sp.enabled = true" in sql
+    assert "sp.deleted_at is null" in sql
     assert "ALLOWED_SOURCE_PAGE_URLS" not in sql
 
 
@@ -455,6 +456,8 @@ def test_create_source_page_accepts_derc_host_with_empty_allowed_domains(
             return _Result(
                 [{"id": 18, "url": "https://www.derc.gov.in/", "allowed_domains": []}]
             )
+        if "from source_pages" in sql and "select id, url" in sql:
+            return _Result([])
         return _Result(
             [
                 {
@@ -468,6 +471,8 @@ def test_create_source_page_accepts_derc_host_with_empty_allowed_domains(
                     "last_crawled_at": None,
                     "created_at": None,
                     "updated_at": None,
+                    "deleted_at": None,
+                    "deleted_by": None,
                 }
             ]
         )

@@ -42,6 +42,86 @@ export function formatRelativeDate(value?: string | null) {
   }).format(date);
 }
 
+/** Absolute date + time, for operational logs where the exact moment matters. */
+export function formatDateTime(value?: string | null) {
+  if (!value) return "Not available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+/**
+ * Short compact date for content cards: "11 Aug" within the current year,
+ * "11 Aug 2025" otherwise. Keeps feed metadata to one glanceable token.
+ */
+export function formatShortDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  }).format(date);
+}
+
+/** Elapsed wall-clock time between two timestamps, rendered as 22s / 4m 10s / 1h 6m. */
+export function formatDuration(
+  startedAt?: string | null,
+  finishedAt?: string | null,
+) {
+  if (!startedAt) return "—";
+  const start = new Date(startedAt).getTime();
+  if (!Number.isFinite(start)) return "—";
+  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+  if (!Number.isFinite(end) || end < start) return "—";
+
+  const seconds = Math.max(1, Math.round((end - start) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const rest = seconds % 60;
+    return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `${hours}h ${restMinutes}m` : `${hours}h`;
+}
+
+/**
+ * Pick the one or two dates worth showing on a content card.
+ *
+ * Content items carry up to three timestamps that frequently coincide. Showing
+ * all of them is noise, so this returns a published date plus a deadline only
+ * when the deadline is genuinely different information.
+ */
+export function contentDates(input: {
+  issueDate?: string | null;
+  detectedAt?: string | null;
+  deadline?: string | null;
+}): Array<{ label: string; value: string }> {
+  const dates: Array<{ label: string; value: string }> = [];
+  const published = formatShortDate(input.issueDate ?? input.detectedAt);
+  if (published) {
+    dates.push({
+      label: input.issueDate ? "Published" : "Detected",
+      value: published,
+    });
+  }
+
+  const deadline = formatShortDate(input.deadline);
+  if (deadline && deadline !== published) {
+    dates.push({ label: "Deadline", value: deadline });
+  }
+  return dates;
+}
+
 export function compactNumber(value?: number | null) {
   return new Intl.NumberFormat("en-IN").format(value ?? 0);
 }

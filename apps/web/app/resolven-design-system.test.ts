@@ -4,11 +4,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const appRoot = resolve(import.meta.dirname);
-const globalCss = readFileSync(resolve(appRoot, "globals.css"), "utf8");
-const designCss = readFileSync(
-  resolve(appRoot, "resolven-design-system.css"),
-  "utf8",
-);
+
+/** Line endings depend on the checkout, so assertions compare on LF only. */
+function readCss(name: string) {
+  return readFileSync(resolve(appRoot, name), "utf8").replaceAll("\r\n", "\n");
+}
+
+const globalCss = readCss("globals.css");
+const designCss = readCss("resolven-design-system.css");
 const rootLayout = readFileSync(resolve(appRoot, "layout.tsx"), "utf8");
 
 describe("Resolven presentation design system", () => {

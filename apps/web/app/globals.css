@@ -6499,6 +6499,44 @@ textarea:focus {
   accent-color: #4f46e5;
 }
 
+.admin-inline-confirm {
+  display: grid;
+  gap: 8px;
+  max-width: 28rem;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border, #d4d4d8) 80%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface, #fff) 92%, #f4f4f5);
+}
+
+.admin-inline-confirm p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.admin-page-row-retired {
+  opacity: 0.92;
+}
+
+.admin-retired-badge {
+  display: inline-block;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, #92400e 85%, #1f2937);
+}
+
+.admin-destructive-button {
+  color: #991b1b;
+  border-color: color-mix(in srgb, #991b1b 35%, transparent);
+  background: color-mix(in srgb, #fef2f2 88%, transparent);
+}
+
+.admin-destructive-button:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #991b1b;
+}
+
 .frequency-control {
   justify-content: flex-start;
   flex-wrap: wrap;
@@ -6593,6 +6631,7 @@ textarea:focus {
 .admin-source-create-form input,
 .admin-source-create-form select,
 .admin-source-create-form textarea,
+.admin-add-page-form input,
 .admin-users-console select,
 .row-actions select {
   width: 100%;
@@ -6621,12 +6660,33 @@ textarea:focus {
   gap: 10px;
 }
 
-.admin-page-draft-list {
+.admin-add-page-form {
+  margin: 12px 0 4px;
+  padding: 14px;
+  border: 1px solid rgba(20, 31, 43, 0.1);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.admin-add-page-form label {
   display: grid;
+  gap: 6px;
+  color: #344054;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.admin-add-page-form .admin-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
   gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .admin-page-draft {
+  display: grid;
+  gap: 10px;
   grid-template-columns: 1.1fr 1.7fr 0.9fr 110px 120px auto;
   align-items: end;
   padding: 12px;

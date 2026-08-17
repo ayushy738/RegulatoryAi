@@ -112,6 +112,7 @@ function errorMessage(error: unknown, fallback: string) {
 function useWorkspaceController(
   initialRoute: RouteKey,
   initialEventId: number | undefined,
+  initialRunId: number | undefined,
   v2AskEnabled: boolean,
 ) {
   const route = normalizeRoute(initialRoute, v2AskEnabled);
@@ -195,8 +196,7 @@ function useWorkspaceController(
       route === "deadlines" ||
       route === "dashboard" ||
       route === "event" ||
-      route === "saved" ||
-      route === "documents");
+      route === "saved");
   const deadlinesQuery = useDeadlinesQuery(token, intelligenceEnabled);
   const obligationsQuery = useObligationsQuery(token, intelligenceEnabled);
   const stakeholdersQuery = useStakeholdersQuery(token, intelligenceEnabled);
@@ -209,10 +209,14 @@ function useWorkspaceController(
       (route === "saved" || (route === "ask" && !isolatedV2Surface)),
   );
 
+  /*
+   * Admin datasets are scoped to the screens that actually read them. The
+   * Sources, Crawl Runs and Users consoles fetch their own paginated data, so
+   * pulling whole-table admin reads on every admin route would cost several
+   * unused round trips per navigation.
+   */
   const adminEnabled =
-    canRead &&
-    isAdmin &&
-    (route.startsWith("admin") || route === "dashboard" || route === "documents" || route === "saved");
+    canRead && isAdmin && (route === "admin-dashboard" || route === "dashboard");
   const sourcePagesQuery = useSourcePagesQuery(token, adminEnabled);
   const checkpointsQuery = useCheckpointsQuery(token, adminEnabled);
   const adminDocumentsQuery = useAdminDocumentsQuery(token, adminEnabled);
@@ -220,7 +224,7 @@ function useWorkspaceController(
   const adminFamiliesQuery = useAdminFamiliesQuery(token, adminEnabled);
   const adminAnalyticsQuery = useAdminAnalyticsQuery(token, adminEnabled);
   const adminUsersQuery = useAdminUsersQuery(token, adminEnabled);
-  const ragEnabled = canRead && isAdmin && (route.startsWith("admin") || route === "dashboard");
+  const ragEnabled = canRead && isAdmin && (route === "admin-dashboard" || route === "dashboard");
   const ragStatusQuery = useRagStatusQuery(token, ragEnabled);
   const ragQueueQuery = useRagQueueQuery(token, ragEnabled);
   const ragChunksQuery = useRagChunksQuery(token, ragEnabled);
@@ -632,6 +636,7 @@ function useWorkspaceController(
     route,
     v2AskEnabled,
     initialEventId,
+    initialRunId,
     session,
     user,
     isAuthenticated,
@@ -741,17 +746,20 @@ const WorkspaceContext = createContext<WorkspaceController | null>(null);
 export function WorkspaceProvider({
   initialRoute,
   initialEventId,
+  initialRunId,
   v2AskEnabled = askAiV2UiEnabled,
   children,
 }: {
   initialRoute: RouteKey;
   initialEventId?: number;
+  initialRunId?: number;
   v2AskEnabled?: boolean;
   children: ReactNode;
 }) {
   const controller = useWorkspaceController(
     initialRoute,
     initialEventId,
+    initialRunId,
     v2AskEnabled,
   );
   return <WorkspaceContext.Provider value={controller}>{children}</WorkspaceContext.Provider>;

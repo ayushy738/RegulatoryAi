@@ -1,30 +1,39 @@
-import { useMemo } from "react";
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
-  ArrowRight,
+  ArrowLeft,
   Bookmark,
   CalendarClock,
   CheckCircle2,
   ExternalLink,
-  FileText,
-  ListChecks,
   Search,
   Share2,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { sourceCode } from "@/app/components/events/IntelligenceCard";
+import { Badge } from "@/app/components/ui/Badge";
+import { Button } from "@/app/components/ui/Button";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { ErrorState } from "@/app/components/ui/ErrorState";
-import { LoadingState } from "@/app/components/ui/LoadingState";
-import { clampText, cleanText, eventStakeholders, eventSummary, formatDate } from "@/app/workspace/format";
+import {
+  Fact,
+  FactList,
+  PageHeader,
+  SectionHeader,
+} from "@/app/components/ui/PageHeader";
+import { SkeletonCards } from "@/app/components/ui/Skeleton";
+import {
+  cleanText,
+  eventStakeholders,
+  eventSummary,
+  formatShortDate,
+} from "@/app/workspace/format";
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 import type { DigestEvent } from "@/lib/api";
-
-function sourceName(event: DigestEvent) {
-  return event.issuing_body ?? "Government source";
-}
 
 function eventEvidence(event: DigestEvent) {
   return (
@@ -34,57 +43,90 @@ function eventEvidence(event: DigestEvent) {
   );
 }
 
+/**
+ * Full record for one regulatory event. The obligations panel was removed with
+ * the rest of the obligation path; stakeholder impact and deadlines carry the
+ * same information in language the reader already understands.
+ */
 export function EventDetailView() {
   const {
     selectedEvent,
     handleBookmark,
     eventStatus,
     activeDeadlines,
-    obligationGroups,
     stakeholderViews,
-    adminDocs,
+    busyAction,
     setSelectedEvidence,
     setStatusMessage,
   } = useWorkspace();
   const event = selectedEvent;
 
-  const matchedDocs = useMemo(() => {
-    if (!event) return [];
-    return adminDocs.filter(
-      (doc) =>
-        doc.source_url === event.source_url ||
-        doc.title.toLowerCase() === event.title.toLowerCase() ||
-        doc.title.toLowerCase().includes(event.title.toLowerCase().slice(0, 48)),
+  if (eventStatus.isLoading) {
+    return (
+      <div className="rv-page">
+        <SkeletonCards count={3} lines={4} label="Loading regulatory event" />
+      </div>
     );
-  }, [adminDocs, event]);
-
-  if (eventStatus.isLoading) return <LoadingState label="Loading regulatory event..." />;
-  if (eventStatus.isError) {
-    return <ErrorState title="Unable to load event" error={eventStatus.error} onRetry={eventStatus.refetch} />;
   }
+
+  if (eventStatus.isError) {
+    return (
+      <div className="rv-page">
+        <ErrorState
+          title="Unable to load this event"
+          body="We couldn't retrieve the regulatory event record."
+          error={eventStatus.error}
+          onRetry={eventStatus.refetch}
+        />
+      </div>
+    );
+  }
+
   if (!event) {
-    return <EmptyState title="Event not found" body="The selected regulatory event could not be loaded." />;
+    return (
+      <div className="rv-page">
+        <EmptyState
+          title="Event not found"
+          body="This regulatory event is no longer available, or the link is out of date."
+          action={
+            <Link className="rv-btn rv-btn--primary" href="/latest">
+              Back to latest
+            </Link>
+          }
+        />
+      </div>
+    );
   }
 
   const currentEvent = event;
   const stakeholders = eventStakeholders(event);
   const importantDates = event.summary?.important_dates ?? [];
   const evidence = eventEvidence(event);
-  const confidence = event.summary?.confidence ?? "medium";
   const matchingDeadlines = activeDeadlines.filter(
-    (deadline) => deadline.source_url === event.source_url || deadline.title === event.title,
-  );
-  const matchingObligations = obligationGroups.flatMap((group) =>
-    group.obligations.filter(
-      (item) =>
-        item.source_url === event.source_url ||
-        item.title === event.title ||
-        stakeholders.some((stakeholder) => item.stakeholder.toLowerCase().includes(stakeholder.toLowerCase())),
-    ),
+    (deadline) =>
+      deadline.source_url === event.source_url || deadline.title === event.title,
   );
   const matchingStakeholders = stakeholderViews.filter((view) =>
-    stakeholders.some((stakeholder) => view.stakeholder.toLowerCase().includes(stakeholder.toLowerCase())),
+    stakeholders.some((stakeholder) =>
+      view.stakeholder.toLowerCase().includes(stakeholder.toLowerCase()),
+    ),
   );
+
+  /** One entry per calendar date, so "issued/detected/deadline" cannot repeat. */
+  const timeline = (() => {
+    const seen = new Map<string, string>();
+    const push = (label: string, value?: string | null) => {
+      const formatted = formatShortDate(value);
+      if (!formatted || seen.has(formatted)) return;
+      seen.set(formatted, label);
+    };
+    push("Published", event.issue_date);
+    matchingDeadlines.forEach((deadline) =>
+      push(deadline.deadline_type.replaceAll("_", " "), deadline.deadline_date),
+    );
+    push("Detected by Resolven", event.detected_at);
+    return Array.from(seen, ([value, label]) => ({ label, value }));
+  })();
 
   function shareEvent() {
     const url = `${window.location.origin}/events/${currentEvent.id}`;
@@ -100,9 +142,7 @@ export function EventDetailView() {
       summary: eventSummary(currentEvent),
       evidence: evidence.join("\n"),
       sourceUrl: currentEvent.source_url,
-      documentId: matchedDocs[0]?.id ?? currentEvent.id,
-      family: matchedDocs[0]?.family_title,
-      version: matchedDocs[0]?.latest_version_id,
+      documentId: currentEvent.id,
       relationships: [
         ...stakeholders.map((stakeholder) => `Affects ${stakeholder}`),
         ...matchingDeadlines.map((deadline) => `Deadline ${deadline.deadline_type}`),
@@ -111,196 +151,207 @@ export function EventDetailView() {
   }
 
   return (
-    <section className="ops-page detail-page premium-detail-page">
-      <header className="event-detail-hero">
-        <div className="event-detail-kicker">
-          <span>{sourceName(event)}</span>
-          <span>{event.event_type.replaceAll("_", " ")}</span>
-          <span>Issued {formatDate(event.issue_date)}</span>
-        </div>
-        <h1>{cleanText(event.title)}</h1>
-        <p>{clampText(eventSummary(event), 320)}</p>
-        <div className="event-detail-tags">
-          {event.topic_tags.slice(0, 8).map((tag) => (
-            <span key={tag}>{tag}</span>
+    <div className="rv-page">
+      <Link className="rv-link-button" href="/latest">
+        <ArrowLeft size={14} aria-hidden />
+        Back to latest
+      </Link>
+
+      <PageHeader
+        eyebrow={`${sourceCode(event)} · ${event.event_type.replaceAll("_", " ").toLowerCase()}`}
+        title={cleanText(event.title)}
+        description={
+          <>
+            {event.issuing_body ?? "Government source"}
+            {formatShortDate(event.issue_date)
+              ? ` · Published ${formatShortDate(event.issue_date)}`
+              : ""}
+          </>
+        }
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              Icon={Bookmark}
+              loading={busyAction === `bookmark-${event.id}`}
+              aria-pressed={event.is_bookmarked}
+              onClick={() => void handleBookmark(event)}
+            >
+              {event.is_bookmarked ? "Saved" : "Save"}
+            </Button>
+            <Button variant="ghost" Icon={Share2} onClick={shareEvent}>
+              Share
+            </Button>
+            <Button variant="ghost" Icon={Search} onClick={openEvidence}>
+              Evidence
+            </Button>
+            <a
+              className="rv-btn rv-btn--primary"
+              href={event.source_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={16} aria-hidden />
+              <span>Open source</span>
+            </a>
+          </>
+        }
+      />
+
+      {event.topic_tags.length || stakeholders.length ? (
+        <div className="rv-intel-card__tags">
+          {stakeholders.map((stakeholder) => (
+            <Badge key={stakeholder} tone="brand">
+              {stakeholder}
+            </Badge>
           ))}
-          <span>Confidence {confidence}</span>
-          <span>Action {event.summary?.action_required ?? "monitor"}</span>
+          {event.topic_tags.slice(0, 8).map((tag) => (
+            <Badge key={tag}>{tag}</Badge>
+          ))}
         </div>
-        <div className="event-detail-actions">
-          <button type="button" onClick={() => void handleBookmark(event)}>
-            <Bookmark size={16} fill={event.is_bookmarked ? "currentColor" : "none"} />
-            {event.is_bookmarked ? "Saved" : "Save"}
-          </button>
-          <a href={event.source_url} target="_blank" rel="noreferrer">
-            <ExternalLink size={16} />
-            Open Source
-          </a>
-          <button type="button" onClick={shareEvent}>
-            <Share2 size={16} />
-            Share
-          </button>
-          <button type="button" onClick={openEvidence}>
-            <Search size={16} />
-            Evidence
-          </button>
-        </div>
-      </header>
+      ) : null}
 
-      <div className="event-detail-layout">
-        <main className="event-detail-main">
-          <Section title="Summary" icon={CheckCircle2}>
-            <p className="lead-copy">{eventSummary(event)}</p>
-            <div className="ops-summary-grid compact-facts">
-              <Fact label="Why it matters" value={event.summary?.why_it_matters} />
-              <Fact label="Next deadline" value={importantDates[0] ?? matchingDeadlines[0]?.raw_date ?? "No deadline specified"} />
-              <Fact label="Affected stakeholders" value={stakeholders.length ? stakeholders.join(", ") : "Not classified"} />
-              <Fact label="Source" value={sourceName(event)} />
-            </div>
+      <div className="rv-detail-layout">
+        <div className="rv-detail-main">
+          <Section title="What changed" Icon={CheckCircle2}>
+            <p className="rv-prose">{eventSummary(event)}</p>
+            <FactList ariaLabel="Event summary">
+              <Fact
+                label="Why it matters"
+                value={cleanText(event.summary?.why_it_matters, "Not stated")}
+              />
+              <Fact
+                label="Action required"
+                value={cleanText(event.summary?.action_required, "Monitor")}
+              />
+              <Fact
+                label="Stakeholders"
+                value={stakeholders.length ? stakeholders.join(", ") : "Not classified"}
+              />
+              <Fact
+                label="Confidence"
+                value={cleanText(event.summary?.confidence, "medium")}
+              />
+            </FactList>
           </Section>
 
-          <Section title="Timeline" icon={CalendarClock}>
-            <div className="timeline-list premium-timeline">
-              <TimelineItem label="Issue date" value={formatDate(event.issue_date)} />
-              <TimelineItem label="Detected by Resolven" value={formatDate(event.detected_at)} />
-              {importantDates.map((date) => (
-                <TimelineItem key={date} label="Important date" value={date} />
-              ))}
-              {matchingDeadlines.map((deadline) => (
-                <TimelineItem
-                  key={`${deadline.document_id}-${deadline.deadline_type}`}
-                  label={deadline.deadline_type.replaceAll("_", " ")}
-                  value={formatDate(deadline.deadline_date)}
-                />
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Obligations" icon={ListChecks} action={<Link href="/intelligence">All obligations <ArrowRight size={15} /></Link>}>
-            <div className="ops-mini-list obligation-list">
-              {matchingObligations.map((item, index) => (
-                <button
-                  key={`${item.document_id}-${index}`}
-                  type="button"
-                  onClick={() =>
-                    setSelectedEvidence({
-                      title: item.title,
-                      issuer: item.issuer,
-                      date: item.deadline_date,
-                      summary: item.obligation,
-                      evidence: item.evidence,
-                      sourceUrl: item.source_url,
-                      documentId: item.document_id,
-                      relationships: [`Stakeholder: ${item.stakeholder}`, `Deadline: ${item.deadline_type ?? "none"}`],
-                    })
-                  }
-                >
-                  <strong>{item.obligation}</strong>
-                  <span>{item.stakeholder} | {item.deadline_date ? formatDate(item.deadline_date) : "No deadline"}</span>
-                </button>
-              ))}
-              {!matchingObligations.length ? (
-                <EmptyState title="No matched obligations" body="No obligation row matched this event from current intelligence APIs." />
-              ) : null}
-            </div>
-          </Section>
-
-          <Section title="Stakeholders" icon={Users}>
-            <div className="stakeholder-grid premium-stakeholder-grid">
-              {matchingStakeholders.map((view) => (
-                <article className="intelligence-row" key={view.stakeholder}>
-                  <h3>{view.stakeholder}</h3>
-                  <p>{clampText(view.impact_summary, 280)}</p>
-                  <p>{clampText(view.action_summary, 220)}</p>
-                </article>
-              ))}
-              {!matchingStakeholders.length ? (
-                <EmptyState title="No matched stakeholder profile" body="This event has summary-level stakeholder tags only." />
-              ) : null}
-            </div>
-          </Section>
-
-          {matchedDocs.length ? (
-            <Section title="Documents" icon={FileText}>
-              <div className="ops-mini-list">
-                {matchedDocs.map((doc) => (
-                  <button
-                    type="button"
-                    key={doc.id}
-                    onClick={() =>
-                      setSelectedEvidence({
-                        title: doc.title,
-                        issuer: doc.issuing_body,
-                        date: doc.issue_date,
-                        sourceUrl: doc.source_url,
-                        family: doc.family_title,
-                        version: doc.latest_version_id,
-                        documentId: doc.id,
-                        evidence: doc.source_url,
-                      })
-                    }
-                  >
-                    <strong>{doc.title}</strong>
-                    <span>{doc.source_code ?? "unknown"} | {doc.doc_type ?? "unknown"}</span>
-                  </button>
+          {timeline.length ? (
+            <Section title="Key dates" Icon={CalendarClock}>
+              <ol className="rv-timeline">
+                {timeline.map((entry) => (
+                  <li className="rv-timeline__item" key={`${entry.label}-${entry.value}`}>
+                    <span className="rv-timeline__marker" aria-hidden />
+                    <div className="rv-timeline__body">
+                      <span className="rv-cell-primary">{entry.value}</span>
+                      <span className="rv-meta">{entry.label}</span>
+                    </div>
+                  </li>
                 ))}
-              </div>
+                {importantDates.length ? (
+                  <li className="rv-timeline__item">
+                    <span className="rv-timeline__marker" aria-hidden />
+                    <div className="rv-timeline__body">
+                      <span className="rv-cell-primary">Dates cited in the document</span>
+                      <span className="rv-meta">{importantDates.join(" · ")}</span>
+                    </div>
+                  </li>
+                ) : null}
+              </ol>
             </Section>
           ) : null}
-        </main>
 
-        <aside className="event-detail-side">
-          <section className="ops-panel next-action-panel">
-            <span>What to do next</span>
-            <strong>{importantDates[0] ?? matchingDeadlines[0]?.raw_date ?? "Review source document"}</strong>
-            <p>{clampText(event.summary?.why_it_matters, 220, "No action rationale returned for this event.")}</p>
+          <Section title="Stakeholder impact" Icon={Users}>
+            {matchingStakeholders.length ? (
+              <div className="rv-card-list">
+                {matchingStakeholders.map((view) => (
+                  <article className="rv-card" key={view.stakeholder}>
+                    <h3 className="rv-card-title">{view.stakeholder}</h3>
+                    <p className="rv-prose">{view.impact_summary}</p>
+                    <p className="rv-helper">{view.action_summary}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                compact
+                title="No detailed stakeholder profile"
+                body="This event carries summary-level stakeholder tags only."
+              />
+            )}
+          </Section>
+
+          {evidence.length ? (
+            <Section title="Evidence from the source" Icon={Search}>
+              <ul className="rv-notes">
+                {evidence.slice(0, 6).map((quote, index) => (
+                  <li key={`${quote.slice(0, 24)}-${index}`}>{quote}</li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
+        </div>
+
+        <aside className="rv-detail-side">
+          <section className="rv-card">
+            <SectionHeader as="h2" title="What to do next" />
+            <p className="rv-prose">
+              {cleanText(
+                event.summary?.why_it_matters,
+                "Review the source document and confirm whether it affects your filings.",
+              )}
+            </p>
+            {matchingDeadlines.length ? (
+              <FactList ariaLabel="Deadlines">
+                {matchingDeadlines.slice(0, 3).map((deadline) => (
+                  <Fact
+                    key={`${deadline.document_id}-${deadline.deadline_type}`}
+                    label={deadline.deadline_type.replaceAll("_", " ")}
+                    value={formatShortDate(deadline.deadline_date) ?? "Date not stated"}
+                  />
+                ))}
+              </FactList>
+            ) : (
+              <p className="rv-helper">No dated obligation was extracted for this event.</p>
+            )}
+            <a
+              className="rv-btn rv-btn--secondary rv-btn--block"
+              href={event.source_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={15} aria-hidden />
+              <span>Read the original</span>
+            </a>
           </section>
         </aside>
       </div>
-    </section>
+    </div>
   );
 }
 
 function Section({
   title,
-  icon: Icon,
+  Icon,
   action,
   children,
 }: {
   title: string;
-  icon: LucideIcon;
+  Icon: LucideIcon;
   action?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="ops-panel event-section">
-      <header>
-        <h2>
-          <Icon size={18} />
-          {title}
-        </h2>
-        {action}
-      </header>
+    <section className="rv-section">
+      <SectionHeader
+        as="h2"
+        title={
+          <>
+            <Icon size={16} aria-hidden /> {title}
+          </>
+        }
+        actions={action}
+      />
       {children}
     </section>
-  );
-}
-
-function Fact({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div className="detail-fact">
-      <span>{label}</span>
-      <strong>{cleanText(value, "Not available")}</strong>
-    </div>
-  );
-}
-
-function TimelineItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span />
-      <strong>{label}</strong>
-      <p>{value}</p>
-    </div>
   );
 }

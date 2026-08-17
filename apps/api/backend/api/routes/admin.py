@@ -1,8 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.auth import CurrentUser, admin_user, rag_process_user
+from backend.core.admin_queries import (
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+    get_crawl_run_pages,
+    list_admin_users_page,
+    list_crawl_run_sources,
+    list_crawl_runs_page,
+    list_sources_page,
+)
 from backend.core.logging import log_event
 from backend.core.models import (
     CrawlTriggerResponse,
@@ -30,11 +39,37 @@ from backend.core.repository import (
     list_source_page_checkpoints,
     list_source_pages,
     list_sources,
+    permanently_delete_source_page,
+    restore_source_page,
     update_admin_user,
     update_source,
     update_source_page,
 )
-from backend.core.source_page_policy import SourcePagePolicyError
+from backend.core.source_page_policy import (
+    SourceDeleteBlockedError,
+    SourcePageConflictError,
+    SourcePagePermanentDeleteError,
+    SourcePagePolicyError,
+)
+
+
+def _source_page_conflict_detail(exc: SourcePageConflictError) -> dict[str, object] | str:
+    """Prefer structured 409 detail when a retired duplicate should be restored."""
+
+    if exc.retired and exc.page_id is not None:
+        return {
+            "message": str(exc),
+            "page_id": exc.page_id,
+            "retired": True,
+            "hint": "restore",
+        }
+    if exc.page_id is not None:
+        return {
+            "message": str(exc),
+            "page_id": exc.page_id,
+            "retired": False,
+        }
+    return str(exc)
 from backend.pipeline.github_dispatch import CrawlDispatchError, dispatch_crawl_workflow
 from backend.pipeline.run_once import queue_crawl_run
 from backend.rag.admin import (
@@ -58,16 +93,60 @@ AdminUserDep = Annotated[CurrentUser, Depends(admin_user)]
 RagProcessUserDep = Annotated[CurrentUser, Depends(rag_process_user)]
 
 
+PageParam = Annotated[int, Query(ge=1)]
+PageSizeParam = Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)]
+
+
 @router.get("/sources")
-async def sources(user: AdminUserDep) -> list[dict]:
+async def sources(
+    user: AdminUserDep,
+    q: str | None = None,
+    jurisdiction: str | None = None,
+    status: str = "all",
+    last_run: str = "all",
+    page: PageParam = 1,
+    page_size: PageSizeParam = DEFAULT_PAGE_SIZE,
+) -> dict:
+    """Paginated source registry with search, jurisdiction/status/last-run filters."""
+
+    del user
+    return list_sources_page(
+        q=q,
+        jurisdiction=jurisdiction,
+        status=status,
+        last_run=last_run,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/sources/all")
+async def all_sources(user: AdminUserDep) -> list[dict]:
+    """Unpaginated registry, for pickers that need every source code."""
+
     del user
     return list_sources()
 
 
 @router.get("/users")
-async def users(user: AdminUserDep) -> list[dict]:
+async def users(
+    user: AdminUserDep,
+    q: str | None = None,
+    role: str = "all",
+    notifications: str = "all",
+    page: PageParam = 1,
+    page_size: PageSizeParam = DEFAULT_PAGE_SIZE,
+) -> dict:
+    """Paginated user directory with search plus role/notification filters."""
+
     del user
-    return list_admin_users()
+    return list_admin_users_page(
+        q=q,
+        role=role,
+        notifications=notifications,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.put("/users/{user_id}")
@@ -108,16 +187,23 @@ async def edit_source(
 @router.delete("/sources/{source_id}")
 async def remove_source(source_id: int, user: AdminUserDep) -> dict:
     del user
-    result = delete_source(source_id)
+    try:
+        result = delete_source(source_id)
+    except SourceDeleteBlockedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if result["deleted"]:
         return result
     raise HTTPException(status_code=404, detail="Source not found")
 
 
 @router.get("/sources/{source_id}/pages")
-async def source_pages(source_id: int, user: AdminUserDep) -> list[dict]:
+async def source_pages(
+    source_id: int,
+    user: AdminUserDep,
+    include_retired: bool = False,
+) -> list[dict]:
     del user
-    return list_source_pages(source_id)
+    return list_source_pages(source_id, include_retired=include_retired)
 
 
 @router.post("/sources/{source_id}/pages")
@@ -129,6 +215,11 @@ async def add_source_page(
     del user
     try:
         return create_source_page(source_id, payload)
+    except SourcePageConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=_source_page_conflict_detail(exc),
+        ) from exc
     except SourcePagePolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -142,6 +233,11 @@ async def edit_source_page(
     del user
     try:
         page = update_source_page(page_id, payload)
+    except SourcePageConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=_source_page_conflict_detail(exc),
+        ) from exc
     except SourcePagePolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if page:
@@ -151,11 +247,46 @@ async def edit_source_page(
 
 @router.delete("/pages/{page_id}")
 async def remove_source_page(page_id: int, user: AdminUserDep) -> dict:
-    del user
-    result = delete_source_page(page_id)
+    """Soft-delete (retire) a monitored page. Never hard-deletes the row."""
+
+    result = delete_source_page(page_id, deleted_by=user.id)
     if result["deleted"]:
         return result
     raise HTTPException(status_code=404, detail="Source page not found")
+
+
+@router.post("/pages/{page_id}/retire")
+async def retire_page(page_id: int, user: AdminUserDep) -> dict:
+    """Explicit retire alias for soft-delete (same semantics as DELETE)."""
+
+    result = delete_source_page(page_id, deleted_by=user.id)
+    if result["deleted"]:
+        return result
+    raise HTTPException(status_code=404, detail="Source page not found")
+
+
+@router.post("/pages/{page_id}/restore")
+async def restore_page(page_id: int, user: AdminUserDep) -> dict:
+    """Clear soft-delete markers; preserves page id and enabled state."""
+
+    del user
+    result = restore_source_page(page_id)
+    if result.get("page") is None and not result.get("restored"):
+        raise HTTPException(status_code=404, detail="Source page not found")
+    return result
+
+
+@router.delete("/pages/{page_id}/permanent")
+async def permanently_delete_page(page_id: int, user: AdminUserDep) -> dict:
+    """Hard-delete a retired page configuration only. Preserves regulatory data."""
+
+    try:
+        result = permanently_delete_source_page(page_id, actor_id=user.id)
+    except SourcePagePermanentDeleteError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not result.get("deleted"):
+        raise HTTPException(status_code=404, detail="Source page not found")
+    return result
 
 
 @router.post("/pages/{page_id}/crawl", response_model=CrawlTriggerResponse)
@@ -233,9 +364,34 @@ async def crawl_source(
 
 
 @router.get("/runs")
-async def crawl_runs(user: AdminUserDep) -> list[dict]:
+async def crawl_runs(
+    user: AdminUserDep,
+    q: str | None = None,
+    source_code: str | None = None,
+    status: str = "all",
+    date_range: str = "all",
+    page: PageParam = 1,
+    page_size: PageSizeParam = DEFAULT_PAGE_SIZE,
+) -> dict:
+    """Paginated crawl-run telemetry with search plus source/status/date filters."""
+
     del user
-    return list_crawl_runs()
+    return list_crawl_runs_page(
+        q=q,
+        source_code=source_code,
+        status=status,
+        date_range=date_range,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/runs/sources")
+async def crawl_run_source_options(user: AdminUserDep) -> list[dict]:
+    """Source codes that appear in crawl history, for the run source filter."""
+
+    del user
+    return list_crawl_run_sources()
 
 
 @router.get("/runs/{run_id}")
@@ -247,10 +403,23 @@ async def crawl_run(run_id: int, user: AdminUserDep) -> dict:
     raise HTTPException(status_code=404, detail="Crawl run not found")
 
 
-@router.get("/pages")
-async def all_source_pages(user: AdminUserDep) -> list[dict]:
+@router.get("/runs/{run_id}/pages")
+async def crawl_run_pages(run_id: int, user: AdminUserDep) -> list[dict]:
+    """Per-page results for one run, derived from discovery audit and run errors."""
+
     del user
-    return list_all_source_pages()
+    if not get_crawl_run(run_id):
+        raise HTTPException(status_code=404, detail="Crawl run not found")
+    return get_crawl_run_pages(run_id)
+
+
+@router.get("/pages")
+async def all_source_pages(
+    user: AdminUserDep,
+    include_retired: bool = False,
+) -> list[dict]:
+    del user
+    return list_all_source_pages(include_retired=include_retired)
 
 
 @router.get("/checkpoints")

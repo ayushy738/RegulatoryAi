@@ -1,12 +1,10 @@
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
 
-import {
-  AdminDashboardView,
-  AdminGate,
-  AdminRunsView,
-  AdminSourcesView,
-  AdminUsersView,
-} from "./AdminViews";
+import { AdminDashboardView, AdminGate } from "./AdminViews";
+import { AdminRunDetailView } from "./admin/AdminRunDetailView";
+import { AdminRunsView } from "./admin/AdminRunsView";
+import { AdminSourcesView } from "./admin/AdminSourcesView";
+import { AdminUsersView } from "./admin/AdminUsersView";
 import { AskRoute } from "./AskRoute";
 import { DashboardView } from "./DashboardView";
 import { DeadlinesView } from "./DeadlinesView";
@@ -14,20 +12,19 @@ import { EventDetailView } from "./EventDetailView";
 import { IntelligenceView } from "./IntelligenceView";
 import { LatestView } from "./LatestView";
 import { ManualDocumentSearchRoute } from "./ManualDocumentSearchRoute";
+import { NotificationsView } from "./NotificationsView";
 import { SavedView } from "./SavedView";
 import { DocsView, FlowView } from "./StaticViews";
 
 export function RouteView() {
-  const { route, v2AskEnabled } = useWorkspace();
+  const { route, v2AskEnabled, initialRunId } = useWorkspace();
   switch (route) {
     case "dashboard":
       return <DashboardView />;
     case "latest":
       return <LatestView />;
     case "browse":
-      return v2AskEnabled
-        ? <ManualDocumentSearchRoute />
-        : <LatestView />;
+      return v2AskEnabled ? <ManualDocumentSearchRoute /> : <LatestView />;
     case "intelligence":
       return <IntelligenceView />;
     case "deadlines":
@@ -38,6 +35,9 @@ export function RouteView() {
       return <SavedView />;
     case "event":
       return <EventDetailView />;
+    case "notifications":
+    case "notification-preferences":
+      return <NotificationsView />;
     case "admin-dashboard":
       return (
         <AdminGate>
@@ -50,25 +50,18 @@ export function RouteView() {
           <AdminSourcesView />
         </AdminGate>
       );
-    case "admin-pages":
-      return <AdminGate><AdminSourcesView /></AdminGate>;
     case "admin-runs":
       return (
         <AdminGate>
           <AdminRunsView />
         </AdminGate>
       );
-    case "admin-events":
-    case "admin-documents":
-    case "admin-families":
-    case "admin-versions":
-    case "admin-graph":
-    case "admin-rag":
-    case "admin-queues":
-    case "admin-checkpoints":
-    case "admin-analytics":
-    case "admin-subscriptions":
-      return <AdminGate><AdminRunsView /></AdminGate>;
+    case "admin-run":
+      return (
+        <AdminGate>
+          <AdminRunDetailView runId={initialRunId ?? 0} />
+        </AdminGate>
+      );
     case "admin-users":
       return (
         <AdminGate>

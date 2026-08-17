@@ -38,16 +38,20 @@ import type {
 import { askTurnListSchema } from "./ask-ai-turns";
 import {
   adminAnalyticsSchema,
+  adminCrawlRunPageResponseSchema,
   adminDocumentListSchema,
   adminEventListSchema,
   adminFamilyListSchema,
-  adminUserListSchema,
+  adminSourcePageResponseSchema,
+  adminUserPageResponseSchema,
   adminUserSchema,
   chatConversationDetailSchema,
   chatConversationSummarySchema,
   chatHistorySchema,
   chatResponseSchema,
-  crawlRunListSchema,
+  crawlRunPageResultListSchema,
+  crawlRunSchema,
+  crawlRunSourceOptionListSchema,
   crawlTriggerResponseSchema,
   digestResponseSchema,
   digestEventSchema,
@@ -78,14 +82,24 @@ import {
 
 export type {
   AdminAnalytics,
+  AdminCrawlRun,
+  AdminCrawlRunPageResponse,
   AdminDocument,
   AdminEvent,
   AdminFamily,
+  AdminSource,
+  AdminSourcePageResponse,
   AdminUser,
+  AdminUserPageResponse,
+  AdminUserSummary,
   ChatHistoryItem,
   ChatResponse,
   CrawlRun,
+  CrawlRunPageResult,
+  CrawlRunSourceOption,
+  CrawlRunSummary,
   CrawlTriggerResponse,
+  SourceFacets,
   DigestEvent,
   DigestResponse,
   HealthResponse,
@@ -569,8 +583,36 @@ export function getSourceCatalog(token?: string) {
   return validatedFetch("/sources/catalog", sourceCatalogListSchema, token);
 }
 
+export type SourceListQuery = {
+  q?: string;
+  jurisdiction?: string;
+  status?: string;
+  last_run?: string;
+  page?: number;
+  page_size?: number;
+};
+
+function queryString(params: Record<string, string | number | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === "" || value === "all") continue;
+    search.set(key, String(value));
+  }
+  return search.toString() ? `?${search.toString()}` : "";
+}
+
+/** Paginated, filtered source registry for the admin sources console. */
+export function getAdminSources(token?: string, query: SourceListQuery = {}) {
+  return validatedFetch(
+    `/admin/sources${queryString({ ...query })}`,
+    adminSourcePageResponseSchema,
+    token,
+  );
+}
+
+/** Admin gate probe / full registry for pickers that need every source. */
 export function getSources(token?: string) {
-  return validatedFetch("/admin/sources", sourceHealthListSchema, token);
+  return validatedFetch("/admin/sources/all", sourceHealthListSchema, token);
 }
 
 export function createSource(payload: SourceCreatePayload, token?: string) {
@@ -603,6 +645,20 @@ export function deleteSource(sourceId: number, token?: string) {
   });
 }
 
+/** Monitored pages for one source, loaded when a source row is expanded. */
+export function getSourcePagesForSource(
+  sourceId: number,
+  token?: string,
+  includeRetired = false,
+) {
+  const suffix = includeRetired ? "?include_retired=true" : "";
+  return validatedFetch(
+    `/admin/sources/${sourceId}/pages${suffix}`,
+    sourcePageListSchema,
+    token,
+  );
+}
+
 export function createSourcePage(sourceId: number, payload: SourcePageCreatePayload, token?: string) {
   return validatedFetch(`/admin/sources/${sourceId}/pages`, sourcePageSchema, token, {
     method: "POST",
@@ -622,19 +678,81 @@ export function updateSourcePage(
 }
 
 export function deleteSourcePage(pageId: number, token?: string) {
-  return apiFetch<{ page_id: number; source_id: number | null; deleted: boolean }>(
-    `/admin/pages/${pageId}`,
+  return apiFetch<{
+    page_id: number;
+    source_id: number | null;
+    deleted: boolean;
+    retired?: boolean;
+    already_retired?: boolean;
+    page?: unknown;
+  }>(`/admin/pages/${pageId}`, token, { method: "DELETE" });
+}
+
+export function restoreSourcePage(pageId: number, token?: string) {
+  return apiFetch<{
+    page_id: number;
+    source_id: number | null;
+    restored: boolean;
+    already_active?: boolean;
+    page?: unknown;
+  }>(`/admin/pages/${pageId}/restore`, token, { method: "POST" });
+}
+
+export function permanentlyDeleteSourcePage(pageId: number, token?: string) {
+  return apiFetch<{
+    page_id: number;
+    source_id: number | null;
+    deleted: boolean;
+    page?: unknown;
+  }>(`/admin/pages/${pageId}/permanent`, token, { method: "DELETE" });
+}
+
+export type RunListQuery = {
+  q?: string;
+  source_code?: string;
+  status?: string;
+  date_range?: string;
+  page?: number;
+  page_size?: number;
+};
+
+/** Paginated, filtered crawl-run telemetry for the operations console. */
+export function getAdminRuns(token?: string, query: RunListQuery = {}) {
+  return validatedFetch(
+    `/admin/runs${queryString({ ...query })}`,
+    adminCrawlRunPageResponseSchema,
     token,
-    { method: "DELETE" },
+  );
+}
+
+export function getAdminRun(runId: number, token?: string) {
+  return validatedFetch(`/admin/runs/${runId}`, crawlRunSchema, token);
+}
+
+/** Per-page results for one run: what was attempted, found, and what failed. */
+export function getAdminRunPages(runId: number, token?: string) {
+  return validatedFetch(
+    `/admin/runs/${runId}/pages`,
+    crawlRunPageResultListSchema,
+    token,
+  );
+}
+
+export function getCrawlRunSourceOptions(token?: string) {
+  return validatedFetch(
+    "/admin/runs/sources",
+    crawlRunSourceOptionListSchema,
+    token,
   );
 }
 
 export function getRuns(token?: string) {
-  return validatedFetch("/admin/runs", crawlRunListSchema, token);
+  return getAdminRuns(token, { page_size: 25 }).then((response) => response.items);
 }
 
-export function getSourcePages(token?: string) {
-  return validatedFetch("/admin/pages", sourcePageListSchema, token);
+export function getSourcePages(token?: string, includeRetired = false) {
+  const suffix = includeRetired ? "?include_retired=true" : "";
+  return validatedFetch(`/admin/pages${suffix}`, sourcePageListSchema, token);
 }
 
 export function getSourcePageCheckpoints(token?: string) {
@@ -657,8 +775,21 @@ export function getAdminAnalytics(token?: string) {
   return validatedFetch("/admin/analytics", adminAnalyticsSchema, token);
 }
 
-export function getAdminUsers(token?: string) {
-  return validatedFetch("/admin/users", adminUserListSchema, token);
+export type UserListQuery = {
+  q?: string;
+  role?: string;
+  notifications?: string;
+  page?: number;
+  page_size?: number;
+};
+
+/** Paginated, filtered user directory for the admin user console. */
+export function getAdminUsers(token?: string, query: UserListQuery = {}) {
+  return validatedFetch(
+    `/admin/users${queryString({ ...query })}`,
+    adminUserPageResponseSchema,
+    token,
+  );
 }
 
 export function updateAdminUserRole(userId: string, role: "user" | "admin", token?: string) {

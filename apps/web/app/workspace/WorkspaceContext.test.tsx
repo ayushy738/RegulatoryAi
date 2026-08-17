@@ -73,6 +73,10 @@ function responseFor(path: string) {
     };
   }
   if (path === "/admin/analytics") return {};
+  /* Paginated admin list endpoints answer with an envelope, not a bare array. */
+  if (path === "/admin/runs" || path === "/admin/sources" || path === "/admin/users") {
+    return { items: [], total: 0, page: 1, page_size: 25, total_pages: 1 };
+  }
   return [];
 }
 
@@ -208,7 +212,7 @@ describe("Workspace Ask boot ownership", () => {
           "/health",
           "/digests/latest",
           "/subscriptions",
-          "/admin/sources",
+          "/admin/sources/all",
           "/admin/runs",
         ]),
       ),
@@ -228,7 +232,7 @@ describe("Workspace Ask boot ownership", () => {
         expect.arrayContaining([
           "/digests/latest",
           "/subscriptions",
-          "/admin/sources",
+          "/admin/sources/all",
           "/admin/runs",
         ]),
       );
@@ -286,7 +290,7 @@ describe("Workspace Ask boot ownership", () => {
     for (const path of [
       "/digests/latest",
       "/subscriptions",
-      "/admin/sources",
+      "/admin/sources/all",
       "/admin/runs",
       "/chat/history",
     ]) {

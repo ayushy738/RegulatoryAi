@@ -250,6 +250,58 @@ export const crawlRunSchema = z.looseObject({
 
 export const crawlRunListSchema = z.array(crawlRunSchema);
 
+export const crawlRunSummarySchema = z.object({
+  runs_today: z.coerce.number().default(0),
+  queued: z.coerce.number().default(0),
+  running: z.coerce.number().default(0),
+  success: z.coerce.number().default(0),
+  partial: z.coerce.number().default(0),
+  failed: z.coerce.number().default(0),
+});
+
+/** Per-page result for one crawl run, derived from discovery audit + errors. */
+export const crawlRunPageResultSchema = z.looseObject({
+  page_id: z.number().nullable().optional(),
+  page_name: z.string(),
+  page_url: z.string().nullable().optional(),
+  page_type: z.string().nullable().optional(),
+  priority: z.coerce.number().nullable().optional(),
+  enabled: z.boolean().nullable().optional(),
+  source_code: z.string().nullable().optional(),
+  source_name: z.string().nullable().optional(),
+  documents_discovered: z.coerce.number().default(0),
+  documents_accepted: z.coerce.number().default(0),
+  documents_with_content: z.coerce.number().default(0),
+  first_seen_at: z.string().nullable().optional(),
+  last_seen_at: z.string().nullable().optional(),
+  errors: z.array(z.record(z.string(), z.unknown())).default([]),
+  status: z.enum(["success", "failed", "no_documents"]).default("no_documents"),
+});
+
+export const crawlRunPageResultListSchema = z.array(crawlRunPageResultSchema);
+
+export const crawlRunSourceOptionSchema = z.object({
+  code: z.string(),
+  name: z.string().nullable().optional(),
+});
+
+export const crawlRunSourceOptionListSchema = z.array(crawlRunSourceOptionSchema);
+
+export const adminCrawlRunSchema = crawlRunSchema.extend({
+  source_codes: z.array(z.string()).default([]),
+});
+
+export const adminCrawlRunPageResponseSchema = paginated(adminCrawlRunSchema).extend({
+  summary: crawlRunSummarySchema.default({
+    runs_today: 0,
+    queued: 0,
+    running: 0,
+    success: 0,
+    partial: 0,
+    failed: 0,
+  }),
+});
+
 export const crawlTriggerResponseSchema = z.looseObject({
   run_id: z.coerce.number(),
   status: z.string(),
@@ -281,6 +333,42 @@ export const sourceHealthSchema = z.looseObject({
 
 export const sourceHealthListSchema = z.array(sourceHealthSchema);
 
+/** Server-side paging envelope shared by the admin list endpoints. */
+function paginated<S extends z.ZodType>(item: S) {
+  return z.object({
+    items: z.array(item),
+    total: z.coerce.number().default(0),
+    page: z.coerce.number().default(1),
+    page_size: z.coerce.number().default(20),
+    total_pages: z.coerce.number().default(0),
+  });
+}
+
+/** Source row enriched with the page counts the registry lateral provides. */
+export const adminSourceSchema = sourceHealthSchema.extend({
+  page_count: z.coerce.number().default(0),
+  enabled_page_count: z.coerce.number().default(0),
+  last_page_crawled_at: z.string().nullable().optional(),
+});
+
+export const sourceFacetsSchema = z.object({
+  total: z.coerce.number().default(0),
+  enabled: z.coerce.number().default(0),
+  disabled: z.coerce.number().default(0),
+  degraded: z.coerce.number().default(0),
+  never_crawled: z.coerce.number().default(0),
+});
+
+export const adminSourcePageResponseSchema = paginated(adminSourceSchema).extend({
+  facets: sourceFacetsSchema.default({
+    total: 0,
+    enabled: 0,
+    disabled: 0,
+    degraded: 0,
+    never_crawled: 0,
+  }),
+});
+
 export const sourcePageSchema = z.looseObject({
   id: z.number(),
   source_id: z.number(),
@@ -294,6 +382,8 @@ export const sourcePageSchema = z.looseObject({
   last_crawled_at: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),
+  deleted_at: z.string().nullable().optional(),
+  deleted_by: z.string().nullable().optional(),
 });
 
 export const sourcePageListSchema = z.array(sourcePageSchema);
@@ -310,6 +400,22 @@ export const adminUserSchema = z.looseObject({
 });
 
 export const adminUserListSchema = z.array(adminUserSchema);
+
+export const adminUserSummarySchema = z.object({
+  total: z.coerce.number().default(0),
+  admins: z.coerce.number().default(0),
+  users: z.coerce.number().default(0),
+  email_enabled: z.coerce.number().default(0),
+});
+
+export const adminUserPageResponseSchema = paginated(adminUserSchema).extend({
+  summary: adminUserSummarySchema.default({
+    total: 0,
+    admins: 0,
+    users: 0,
+    email_enabled: 0,
+  }),
+});
 
 export const sourcePageCheckpointSchema = z.looseObject({
   source_page_id: z.number(),
@@ -512,6 +618,18 @@ export type ChatHistoryItem = z.infer<typeof chatHistoryItemSchema>;
 export type ChatResponse = z.infer<typeof chatResponseSchema>;
 export type RagCitation = z.infer<typeof ragCitationSchema>;
 export type SourceHealth = z.infer<typeof sourceHealthSchema>;
+export type AdminSource = z.infer<typeof adminSourceSchema>;
+export type AdminSourcePageResponse = z.infer<typeof adminSourcePageResponseSchema>;
+export type SourceFacets = z.infer<typeof sourceFacetsSchema>;
+export type AdminCrawlRun = z.infer<typeof adminCrawlRunSchema>;
+export type AdminCrawlRunPageResponse = z.infer<
+  typeof adminCrawlRunPageResponseSchema
+>;
+export type CrawlRunSummary = z.infer<typeof crawlRunSummarySchema>;
+export type CrawlRunPageResult = z.infer<typeof crawlRunPageResultSchema>;
+export type CrawlRunSourceOption = z.infer<typeof crawlRunSourceOptionSchema>;
+export type AdminUserPageResponse = z.infer<typeof adminUserPageResponseSchema>;
+export type AdminUserSummary = z.infer<typeof adminUserSummarySchema>;
 export type SourcePage = z.infer<typeof sourcePageSchema>;
 export type AdminUser = z.infer<typeof adminUserSchema>;
 export type SourcePageCheckpoint = z.infer<typeof sourcePageCheckpointSchema>;

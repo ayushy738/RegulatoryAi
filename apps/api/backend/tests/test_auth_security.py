@@ -117,12 +117,22 @@ def test_valid_admin_still_succeeds(
             )
         ),
     )
-    monkeypatch.setattr(admin, "list_sources", lambda: [{"id": 1, "name": "MNRE"}])
+    monkeypatch.setattr(
+        admin,
+        "list_sources_page",
+        lambda **_kwargs: {
+            "items": [{"id": 1, "name": "MNRE"}],
+            "total": 1,
+            "page": 1,
+            "page_size": 20,
+            "total_pages": 1,
+        },
+    )
 
     response = client.get("/admin/sources", headers={"Authorization": "Bearer admin-token"})
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == [{"id": 1, "name": "MNRE"}]
+    assert response.json()["items"] == [{"id": 1, "name": "MNRE"}]
 
 
 def test_every_admin_route_requires_the_admin_dependency() -> None:

@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
-import { AlertCircle, Loader2, LockKeyhole, X } from "lucide-react";
+import { AlertCircle, Loader2, LockKeyhole } from "lucide-react";
 
 import { LandingPage } from "@/app/components/auth/LandingPage";
 import { ProtectedRoute } from "@/app/components/auth/ProtectedRoute";
 import { AdminTopBar, TopBar } from "@/app/components/layout/TopBar";
+import { Button } from "@/app/components/ui/Button";
 import { EvidenceDrawer } from "@/app/components/ui/EvidenceDrawer";
+import { TextField } from "@/app/components/ui/Field";
+import { Overlay } from "@/app/components/ui/Overlay";
 import { RouteView } from "@/app/features/RouteView";
 import { useWorkspace, WorkspaceProvider } from "@/app/workspace/WorkspaceContext";
 import type { RouteKey } from "@/app/workspace/types";
@@ -14,12 +17,18 @@ import type { RouteKey } from "@/app/workspace/types";
 export function ResolvenApp({
   initialRoute,
   initialEventId,
+  initialRunId,
 }: {
   initialRoute: RouteKey;
   initialEventId?: number;
+  initialRunId?: number;
 }) {
   const workspace = (
-    <WorkspaceProvider initialRoute={initialRoute} initialEventId={initialEventId}>
+    <WorkspaceProvider
+      initialRoute={initialRoute}
+      initialEventId={initialEventId}
+      initialRunId={initialRunId}
+    >
       <ResolvenShell />
     </WorkspaceProvider>
   );
@@ -76,9 +85,9 @@ function ResolvenShell() {
   }
 
   return (
-    <div className={isAdminRoute ? "admin-shell" : "product-shell"}>
+    <div className="rv-shell">
       {isAdminRoute ? <AdminTopBar /> : <TopBar />}
-      <main className={isAdminRoute ? "admin-main-shell" : "product-main-shell"}>
+      <main className="rv-shell__main">
         {statusMessage ? (
           <div className="status-banner">
             <AlertCircle size={18} />
@@ -91,64 +100,56 @@ function ResolvenShell() {
         <RouteView />
       </main>
       <EvidenceDrawer />
-      {authModalOpen ? (
-        <div className="auth-modal-backdrop" role="presentation" onClick={closeAuthModal}>
-          <section
-            className="auth-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="auth-modal-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="auth-modal-header">
-              <div>
-                <LockKeyhole size={18} />
-                <h2 id="auth-modal-title">Sign in to continue</h2>
-              </div>
-              <button type="button" aria-label="Close sign in" onClick={closeAuthModal}>
-                <X size={18} />
-              </button>
-            </div>
-            <form
-              className="auth-modal-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleSignIn();
-              }}
-            >
-              <label>
-                Email
-                <input
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="analyst@company.com"
-                  type="email"
-                  autoComplete="email"
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter password"
-                  type="password"
-                  autoComplete="current-password"
-                />
-              </label>
-              {authMessage ? <p className="notice">{authMessage}</p> : null}
-              <div className="auth-modal-actions">
-                <button type="button" className="secondary-button" onClick={closeAuthModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-button">
-                  Sign In
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      ) : null}
+      <Overlay
+        open={authModalOpen}
+        onClose={closeAuthModal}
+        title="Sign in to continue"
+        description="Your session expired or this action needs an authenticated account."
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeAuthModal}>
+              Cancel
+            </Button>
+            <Button variant="primary" Icon={LockKeyhole} onClick={() => void handleSignIn()}>
+              Sign in
+            </Button>
+          </>
+        }
+      >
+        <form
+          className="rv-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSignIn();
+          }}
+        >
+          {authMessage ? (
+            <p className="rv-field__error" role="alert">
+              {authMessage}
+            </p>
+          ) : null}
+          <TextField
+            label="Email"
+            type="email"
+            wide
+            autoFocus
+            autoComplete="email"
+            value={email}
+            placeholder="analyst@company.com"
+            onChange={setEmail}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            wide
+            autoComplete="current-password"
+            value={password}
+            placeholder="Enter password"
+            onChange={setPassword}
+          />
+        </form>
+      </Overlay>
     </div>
   );
 }

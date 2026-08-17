@@ -28,6 +28,29 @@ class SourcePagePolicyError(ValueError):
     """Raised when a source/page URL violates crawl safety policy."""
 
 
+class SourcePageConflictError(ValueError):
+    """Raised when a monitored page URL already exists for the source."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        page_id: int | None = None,
+        retired: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.page_id = page_id
+        self.retired = retired
+
+
+class SourcePagePermanentDeleteError(ValueError):
+    """Raised when permanent delete is attempted on a non-retired page."""
+
+
+class SourceDeleteBlockedError(ValueError):
+    """Raised when deleting a source would bypass the source_page lifecycle."""
+
+
 def crawl_domains_for_source(
     *,
     source_url: str,

@@ -38,11 +38,39 @@ describe("Ask AI safe errors", () => {
     });
   });
 
-  it("preserves the legacy raw-body fallback when no stable code exists", () => {
+  it("extracts FastAPI detail strings when no Ask AI code exists", () => {
     expect(
-      parseAskErrorResponse('{"detail":"legacy failure"}', "header-request"),
+      parseAskErrorResponse('{"detail":"Source page already exists"}', "header-request"),
     ).toEqual({
-      message: '{"detail":"legacy failure"}',
+      message: "Source page already exists",
+      code: undefined,
+      correlationId: "header-request",
+    });
+  });
+
+  it("extracts message from structured FastAPI detail objects", () => {
+    expect(
+      parseAskErrorResponse(
+        JSON.stringify({
+          detail: {
+            message: "A removed page with this URL already exists; restore it instead.",
+            page_id: 84,
+            retired: true,
+            hint: "restore",
+          },
+        }),
+        "header-request",
+      ),
+    ).toEqual({
+      message: "A removed page with this URL already exists; restore it instead.",
+      code: undefined,
+      correlationId: "header-request",
+    });
+  });
+
+  it("preserves the legacy raw-body fallback when JSON has no detail string", () => {
+    expect(parseAskErrorResponse("legacy failure", "header-request")).toEqual({
+      message: "legacy failure",
       code: undefined,
       correlationId: "header-request",
     });

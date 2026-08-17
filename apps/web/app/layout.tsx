@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./resolven-design-system.css";
+import "./resolven-ui.css";
 import { Providers } from "./providers";
 import { ErrorBoundary } from "./resolven/error-boundary";
 
