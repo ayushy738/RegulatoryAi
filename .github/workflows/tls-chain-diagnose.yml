@@ -1,0 +1,59 @@
+name: TLS Chain Diagnose
+
+# Read-only TLS/certificate diagnostics from the same ubuntu-latest runner class
+# as crawl-worker. Does not crawl, claim crawl_runs, or change TLS policy.
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "Hostname to probe"
+        required: true
+        type: string
+        default: "www.derc.gov.in"
+      path:
+        description: "HTTPS path for GET probe"
+        required: true
+        type: string
+        default: "/notices/press-release"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Run TLS chain diagnostic
+        env:
+          CRAWL_WORKER: "0"
+        run: |
+          python -m backend.tools.tls_chain_diagnose \
+            --host "${{ inputs.host }}" \
+            --path "${{ inputs.path }}"
+
+      - name: OpenSSL s_client chain dump
+        run: |
+          set -euo pipefail
+          HOST="${{ inputs.host }}"
+          echo "===== openssl version ====="
+          openssl version -a
+          echo "===== s_client -showcerts (verify) ====="
+          echo | openssl s_client -connect "${HOST}:443" -servername "${HOST}" -showcerts 2>&1 | head -n 160 || true
+        working-directory: .

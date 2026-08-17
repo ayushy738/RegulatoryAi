@@ -18,6 +18,7 @@ from backend.core.logging import log_event
 from backend.core.models import DiscoveredDoc
 from backend.core.utils import canonical_url, sha256_normalized_text
 from backend.core.source_page_policy import crawl_domains_for_source, host_permitted
+from backend.pipeline.tls_errors import classify_tls_exception
 
 DOCUMENT_KEYWORDS = (
     "regulation",
@@ -662,6 +663,7 @@ def _log_http_fetch_failure(
         except OSError:
             dns_resolved = False
             dns_addresses = None
+    tls = classify_tls_exception(exc)
     log_event(
         "http_fetch_failed",
         url=url,
@@ -672,11 +674,13 @@ def _log_http_fetch_failure(
         timeout_seconds=timeout_seconds,
         tls_verify=verify,
         elapsed_ms=elapsed_ms,
-        error_type=type(exc).__name__,
+        error_type=(tls["error_type"] if tls else type(exc).__name__),
         error_message=str(exc),
         error_repr=repr(exc),
         dns_resolved=dns_resolved,
         dns_addresses=dns_addresses,
+        tls_reason=(tls["tls_reason"] if tls else None),
+        cause_type=(tls["cause_type"] if tls else None),
     )
 
 

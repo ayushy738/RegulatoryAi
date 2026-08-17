@@ -33,6 +33,52 @@ describe("classifyCrawlError", () => {
     );
   });
 
+  it("prefers structured tls_reason from the pipeline payload", () => {
+    const result = classifyCrawlError({
+      error:
+        "TLS certificate verification failed: unable to get local issuer certificate",
+      error_type: "tls_certificate_error",
+      tls_reason: "unable_to_get_local_issuer",
+      cause_type: "ConnectError",
+      error_message:
+        "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate",
+      url: "https://gercin.org/orders/tariff_orders",
+      source: "GERC",
+    });
+
+    expect(result.category).toBe("tls");
+    expect(result.title).toBe(
+      "TLS certificate verification failed: unable to get local issuer certificate",
+    );
+    expect(result.explanation).toContain("unable to get local issuer certificate");
+    expect(result.explanation.toLowerCase()).not.toContain("verify=false");
+    expect(result.facts).toEqual(
+      expect.arrayContaining([
+        { label: "Error type", value: "tls_certificate_error" },
+        {
+          label: "TLS reason",
+          value: "unable to get local issuer certificate",
+        },
+        { label: "Underlying error", value: "ConnectError" },
+      ]),
+    );
+  });
+
+  it("surfaces self-signed-in-chain reason for DERC-style failures", () => {
+    const result = classifyCrawlError({
+      error:
+        "TLS certificate verification failed: self-signed certificate in certificate chain",
+      error_type: "tls_certificate_error",
+      tls_reason: "self_signed_certificate_in_chain",
+      cause_type: "ConnectError",
+      url: "https://www.derc.gov.in/notices/press-release",
+    });
+
+    expect(result.category).toBe("tls");
+    expect(result.title).toContain("self-signed certificate in certificate chain");
+    expect(result.host).toBe("www.derc.gov.in");
+  });
+
   it("never suggests weakening TLS verification", () => {
     const result = classifyCrawlError({
       error: "certificate verify failed",

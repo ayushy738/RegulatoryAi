@@ -115,13 +115,27 @@ type Rule = {
   retryability: Retryability;
 };
 
+const TLS_REASON_LABELS: Record<string, string> = {
+  unable_to_get_local_issuer: "unable to get local issuer certificate",
+  self_signed_certificate_in_chain: "self-signed certificate in certificate chain",
+  hostname_verification_failed: "hostname verification failed",
+  expired_certificate: "expired certificate",
+  certificate_not_yet_valid: "certificate not yet valid",
+  certificate_verification_failed: "certificate verification failed",
+};
+
+function tlsReasonLabel(reason: string): string {
+  return TLS_REASON_LABELS[reason] ?? reason.replaceAll("_", " ");
+}
+
 /** Ordered most-specific first: the first matching rule wins. */
 const RULES: Rule[] = [
   {
     category: "tls",
-    matches: (haystack) =>
-      /certificate|ssl|tls|sslerror|cert_?verify|hostname mismatch|self.signed/i.test(
-        haystack,
+    matches: (haystack, type) =>
+      type === "tls_certificate_error" ||
+      /certificate|ssl|tls|sslerror|cert_?verify|hostname mismatch|self.signed|tls_certificate_error/i.test(
+        `${haystack} ${type}`,
       ),
     title: "Secure connection could not be verified",
     explanation: ({ host }) =>
@@ -253,6 +267,8 @@ export function classifyCrawlError(
 
   const host = extractHost(raw, haystack);
   const httpStatus = extractHttpStatus(raw, haystack);
+  const tlsReason = firstString(raw, ["tls_reason"]);
+  const causeType = firstString(raw, ["cause_type"]);
   const rule =
     RULES.find((candidate) => candidate.matches(haystack, errorType, httpStatus)) ??
     null;
@@ -269,6 +285,8 @@ export function classifyCrawlError(
   if (affectedPage) facts.push({ label: "Page", value: affectedPage });
   if (sourceCode) facts.push({ label: "Source", value: sourceCode });
   if (errorType) facts.push({ label: "Error type", value: errorType });
+  if (tlsReason) facts.push({ label: "TLS reason", value: tlsReasonLabel(tlsReason) });
+  if (causeType) facts.push({ label: "Underlying error", value: causeType });
 
   // Configuration diagnosis keys, when the pipeline recorded an empty selection.
   for (const [key, label] of [
@@ -298,10 +316,25 @@ export function classifyCrawlError(
     };
   }
 
+  let explanation = rule.explanation({ host, status: httpStatus });
+  let title = rule.title;
+  if (rule.category === "tls" && tlsReason) {
+    const label = tlsReasonLabel(tlsReason);
+    title = `TLS certificate verification failed: ${label}`;
+    explanation =
+      `The crawler could not verify the TLS certificate for ${host ?? "the source host"} ` +
+      `(${label}). TLS verification stays enabled; fix the source certificate chain or trust-path mismatch rather than bypassing verification.`;
+  } else if (
+    rule.category === "tls" &&
+    message.toLowerCase().startsWith("tls certificate verification failed:")
+  ) {
+    title = truncate(message, 120);
+  }
+
   return {
     category: rule.category,
-    title: rule.title,
-    explanation: rule.explanation({ host, status: httpStatus }),
+    title,
+    explanation,
     retryability: rule.retryability,
     facts,
     affectedPage,
