@@ -603,9 +603,18 @@ async def _fetch_response(
     verify: bool = True,
     timeout: int = 45,
 ) -> httpx.Response:
+    """HTTP GET with retries. TLS ``verify`` is fixed for all attempts.
+
+    Certificate failures must fail closed: retries never flip ``verify`` to
+    ``False``. Diagnostic tools may probe with verify disabled separately;
+    this production fetch path does not.
+    """
+
     request_headers = {"User-Agent": settings.crawl_user_agent, **(headers or {})}
     last_error: Exception | None = None
     hostname = urlparse(url).hostname
+    # Capture once so retries cannot accidentally mutate TLS policy.
+    tls_verify = verify
     for attempt in range(3):
         started = time.perf_counter()
         try:
@@ -613,7 +622,7 @@ async def _fetch_response(
                 headers=request_headers,
                 follow_redirects=True,
                 timeout=timeout,
-                verify=verify,
+                verify=tls_verify,
             ) as client:
                 response = await client.get(url)
                 response.raise_for_status()
@@ -626,7 +635,7 @@ async def _fetch_response(
                 attempt=attempt + 1,
                 max_attempts=3,
                 timeout_seconds=timeout,
-                verify=verify,
+                verify=tls_verify,
                 elapsed_ms=int((time.perf_counter() - started) * 1000),
                 exc=exc,
             )

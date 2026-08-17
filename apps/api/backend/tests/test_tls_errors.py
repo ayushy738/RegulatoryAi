@@ -90,6 +90,8 @@ def test_serialize_generic_ssl_verify_failed_reason() -> None:
         ("certificate has expired", "expired_certificate"),
         ("certificate is not yet valid", "certificate_not_yet_valid"),
         ("hostname mismatch", "hostname_verification_failed"),
+        ("unable to verify the first certificate", "unable_to_get_local_issuer"),
+        ("verify error:num=19:self-signed certificate in certificate chain", "self_signed_certificate_in_chain"),
     ],
 )
 def test_classify_specific_reasons(message: str, reason: str) -> None:

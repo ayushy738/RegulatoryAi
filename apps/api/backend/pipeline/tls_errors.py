@@ -23,11 +23,19 @@ TLS_ERROR_TYPE = "tls_certificate_error"
 _REASON_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         TLS_REASON_UNABLE_TO_GET_LOCAL_ISSUER,
-        re.compile(r"unable to get local issuer certificate", re.I),
+        re.compile(
+            r"unable to get local issuer certificate|"
+            r"unable to verify the first certificate",
+            re.I,
+        ),
     ),
     (
         TLS_REASON_SELF_SIGNED_IN_CHAIN,
-        re.compile(r"self[- ]signed certificate in certificate chain", re.I),
+        re.compile(
+            r"self[- ]signed certificate in certificate chain|"
+            r"verify error:num=19",
+            re.I,
+        ),
     ),
     (
         TLS_REASON_HOSTNAME_MISMATCH,
