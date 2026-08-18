@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
-import type { SubscriptionSettings } from "@/lib/api";
+import type { RagCitation, SubscriptionSettings } from "@/lib/api";
 
 export type RouteKey =
   | "landing"
@@ -37,17 +37,7 @@ export type ChatMessage = {
   content: string;
   created_at?: string | null;
   intent?: string | null;
-  citations?: Array<{
-    document_id: number;
-    title: string;
-    issuer?: string | null;
-    issue_date?: string | null;
-    source_url: string;
-    chunk_id?: number | null;
-    page_number?: number | null;
-    section_title?: string | null;
-    evidence?: string | null;
-  }>;
+  citations?: RagCitation[];
   related_questions?: string[];
   model?: string | null;
 };

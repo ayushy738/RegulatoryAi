@@ -358,7 +358,7 @@ function Citations({
             type="button"
             onClick={() =>
               setSelectedEvidence({
-                title: citation.title,
+                title: citation.title ?? "Official source",
                 issuer: citation.issuer,
                 date: citation.issue_date,
                 evidence: citation.evidence,

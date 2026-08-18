@@ -54,6 +54,7 @@ import {
 import { askAiV2UiEnabled } from "@/lib/ask-ai-flags";
 
 import { patchDigestEvents, patchEventBookmark } from "@/lib/bookmarks";
+import { cleanText, eventStakeholders, eventSummary } from "./format";
 import { defaultSettings, normalizeRoute } from "./types";
 import type {
   ChatMessage,
