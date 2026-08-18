@@ -254,7 +254,7 @@ export function AdminDashboardView() {
             <Fact label="Failed jobs" value={compactNumber(failedRags)} />
             <Fact label="Document families" value={compactNumber(families.length)} />
           </FactList>
-        </div>
+    </div>
       </section>
 
       <section className="rv-section">

@@ -88,15 +88,15 @@ export const eventBookmarkStateSchema = z.object({
 });
 
 export const ragCitationSchema = z.looseObject({
-  document_id: z.coerce.number(),
-  title: z.string(),
-  issuer: z.string().nullable().optional(),
-  issue_date: z.string().nullable().optional(),
-  source_url: z.string(),
+  document_id: z.coerce.number().optional().nullable(),
+  title: z.string().nullish(),
+  issuer: z.string().nullish(),
+  issue_date: z.string().nullish(),
+  source_url: z.string().nullish(),
   chunk_id: z.coerce.number().nullable().optional(),
   page_number: z.coerce.number().nullable().optional(),
-  section_title: z.string().nullable().optional(),
-  evidence: z.string().nullable().optional(),
+  section_title: z.string().nullish(),
+  evidence: z.string().nullish(),
 });
 
 export const chatResponseSchema = z.object({
@@ -127,7 +127,7 @@ export const chatConversationMessageSchema = z.object({
     .enum(["official", "general", "none"])
     .nullable()
     .optional(),
-  citations: z.array(ragCitationSchema).default([]),
+  citations: z.array(ragCitationSchema).catch([]),
 });
 
 export const chatConversationDetailSchema = z.object({

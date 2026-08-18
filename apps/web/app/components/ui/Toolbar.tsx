@@ -83,14 +83,25 @@ export function FilterSelect({
   const id = useId();
   const active = value !== defaultValue;
   const selected = options.find((option) => option.value === value);
+  const display = selected
+    ? selected.value === defaultValue
+      ? label
+      : selected.label
+    : label;
 
   return (
-    <span className={`rv-select${active ? " rv-select--active" : ""}`}>
+    <span
+      className={`rv-select${active ? " rv-select--active" : ""}`}
+      title={`${label}: ${display}`}
+    >
       <label className="rv-visually-hidden" htmlFor={id}>
         {label}
       </label>
-      {active ? <span aria-hidden>{label}:</span> : null}
-      <select id={id} value={value} onChange={(event) => onChange(event.target.value)}>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.value === defaultValue ? label : option.label}
@@ -98,9 +109,6 @@ export function FilterSelect({
         ))}
       </select>
       <ChevronDown className="rv-select__chevron" size={14} aria-hidden />
-      <span className="rv-visually-hidden">
-        {selected ? `${label} is ${selected.label}` : ""}
-      </span>
     </span>
   );
 }

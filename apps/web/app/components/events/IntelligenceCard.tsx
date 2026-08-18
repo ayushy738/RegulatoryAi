@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bookmark, CalendarClock, ExternalLink, Search } from "lucide-react";
+import {
+  ArrowRight,
+  Bookmark,
+  CalendarClock,
+  Check,
+  ExternalLink,
+  Search,
+} from "lucide-react";
 
 import { Badge } from "@/app/components/ui/Badge";
 import { Button } from "@/app/components/ui/Button";
@@ -84,18 +91,16 @@ export function IntelligenceCard({
         {clampText(eventSummary(event), compact ? 180 : 320)}
       </p>
 
-      {stakeholders.length || event.topic_tags.length ? (
-        <div className="rv-intel-card__tags">
-          {stakeholders.slice(0, 3).map((stakeholder) => (
-            <Badge key={stakeholder} tone="brand">
-              {stakeholder}
-            </Badge>
-          ))}
-          {event.topic_tags.slice(0, compact ? 2 : 3).map((tag) => (
-            <Badge key={tag}>{tag}</Badge>
-          ))}
-        </div>
-      ) : null}
+      <div className="rv-intel-card__tags">
+        {stakeholders.slice(0, 3).map((stakeholder) => (
+          <Badge key={stakeholder} tone="brand">
+            {stakeholder}
+          </Badge>
+        ))}
+        {event.topic_tags.slice(0, compact ? 2 : 3).map((tag) => (
+          <Badge key={tag}>{tag}</Badge>
+        ))}
+      </div>
 
       <footer className="rv-intel-card__footer">
         <span className="rv-intel-card__dates">
@@ -117,7 +122,7 @@ export function IntelligenceCard({
           <Button
             variant="ghost"
             size="sm"
-            Icon={Bookmark}
+            Icon={event.is_bookmarked ? Check : Bookmark}
             loading={busy}
             aria-pressed={event.is_bookmarked}
             onClick={onBookmark}
@@ -133,7 +138,10 @@ export function IntelligenceCard({
             <ExternalLink size={14} aria-hidden />
             <span>Source</span>
           </a>
-          <Link className="rv-btn rv-btn--secondary rv-btn--sm" href={`/events/${event.id}`}>
+          <Link
+            className="rv-btn rv-btn--secondary rv-btn--sm rv-intel-card__open"
+            href={`/events/${event.id}`}
+          >
             <span>Open</span>
             <ArrowRight size={14} aria-hidden />
           </Link>

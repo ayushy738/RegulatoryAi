@@ -188,7 +188,7 @@ function DashboardPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rv-card">
+    <section className="rv-card rv-card--fill">
       <SectionHeader
         as="h2"
         title={
@@ -203,14 +203,20 @@ function DashboardPanel({
           </Link>
         }
       />
-      {children}
+      <div className="rv-card__body">{children}</div>
     </section>
   );
 }
 
 function EventList({ events, empty }: { events: DigestEvent[]; empty: string }) {
   if (!events.length) {
-    return <EmptyState compact title="Nothing here" body={empty} />;
+    return (
+      <EmptyState
+        compact
+        title="No items in this briefing"
+        body={empty}
+      />
+    );
   }
   return (
     <ul className="rv-mini-list">

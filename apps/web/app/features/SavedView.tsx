@@ -18,6 +18,7 @@ import {
   formatShortDate,
 } from "@/app/workspace/format";
 import { useWorkspace } from "@/app/workspace/WorkspaceContext";
+import { useEventsQuery } from "@/lib/queries";
 
 /**
  * Saved is a reading list, not a second dashboard: the same intelligence card
@@ -25,14 +26,21 @@ import { useWorkspace } from "@/app/workspace/WorkspaceContext";
  */
 export function SavedView() {
   const {
-    savedEvents,
+    savedEvents: digestSavedEvents,
     activeDeadlines,
     chatMessages,
     busyAction,
     handleBookmark,
     digestStatus,
     setSelectedEvidence,
+    token,
+    canRead,
   } = useWorkspace();
+
+  const savedQuery = useEventsQuery(token, canRead, { bookmarked: true });
+  const savedEvents = (
+    savedQuery.isSuccess ? (savedQuery.data ?? []) : digestSavedEvents
+  ).filter((event) => event.is_bookmarked);
 
   const [search, setSearch] = useState("");
 
@@ -58,7 +66,7 @@ export function SavedView() {
     );
   }, [savedEvents, search]);
 
-  if (digestStatus.isLoading) {
+  if (digestStatus.isLoading && savedQuery.isLoading) {
     return (
       <div className="rv-page">
         <PageHeader eyebrow="Workbench" title="Saved intelligence" />
@@ -67,15 +75,18 @@ export function SavedView() {
     );
   }
 
-  if (digestStatus.isError) {
+  if ((digestStatus.isError && savedQuery.isError) || (savedQuery.isError && !savedEvents.length)) {
     return (
       <div className="rv-page">
         <PageHeader eyebrow="Workbench" title="Saved intelligence" />
         <ErrorState
           title="Unable to load saved items"
           body="We couldn't retrieve your bookmarks."
-          error={digestStatus.error}
-          onRetry={digestStatus.refetch}
+          error={savedQuery.error ?? digestStatus.error}
+          onRetry={() => {
+            digestStatus.refetch();
+            void savedQuery.refetch();
+          }}
         />
       </div>
     );

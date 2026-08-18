@@ -19,9 +19,11 @@ import {
   listChatConversations,
   sendChat,
 } from "@/lib/api";
+import { dedupeCitations, stripEmbeddedSources } from "@/lib/citations";
 import type { ChatResponse } from "@/lib/schemas";
 
 type CitationCard = {
+  document_id?: number | null;
   title?: string | null;
   issuer?: string | null;
   issue_date?: string | null;
@@ -75,8 +77,7 @@ function formatCitation(citation: CitationCard): string {
 }
 
 function displayContent(content: string, hasCitations: boolean): string {
-  if (!hasCitations) return content;
-  return content.replace(/\n*Sources\s*\n(?:\d+\..*(?:\n {3}.*)*)+/i, "").trim();
+  return stripEmbeddedSources(content, hasCitations);
 }
 
 function toTimestamp(value: string | number | null | undefined): number | null {
@@ -107,10 +108,16 @@ export function AskConversationWorkspace() {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+  const sessionIdRef = useRef<string | null>(null);
+  const turnsLengthRef = useRef(0);
+  const sessionLoadingRef = useRef(false);
   const [navOpen, setNavOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [historyQuery, setHistoryQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -119,8 +126,15 @@ export function AskConversationWorkspace() {
     null,
   );
 
+  sessionIdRef.current = sessionId;
+  turnsLengthRef.current = turns.length;
+  sessionLoadingRef.current = sessionLoading;
+
   const refreshConversations = useCallback(async () => {
-    if (!token) return;
+    if (!token) {
+      setHistoryLoading(false);
+      return;
+    }
     try {
       const rows = await listChatConversations(token);
       setConversations(
@@ -132,25 +146,40 @@ export function AskConversationWorkspace() {
       );
     } catch {
       // Keep the chat usable even if the sidebar fails to refresh.
+    } finally {
+      setHistoryLoading(false);
     }
   }, [token]);
 
   const loadConversation = useCallback(
     async (id: string, { pushUrl = true }: { pushUrl?: boolean } = {}) => {
-      if (!token) return;
+      if (!token || !id.trim()) return;
+      const nextId = id.trim();
+      if (
+        nextId === sessionIdRef.current &&
+        turnsLengthRef.current > 0 &&
+        !sessionLoadingRef.current
+      ) {
+        setNavOpen(false);
+        return;
+      }
+      const generation = loadGenerationRef.current + 1;
+      loadGenerationRef.current = generation;
+      setSessionId(nextId);
+      setSessionLoading(true);
       setLoadError(null);
       setSelectedCitation(null);
+      setTurns([]);
       try {
-        const detail = await getChatConversation(id, token);
+        const detail = await getChatConversation(nextId, token);
+        if (loadGenerationRef.current !== generation) return;
         setSessionId(detail.id);
         setTurns(
           detail.messages.map((message) => ({
             id: String(message.id),
             role: message.role,
             content: message.content,
-            citations: message.citations ?? [],
-            // Answers written before knowledge_basis was persisted fall back to
-            // inferring it from their restored citations.
+            citations: dedupeCitations(message.citations ?? []),
             knowledgeBasis:
               message.knowledge_basis ??
               ((message.citations?.length ?? 0) > 0 ? "official" : undefined),
@@ -158,12 +187,18 @@ export function AskConversationWorkspace() {
         );
         if (pushUrl) {
           const url = new URL(window.location.href);
-          url.searchParams.set("session", id);
-          window.history.pushState({ session: id }, "", url.toString());
+          url.searchParams.set("session", nextId);
+          window.history.pushState({ session: nextId }, "", url.toString());
         }
         setNavOpen(false);
       } catch {
+        if (loadGenerationRef.current !== generation) return;
+        setTurns([]);
         setLoadError("This conversation could not be opened.");
+      } finally {
+        if (loadGenerationRef.current === generation) {
+          setSessionLoading(false);
+        }
       }
     },
     [token],
@@ -200,11 +235,13 @@ export function AskConversationWorkspace() {
   }, [draft]);
 
   function startNewChat() {
+    loadGenerationRef.current += 1;
     setSessionId(null);
     setTurns([]);
     setDraft("");
     setLoadError(null);
     setSelectedCitation(null);
+    setSessionLoading(false);
     submitLockRef.current = false;
     const url = new URL(window.location.href);
     url.searchParams.delete("session");
@@ -284,7 +321,7 @@ export function AskConversationWorkspace() {
                 id: pendingId,
                 role: "assistant",
                 content: response.reply,
-                citations: response.citations ?? [],
+                citations: dedupeCitations(response.citations ?? []),
                 knowledgeBasis: response.knowledge_basis,
               }
             : turn,
@@ -340,7 +377,7 @@ export function AskConversationWorkspace() {
     return groups;
   }, [conversations, historyQuery]);
 
-  const empty = turns.length === 0 && !submitting;
+  const empty = turns.length === 0 && !submitting && !sessionLoading;
   const sendEnabled = Boolean(token) && draft.trim().length > 0 && !submitting;
   const activeTitle =
     conversations.find((item) => item.id === sessionId)?.title ?? "New chat";
@@ -378,7 +415,11 @@ export function AskConversationWorkspace() {
           onChange={(event) => setHistoryQuery(event.target.value)}
         />
         <div className="ask-chat-conversation-list">
-          {groupedConversations.length === 0 ? (
+          {historyLoading ? (
+            <p className="ask-chat-muted" role="status">
+              Loading conversations…
+            </p>
+          ) : groupedConversations.length === 0 ? (
             <p className="ask-chat-muted">Your conversations will appear here.</p>
           ) : (
             groupedConversations.map((group) => (
@@ -431,7 +472,11 @@ export function AskConversationWorkspace() {
 
         <div className="ask-chat-transcript" ref={transcriptRef}>
           {loadError ? <p className="ask-chat-error">{loadError}</p> : null}
-          {empty ? (
+          {sessionLoading ? (
+            <p className="ask-chat-muted" role="status">
+              Loading conversation…
+            </p>
+          ) : empty ? (
             <div className="ask-chat-empty">
               <h1>Regulatory AI</h1>
               <p className="ask-chat-empty-lead">What can I help you research?</p>
@@ -456,7 +501,7 @@ export function AskConversationWorkspace() {
             </div>
           ) : (
             turns.map((turn) => {
-              const citations = turn.citations ?? [];
+              const citations = dedupeCitations(turn.citations ?? []);
               return (
                 <article
                   key={turn.id}
@@ -502,7 +547,9 @@ export function AskConversationWorkspace() {
                       <h3>Sources</h3>
                       <ul>
                         {citations.map((citation, index) => (
-                          <li key={`${turn.id}-cite-${index}`}>
+                          <li
+                            key={`${turn.id}-${citation.document_id ?? citation.source_url ?? citation.title ?? index}`}
+                          >
                             <button
                               type="button"
                               onClick={() => setSelectedCitation(citation)}
@@ -537,6 +584,7 @@ export function AskConversationWorkspace() {
             rows={1}
             placeholder="Ask anything about Indian regulation…"
             disabled={!token || submitting}
+            aria-busy={submitting || undefined}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onComposerKeyDown}
           />

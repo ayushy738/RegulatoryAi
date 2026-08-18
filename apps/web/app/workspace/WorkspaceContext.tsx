@@ -53,7 +53,7 @@ import {
 } from "@/lib/queries";
 import { askAiV2UiEnabled } from "@/lib/ask-ai-flags";
 
-import { cleanText, eventStakeholders, eventSummary } from "./format";
+import { patchDigestEvents, patchEventBookmark } from "@/lib/bookmarks";
 import { defaultSettings, normalizeRoute } from "./types";
 import type {
   ChatMessage,
@@ -370,19 +370,38 @@ function useWorkspaceController(
     onMutate: (event) => setBusyAction(`bookmark-${event.id}`),
     onSuccess: (result, event) => {
       queryClient.setQueryData<DigestResponse>(queryKeys.digest, (old) =>
-        old
-          ? {
-              ...old,
-              events: old.events.map((item) =>
-                item.id === event.id ? { ...item, is_bookmarked: result.is_bookmarked } : item,
-              ),
-            }
-          : old,
+        old ? patchDigestEvents(old, event.id, result.is_bookmarked) : old,
       );
       queryClient.setQueryData<DigestEvent>(queryKeys.event(event.id), (old) =>
         old ? { ...old, is_bookmarked: result.is_bookmarked } : old,
       );
+      queryClient.setQueriesData<DigestEvent[]>(
+        { queryKey: ["events"] },
+        (old) =>
+          Array.isArray(old)
+            ? patchEventBookmark(old, event.id, result.is_bookmarked)
+            : old,
+      );
+      queryClient.setQueryData<DigestEvent[]>(
+        queryKeys.events({ bookmarked: true }),
+        (old) => {
+          if (!Array.isArray(old)) {
+            return result.is_bookmarked ? [{ ...event, is_bookmarked: true }] : old;
+          }
+          if (result.is_bookmarked) {
+            return old.some((item) => item.id === event.id)
+              ? patchEventBookmark(old, event.id, true)
+              : [{ ...event, is_bookmarked: true }, ...old];
+          }
+          return old.filter((item) => item.id !== event.id);
+        },
+      );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.events({ bookmarked: true }),
+      });
     },
+    onError: (error) =>
+      setStatusMessage(errorMessage(error, "Unable to save this update.")),
     onSettled: () => setBusyAction(null),
   });
 

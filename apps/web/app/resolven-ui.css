@@ -536,10 +536,23 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--rv-space-3);
+  min-width: 0;
   padding: var(--rv-space-4);
   border: 1px solid var(--rv-border);
   border-radius: var(--rv-radius);
   background: var(--rv-surface);
+}
+
+.rv-card--fill {
+  height: 100%;
+}
+
+.rv-card__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 12.5rem;
 }
 
 .rv-card--flush {
@@ -711,9 +724,10 @@ body {
 
 .rv-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--rv-space-2);
   flex-wrap: wrap;
+  min-width: 0;
   padding: var(--rv-space-3);
   border: 1px solid var(--rv-border);
   border-radius: var(--rv-radius);
@@ -722,14 +736,17 @@ body {
 
 .rv-toolbar__search {
   flex: 1 1 220px;
-  min-width: 180px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .rv-toolbar__filters {
   display: flex;
   align-items: center;
   gap: var(--rv-space-2);
+  flex: 1 1 16rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .rv-toolbar__actions {
@@ -745,6 +762,8 @@ body {
   align-items: center;
   gap: var(--rv-space-2);
   flex-wrap: wrap;
+  min-width: 0;
+  width: 100%;
 }
 
 .rv-toolbar__mobile-filters {
@@ -801,8 +820,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--rv-space-1);
+  flex: 0 1 12.5rem;
+  box-sizing: border-box;
+  width: 12.5rem;
+  max-width: 100%;
+  min-width: 0;
   min-height: 36px;
   padding: 0 var(--rv-space-2) 0 var(--rv-space-3);
+  overflow: hidden;
   border: 1px solid var(--rv-border-strong);
   border-radius: var(--rv-radius-sm);
   background: var(--rv-surface);
@@ -824,13 +849,18 @@ body {
 
 .rv-select select {
   appearance: none;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
-  max-width: 160px;
+  max-width: 100%;
+  overflow: hidden;
   padding-right: var(--rv-space-4);
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1649,6 +1679,9 @@ body {
 }
 
 .rv-state--inline {
+  flex: 1 1 auto;
+  justify-content: center;
+  min-height: 12.5rem;
   padding: var(--rv-space-5) var(--rv-space-4);
 }
 
@@ -2327,7 +2360,7 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: var(--rv-space-4);
-  align-items: start;
+  align-items: stretch;
 }
 
 .rv-mini-list {
@@ -2744,6 +2777,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--rv-space-3);
+  min-width: 0;
+  min-height: 17.5rem;
   padding: var(--rv-space-5);
   border: 1px solid var(--rv-border);
   border-radius: var(--rv-radius);
@@ -2756,6 +2791,7 @@ body {
 
 .rv-intel-card--compact {
   gap: var(--rv-space-2);
+  min-height: 14.5rem;
   padding: var(--rv-space-4);
 }
 
@@ -2780,11 +2816,15 @@ body {
 }
 
 .rv-intel-card__title {
+  display: -webkit-box;
   margin: 0;
+  overflow: hidden;
   font-size: var(--rv-font-section-title);
   font-weight: 700;
   line-height: var(--rv-leading-tight);
   letter-spacing: -0.01em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .rv-intel-card--compact .rv-intel-card__title {
@@ -2807,17 +2847,23 @@ body {
 }
 
 .rv-intel-card__summary {
+  display: -webkit-box;
+  flex: 1 1 auto;
   margin: 0;
+  overflow: hidden;
   max-width: var(--rv-reading-max);
   color: var(--rv-text-soft);
   font-size: var(--rv-font-body);
   line-height: var(--rv-leading-normal);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .rv-intel-card__tags {
   display: flex;
   flex-wrap: wrap;
   gap: var(--rv-space-1);
+  min-height: 1.5rem;
 }
 
 .rv-intel-card__footer {
@@ -2826,6 +2872,7 @@ body {
   justify-content: space-between;
   gap: var(--rv-space-3);
   flex-wrap: wrap;
+  margin-top: auto;
   padding-top: var(--rv-space-3);
   border-top: 1px solid var(--rv-border-soft);
 }
@@ -2848,7 +2895,12 @@ body {
   align-items: center;
   gap: var(--rv-space-1);
   flex-wrap: wrap;
+  justify-content: flex-end;
   margin-left: auto;
+}
+
+.rv-intel-card__open {
+  flex: none;
 }
 
 /* ======================================================================== */
@@ -2906,8 +2958,9 @@ body {
 }
 
 @media (max-width: 860px) {
-  .rv-select select {
-    max-width: 130px;
+  .rv-select {
+    flex-basis: 11rem;
+    width: 11rem;
   }
 
   /* Primary navigation collapses into the mobile panel. */
@@ -2966,6 +3019,7 @@ body {
   /* The filter sheet stacks its controls full width. */
   .rv-overlay--sheet .rv-select,
   .rv-overlay--sheet .rv-select select {
+    flex: 1 1 auto;
     width: 100%;
     max-width: none;
   }
@@ -3095,10 +3149,51 @@ body {
   .rv-btn {
     padding-inline: var(--rv-space-3);
   }
+}
 
-  .rv-select select {
-    max-width: 108px;
-  }
+/* Login belongs to the workspace, not the marketing landing screen. */
+.auth-signin-screen {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(200, 182, 216, 0.22), transparent 32%),
+    radial-gradient(circle at 100% 100%, rgba(155, 205, 114, 0.12), transparent 28%),
+    var(--rv-surface-sunken);
+  color: var(--rv-text);
+}
+
+.auth-signin-screen::before,
+.auth-signin-screen::after {
+  background: transparent;
+}
+
+.auth-signin-screen .auth-premium-brand h1 {
+  color: var(--rv-text);
+  font-style: normal;
+}
+
+.auth-signin-screen .auth-premium-brand p,
+.auth-signin-screen .auth-premium-brand > div > p:not(.auth-eyebrow) {
+  color: var(--rv-text-soft);
+}
+
+.auth-signin-screen .auth-eyebrow {
+  color: var(--rv-primary);
+}
+
+.auth-signin-screen .auth-premium-logo {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.auth-signin-screen .auth-signal-grid span {
+  background: var(--rv-surface);
+  color: var(--rv-primary);
+}
+
+.auth-signin-screen .auth-premium-panel {
+  background: var(--rv-surface);
+  box-shadow: var(--rv-shadow-menu);
 }
 
 @media (prefers-reduced-motion: reduce) {

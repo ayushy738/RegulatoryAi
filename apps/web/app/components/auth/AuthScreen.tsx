@@ -10,7 +10,7 @@ export function AuthScreen(props: {
   onSignIn: () => Promise<void>;
 }) {
   return (
-    <main className="auth-premium-screen">
+    <main className="auth-premium-screen auth-signin-screen">
       <section className="auth-premium-brand">
         <img className="auth-premium-logo" src="/logo_wordmark.png" alt="Resolven" />
         <div>

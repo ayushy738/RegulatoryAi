@@ -8,7 +8,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 
 function safeDestination(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/login")) {
-    return "/dashboard";
+    return "/latest";
   }
   return value;
 }

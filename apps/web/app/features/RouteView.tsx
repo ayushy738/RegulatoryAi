@@ -73,6 +73,6 @@ export function RouteView() {
     case "flow":
       return <FlowView />;
     default:
-      return <DashboardView />;
+      return <LatestView />;
   }
 }

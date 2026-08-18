@@ -172,7 +172,7 @@ export function EventDetailView() {
           <>
             <Button
               variant="secondary"
-              Icon={Bookmark}
+              Icon={event.is_bookmarked ? CheckCircle2 : Bookmark}
               loading={busyAction === `bookmark-${event.id}`}
               aria-pressed={event.is_bookmarked}
               onClick={() => void handleBookmark(event)}

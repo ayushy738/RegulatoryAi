@@ -12,6 +12,7 @@ function readCss(name: string) {
 
 const globalCss = readCss("globals.css");
 const designCss = readCss("resolven-design-system.css");
+const uiCss = readCss("resolven-ui.css");
 const rootLayout = readFileSync(resolve(appRoot, "layout.tsx"), "utf8");
 
 describe("Resolven presentation design system", () => {
@@ -50,5 +51,18 @@ describe("Resolven presentation design system", () => {
     expect(designCss).toContain("color: var(--brand-lime)");
     expect(designCss).toContain(".auth-visualization {\n    display: none;");
     expect(designCss).toContain(".auth-premium-panel {\n    padding: 22px 18px;");
+  });
+
+  it("renders login on a calm workspace background instead of a purple canvas", () => {
+    expect(uiCss).toContain(".auth-signin-screen");
+    expect(uiCss).toContain("background: transparent;");
+    expect(uiCss).not.toMatch(
+      /\.auth-signin-screen \{[\s\S]*linear-gradient\(135deg, rgba\(82, 43, 145/,
+    );
+    expect(uiCss).toContain(".rv-select {\n  display: inline-flex;");
+    expect(uiCss).toContain("width: 12.5rem;");
+    expect(uiCss).toContain(".rv-intel-card {\n  display: flex;");
+    expect(uiCss).toContain("min-height: 17.5rem;");
+    expect(uiCss).toContain(".rv-card--fill {\n  height: 100%;\n}");
   });
 });
